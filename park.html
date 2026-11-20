@@ -177,8 +177,8 @@
           if (pr && pr.catch) pr.catch(function () { /* ignore */ });
           status("カメラOK。手の認識を読み込み中…");
           setTimeout(function () {
-            if (!handReady) enableTouchDraw("手の認識の読み込みに時間がかかっています");
-          }, 15000);
+            if (!handReady) status("手の認識の読み込みに時間がかかっています。そのまま待つか、通信状態を確認して再読み込みしてね");
+          }, 20000);
           if (typeof window.__handStart === "function") {
             window.__handStart(video);
           } else {
@@ -191,7 +191,7 @@
                 window.__handStart(video);
               } else if (tries > 20) {
                 clearInterval(iv);
-                if (!handReady) enableTouchDraw("手の認識ライブラリを読み込めませんでした");
+                if (!handReady) status("手の認識ライブラリを読み込めませんでした。通信状態を確認して、再読み込みしてね");
               }
             }, 500);
           }
@@ -216,7 +216,7 @@
           : "準備OK。落書きのある場所に近づくと浮かびます");
       };
       window.__handErrorCb = function () {
-        if (!handReady) enableTouchDraw("手の認識を読み込めませんでした");
+        if (!handReady) status("手の認識を読み込めませんでした。通信状態を確認して、再読み込みしてね");
       };
 
       /* called by the MediaPipe module for every video frame */
@@ -246,35 +246,6 @@
           curStroke = null;
         }
       };
-
-      /* ---- touch fallback (only when hand tracking is unavailable) ---- */
-      var touchDraw = false;
-      var touchStroke = null;
-      function enableTouchDraw(reason) {
-        if (touchDraw || handReady) return;
-        touchDraw = true;
-        canvas.style.touchAction = "none";
-        status(reason + "。代わりに、画面を指でなぞって描けます");
-      }
-      function canvasPoint(ev) {
-        var r = canvas.getBoundingClientRect();
-        return [(ev.clientX - r.left) / r.width, (ev.clientY - r.top) / r.height];
-      }
-      canvas.addEventListener("pointerdown", function (ev) {
-        if (!touchDraw || mode !== "draw") return;
-        touchStroke = { color: color, w: 0.03, pts: [canvasPoint(ev)] };
-        strokes.push(touchStroke);
-        try { canvas.setPointerCapture(ev.pointerId); } catch (e) { /* ignore */ }
-      });
-      canvas.addEventListener("pointermove", function (ev) {
-        if (!touchDraw || mode !== "draw" || !touchStroke) return;
-        var p = canvasPoint(ev);
-        var last = touchStroke.pts[touchStroke.pts.length - 1];
-        if (Math.hypot(p[0] - last[0], p[1] - last[1]) > 0.004) touchStroke.pts.push(p);
-      });
-      function touchEnd() { touchStroke = null; }
-      canvas.addEventListener("pointerup", touchEnd);
-      canvas.addEventListener("pointercancel", touchEnd);
 
       /* ================= rendering ================= */
       function drawStroke(s, W, H) {
