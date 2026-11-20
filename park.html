@@ -185,9 +185,12 @@
           status("モデルの準備OK（" + parts.join("・") + "）。「カメラ開始」を押してね");
         }
       };
-      window.__mpErrorCb = function () {
+      window.__mpErrorCb = function (err) {
         stopLoadTimer();
-        if (!mpReady) status("認識モデルを読み込めませんでした。通信状態を確認して、再読み込みしてね");
+        if (!mpReady) {
+          var detail = err && err.message ? err.message : (err ? String(err) : "");
+          status("認識ライブラリを読み込めませんでした" + (detail ? "：" + detail : "") + "（再読み込みで直ることもあります）");
+        }
       };
 
       /* ================= results + rendering ================= */
@@ -266,99 +269,135 @@
       status("「カメラ開始」を押してね（モデルは先読み中）");
     </script>
 
-    <script type="module">
-      import { FilesetResolver, HandLandmarker, FaceDetector } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/dist/vision_bundle.mjs";
+    <script>
+      /* MediaPipe legacy solutions via classic script tags (no ES modules),
+         per-file CDN fallback: jsdelivr -> unpkg. Errors are surfaced verbatim. */
+      (function () {
+        "use strict";
+        var CDNS = ["https://cdn.jsdelivr.net/npm/", "https://unpkg.com/"];
+        var videoEl = null;
+        var hands = null, faceDet = null;
+        var libsPromise = null;
+        var baseHands = null, baseFace = null;
+        var latestHands = [], latestFaces = [];
+        var sending = false, lastVideoTime = -1, loopStarted = false;
+        var lastErr = null;
 
-      let handLm = null, faceDet = null, videoEl = null, lastVideoTime = -1;
-
-      let loadPromise = null;
-      let loopStarted = false;
-
-      window.__mpStart = async function (video) {
-        videoEl = video;
-        if (!loadPromise) loadPromise = loadAll();
-        await loadPromise;
-        if ((handLm || faceDet) && !loopStarted) {
-          loopStarted = true;
-          requestAnimationFrame(loop);
+        function prog(s) { if (window.__mpProgressCb) window.__mpProgressCb(s); }
+        function loadScript(url) {
+          return new Promise(function (resolve, reject) {
+            var s = document.createElement("script");
+            s.src = url;
+            s.onload = function () { resolve(); };
+            s.onerror = function () { reject(new Error("読み込み失敗: " + url)); };
+            document.head.appendChild(s);
+          });
         }
-      };
-
-      async function loadAll() {
-        const prog = (s) => { if (window.__mpProgressCb) window.__mpProgressCb(s); };
-        let handOk = false, faceOk = false;
-        try {
-          prog("エンジン準備中");
-          const fileset = await FilesetResolver.forVisionTasks(
-            "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
-          );
-          prog("手のモデル読込中");
-          const mkHand = (delegate) => HandLandmarker.createFromOptions(fileset, {
-            baseOptions: {
-              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
-              delegate
-            },
-            runningMode: "VIDEO", numHands: 2
-          });
-          try { handLm = await mkHand("GPU"); handOk = true; }
-          catch (e) { try { handLm = await mkHand("CPU"); handOk = true; } catch (e2) { /* hand unavailable */ } }
-
-          prog("顔のモデル読込中");
-          const mkFace = (delegate) => FaceDetector.createFromOptions(fileset, {
-            baseOptions: {
-              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.task",
-              delegate
-            },
-            runningMode: "VIDEO", minDetectionConfidence: 0.5
-          });
-          try { faceDet = await mkFace("GPU"); faceOk = true; }
-          catch (e) { try { faceDet = await mkFace("CPU"); faceOk = true; } catch (e2) { /* face unavailable */ } }
-
-          if (handOk || faceOk) {
-            if (window.__mpReadyCb) window.__mpReadyCb(handOk, faceOk);
-          } else if (window.__mpErrorCb) {
-            window.__mpErrorCb();
+        async function loadPkg(pkg, file) {
+          var err = null;
+          for (var i = 0; i < CDNS.length; i++) {
+            try { await loadScript(CDNS[i] + pkg + "/" + file); return CDNS[i] + pkg + "/"; }
+            catch (e) { err = e; }
           }
-        } catch (e) {
-          if (window.__mpErrorCb) window.__mpErrorCb();
+          throw err || new Error(pkg + " を読み込めませんでした");
         }
-      }
+        function pushFrame() {
+          var want = window.__mpWant || { hand: true, face: true };
+          if (window.onMpFrame) {
+            window.onMpFrame({
+              hands: want.hand ? latestHands : [],
+              faces: want.face ? latestFaces : []
+            });
+          }
+        }
+        function onHands(r) {
+          latestHands = (r.multiHandLandmarks || []).map(function (lms, i) {
+            var hd = r.multiHandedness && r.multiHandedness[i] ? (r.multiHandedness[i].label || "") : "";
+            return {
+              pts: lms.map(function (p) { return [p.x, p.y]; }),
+              handed: hd,
+              pinch: Math.hypot(lms[8].x - lms[4].x, lms[8].y - lms[4].y) < 0.055
+            };
+          });
+          pushFrame();
+        }
+        function onFaces(r) {
+          latestFaces = (r.detections || []).map(function (d) {
+            var bb = d.boundingBox || { xCenter: 0, yCenter: 0, width: 0, height: 0 };
+            return {
+              bbox: [bb.xCenter - bb.width / 2, bb.yCenter - bb.height / 2, bb.width, bb.height],
+              keypoints: (d.keypoints || []).map(function (k) { return [k.x, k.y]; })
+            };
+          });
+          pushFrame();
+        }
+        function warmCanvas() {
+          var c = document.createElement("canvas");
+          c.width = 256; c.height = 256;
+          var g = c.getContext("2d");
+          g.fillStyle = "#000"; g.fillRect(0, 0, 256, 256);
+          return c;
+        }
 
-      function loop() {
-        requestAnimationFrame(loop);
-        if (!videoEl || videoEl.readyState < 2) return;
-        if (videoEl.currentTime === lastVideoTime) return;
-        lastVideoTime = videoEl.currentTime;
-        const want = window.__mpWant || { hand: true, face: true };
-        const out = { hands: [], faces: [] };
-        const now = performance.now();
-        if (want.hand && handLm) {
+        window.__mpStart = async function (video) {
+          videoEl = video;
           try {
-            const r = handLm.detectForVideo(videoEl, now);
-            (r.landmarks || []).forEach((lms, i) => {
-              const handed = r.handedness && r.handedness[i] && r.handedness[i][0]
-                ? r.handedness[i][0].categoryName : "";
-              const pinch = Math.hypot(lms[8].x - lms[4].x, lms[8].y - lms[4].y) < 0.055;
-              out.hands.push({ pts: lms.map(p => [p.x, p.y]), handed, pinch });
-            });
-          } catch (e) { /* transient */ }
-        }
-        if (want.face && faceDet) {
+            if (!libsPromise) {
+              libsPromise = (async function () {
+                prog("ライブラリ読込中（手）");
+                baseHands = await loadPkg("@mediapipe/hands", "hands.js");
+                prog("ライブラリ読込中（顔）");
+                baseFace = await loadPkg("@mediapipe/face_detection", "face_detection.js");
+              })();
+            }
+            await libsPromise;
+            var handOk = false, faceOk = false;
+            var warm = warmCanvas();
+            if (!hands) {
+              prog("手のモデル読込中");
+              try {
+                hands = new Hands({ locateFile: function (f) { return baseHands + f; } });
+                hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+                hands.onResults(onHands);
+                await hands.send({ image: warm });
+                handOk = true;
+              } catch (e) { hands = null; lastErr = e; }
+            } else { handOk = true; }
+            if (!faceDet) {
+              prog("顔のモデル読込中");
+              try {
+                faceDet = new FaceDetection({ locateFile: function (f) { return baseFace + f; } });
+                faceDet.setOptions({ model: "short", minDetectionConfidence: 0.5 });
+                faceDet.onResults(onFaces);
+                await faceDet.send({ image: warm });
+                faceOk = true;
+              } catch (e) { faceDet = null; lastErr = lastErr || e; }
+            } else { faceOk = true; }
+            if (handOk || faceOk) {
+              if (window.__mpReadyCb) window.__mpReadyCb(handOk, faceOk);
+              if (!loopStarted) { loopStarted = true; requestAnimationFrame(loop); }
+            } else if (window.__mpErrorCb) {
+              window.__mpErrorCb(lastErr || new Error("両モデルとも初期化に失敗しました"));
+            }
+          } catch (e) {
+            if (window.__mpErrorCb) window.__mpErrorCb(e);
+          }
+        };
+
+        async function loop() {
+          requestAnimationFrame(loop);
+          if (!videoEl || videoEl.readyState < 2 || sending) return;
+          if (videoEl.currentTime === lastVideoTime) return;
+          lastVideoTime = videoEl.currentTime;
+          var want = window.__mpWant || { hand: true, face: true };
+          sending = true;
           try {
-            const r = faceDet.detectForVideo(videoEl, now);
-            const vw = videoEl.videoWidth || 1, vh = videoEl.videoHeight || 1;
-            (r.detections || []).forEach((d) => {
-              const bb = d.boundingBox;
-              if (!bb) return;
-              out.faces.push({
-                bbox: [bb.originX / vw, bb.originY / vh, bb.width / vw, bb.height / vh],
-                keypoints: (d.keypoints || []).map(k => [k.x, k.y])
-              });
-            });
+            if (want.hand && hands) await hands.send({ image: videoEl });
+            if (want.face && faceDet) await faceDet.send({ image: videoEl });
           } catch (e) { /* transient */ }
+          sending = false;
         }
-        if (window.onMpFrame) window.onMpFrame(out);
-      }
+      })();
     </script>
   </body>
 </html>
