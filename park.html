@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>顔バランス測定</title>
+    <title>顔3Dスキャン</title>
     <style>
       :root {
         --bg: #101014; --panel: #1b1b21; --ink: #f2f2f5; --ink-dim: #a7a7b3;
@@ -20,9 +20,8 @@
       #app { display: flex; flex-direction: column; min-height: 100dvh; max-width: 640px; margin: 0 auto; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); gap: 10px; }
       h1 { font-size: 18px; margin: 2px 0 0; }
       .status { font-size: 13px; color: var(--ink-dim); line-height: 1.6; min-height: 1.6em; margin: 0; }
-      #stageWrap, #photoWrap { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
-      #cam, #draw, #photoImg, #photoOverlay { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-      #photoImg, #photoOverlay { object-fit: fill; }
+      #stageWrap { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+      #cam, #draw { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
       .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       button {
         font: inherit; font-size: 15px; font-weight: 600; min-height: 2.8rem;
@@ -34,268 +33,187 @@
       button:disabled { opacity: .45; }
       button:active { transform: translateY(1px); }
       .small { font-size: 11.5px; color: var(--ink-dim); line-height: 1.7; }
-      #readout { font-size: 14px; line-height: 1.7; margin: 0; }
-      #scoreBig { font-size: 52px; font-weight: 800; line-height: 1.1; }
-      #scoreBig span { font-size: 18px; color: var(--ink-dim); font-weight: 600; }
-      .bar-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 7px; }
-      .bar-row .lab { width: 7.5em; color: var(--ink-dim); flex: none; }
-      .bar-track { flex: 1; height: 10px; background: #26262e; border-radius: 999px; overflow: hidden; }
-      .bar-fill { height: 100%; background: var(--accent); border-radius: 999px; display: block; }
-      .bar-row .val { width: 2.6em; text-align: right; font-weight: 700; flex: none; }
-      .pair-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 8px; }
-      .pair-row .lab { width: 7.5em; color: var(--ink-dim); flex: none; }
-      .pair-bars { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-      .pair-line { display: flex; align-items: center; gap: 6px; }
-      .pair-line .side { width: 1.2em; color: var(--ink-dim); font-size: 11px; flex: none; }
-      .pair-line .track { flex: 1; height: 8px; background: #26262e; border-radius: 999px; overflow: hidden; }
-      .pair-line .fill { height: 100%; display: block; border-radius: 999px; }
-      .fill-r { background: var(--cyan); }
-      .fill-l { background: #ffb02e; }
-      .band { display: flex; height: 26px; border-radius: 8px; overflow: hidden; margin-top: 6px; border: 1px solid var(--line); }
-      .band > div { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #101014; min-width: 0; overflow: hidden; white-space: nowrap; }
-      .band-lab { display: flex; font-size: 11px; color: var(--ink-dim); margin-top: 3px; }
-      .band-lab > div { text-align: center; min-width: 0; overflow: hidden; white-space: nowrap; }
-      .kv { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding: 7px 2px; font-size: 13.5px; }
-      .kv .k { color: var(--ink-dim); }
-      .kv .v { font-weight: 600; text-align: right; }
-      h2 { font-size: 14px; margin: 14px 0 2px; }
+      #readout, #scanInfo, #buildInfo { font-size: 14px; line-height: 1.7; margin: 0; }
+      h2 { font-size: 14px; margin: 10px 0 0; }
       .hidden { display: none !important; }
-      ul.notes { margin: 4px 0; padding-left: 1.2em; font-size: 13px; line-height: 1.8; }
-      #schemeCanvas, #cropCanvas { width: 100%; border-radius: 12px; border: 1px solid var(--line); background: #17171d; display: block; }
-      #spotSentence { font-size: 15px; font-weight: 600; line-height: 1.7; margin: 6px 0 0; }
+      #viewerWrap { position: relative; width: 100%; aspect-ratio: 4 / 3; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: radial-gradient(120% 100% at 50% 0%, #26262e 0%, #101014 70%); }
+      #viewerWrap canvas { display: block; }
+      .meter { height: 10px; background: #26262e; border-radius: 999px; position: relative; overflow: hidden; margin-top: 4px; }
+      .meter .cov { position: absolute; top: 0; bottom: 0; background: var(--cyan); opacity: .8; }
+      .meter .cur { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--accent); }
     </style>
   </head>
   <body>
     <div id="app">
-      <h1>顔バランス測定</h1>
+      <h1>顔3Dスキャン</h1>
       <p class="status" id="status">読み込み中…</p>
 
       <div id="stageWrap">
         <video id="cam" playsinline muted autoplay></video>
         <canvas id="draw"></canvas>
       </div>
-      <div id="photoWrap" class="hidden">
-        <canvas id="photoImg"></canvas>
-        <canvas id="photoOverlay"></canvas>
-      </div>
-
       <div class="btn-row" id="liveBtns">
         <button id="camBtn" class="primary" type="button">カメラ開始</button>
         <button id="flipBtn" type="button">カメラ切替（内/外）</button>
-        <button id="shootBtn" class="primary" type="button">撮って測る</button>
-      </div>
-      <div class="btn-row hidden" id="photoBtns">
-        <button id="retakeBtn" type="button">撮り直し</button>
       </div>
       <p id="readout">顔：—</p>
 
-      <div id="result" class="hidden">
-        <div class="btn-row">
-          <button id="tabRough" class="on" type="button">ざっくり</button>
-          <button id="tabDetail" type="button">細かく</button>
-        </div>
-        <div id="roughView"></div>
-        <div id="detailView" class="hidden"></div>
+      <h2>手順1：首を回してスキャン（形を作る）</h2>
+      <div class="btn-row">
+        <button id="scanBtn" class="primary" type="button">スキャン開始</button>
+      </div>
+      <div class="meter"><div class="cov" id="covBar" style="left:50%;width:0%"></div><div class="cur" id="curBar" style="left:50%"></div></div>
+      <p id="scanInfo">まだスキャンしていません。明るい場所で、顎の高さを変えずに、正面→ゆっくり左→正面→右→正面と回してください（目安：左右とも40°くらいまで）。</p>
+
+      <h2>手順2：正面写真（質感を貼る用、任意）</h2>
+      <div class="btn-row">
+        <button id="photoBtn" type="button">正面写真を撮る</button>
+        <span id="photoState" class="small">未撮影（無くても3Dは作れます）</span>
       </div>
 
-      <p class="small">測り方：腕を伸ばして（近づけすぎない）、顔をまっすぐ向けて「撮って測る」。写真で測るので、同じ写真なら何度でも同じ結果になります。スコアは理想値との比較ではなく、自分の顔の中の左右対称と均等さから出しています。額の上端は顔の輪郭の一番上で近似しています。</p>
+      <h2>手順3：3D化</h2>
+      <div class="btn-row">
+        <button id="buildBtn" class="primary" type="button">3Dを作る</button>
+      </div>
+      <p id="buildInfo"></p>
+
+      <div id="viewerWrap" class="hidden"></div>
+      <div class="btn-row hidden" id="viewerBtns">
+        <button id="rotBtn" class="on" type="button">自動回転</button>
+        <button id="wireBtn" type="button">ワイヤーフレーム</button>
+        <button id="texBtn" class="on" type="button">写真テクスチャ</button>
+        <button id="mirrorBtn" class="on" type="button">鏡像</button>
+      </div>
+
+      <p class="small">仕組み：首を回した多視点の点（478点）を角度ごとに平均し、各点の奥行きを三角測量的に解いて3D化しています。奥行きは目の面を基準にした相対値です。髪・耳・後頭部は作れません。精度は「自分の顔と分かる3Dモデル」級で、医療・測量級ではありません。データはこのページ内だけで処理され、送信されません。</p>
     </div>
 
     <script>
       "use strict";
-      /*MEASURE_START*/
-      function measureFace(lms) {
-        function P(i) { return [lms[i].x, lms[i].y]; }
-        function avg(pts) {
-          var x = 0, y = 0;
-          pts.forEach(function (p) { x += p[0]; y += p[1]; });
-          return [x / pts.length, y / pts.length];
-        }
-        function dst(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
-        var cA = lms.length > 473 ? P(468) : avg([P(33), P(133)]);
-        var cB = lms.length > 473 ? P(473) : avg([P(362), P(263)]);
-        var mid = avg([cA, cB]);
-        var ax = [cB[0] - cA[0], cB[1] - cA[1]];
-        var axLen = Math.hypot(ax[0], ax[1]) || 1;
-        ax = [ax[0] / axLen, ax[1] / axLen];
-        var ay = [-ax[1], ax[0]];
-        var chinRaw = P(152);
-        if ((chinRaw[0] - mid[0]) * ay[0] + (chinRaw[1] - mid[1]) * ay[1] < 0) ay = [-ay[0], -ay[1]];
-        function Q(i) {
-          var p = P(i);
-          var dx = p[0] - mid[0], dy = p[1] - mid[1];
-          return [dx * ax[0] + dy * ax[1], dx * ay[0] + dy * ay[1]];
-        }
-        function raw(q) { return [mid[0] + q[0] * ax[0] + q[1] * ay[0], mid[1] + q[0] * ax[1] + q[1] * ay[1]]; }
-        function distQ(i, j) { var a = Q(i), b = Q(j); return Math.hypot(a[0] - b[0], a[1] - b[1]); }
-        var W = Math.abs(Q(234)[0] - Q(454)[0]);
-        var H = Q(152)[1] - Q(10)[1];
-        if (W < 0.01 || H < 0.01) return null;
-        var pc = function (v) { return v / W * 100; };
-
-        var top = Q(10)[1];
-        var browY = (Q(105)[1] + Q(334)[1]) / 2;
-        var noseBaseY = Q(2)[1];
-        var chinY = Q(152)[1];
-        var s1 = browY - top, s2 = noseBaseY - browY, s3 = chinY - noseBaseY;
-        var sTot = s1 + s2 + s3;
-
-        var us = [Q(234)[0], Q(454)[0], Q(33)[0], Q(133)[0], Q(362)[0], Q(263)[0]].sort(function (a, b) { return a - b; });
-        var seg = [];
-        for (var i = 0; i < 5; i++) seg.push(us[i + 1] - us[i]);
-        var eyeW1 = seg[1], eyeGap = seg[2], eyeW2 = seg[3];
-
-        var PAIRS = [[33, 263], [133, 362], [61, 291], [234, 454], [98, 327], [105, 334], [70, 300], [50, 280], [172, 397], [129, 358]];
-        var PAIR_NAMES = { "33": "目の外側", "133": "目の内側", "61": "口角", "234": "頬の幅", "98": "鼻の翼", "105": "眉", "70": "眉の外側", "50": "頬", "172": "あごの付け根", "129": "鼻の横" };
-        var pairDevs = PAIRS.map(function (pr) {
-          var a = Q(pr[0]), b = Q(pr[1]);
-          var dev = Math.hypot(b[0] + a[0], b[1] - a[1]);
-          return { name: PAIR_NAMES[String(pr[0])] || "", devPct: pc(dev) };
-        });
-        var devAvg = pairDevs.reduce(function (s, d) { return s + d.devPct; }, 0) / pairDevs.length;
-
-        var GHOST_PAIRS = PAIRS.concat([[468, 473]]);
-        var ghosts = GHOST_PAIRS.map(function (pr) {
-          var a = Q(pr[0]), b = Q(pr[1]);
-          var sa = [(a[0] - b[0]) / 2, (a[1] + b[1]) / 2];
-          var sb = [-sa[0], sa[1]];
-          return {
-            i: pr[0], j: pr[1],
-            ai: P(pr[0]), aj: P(pr[1]),
-            gi: raw(sa), gj: raw(sb),
-            aiQ: a, ajQ: b, giQ: sa, gjQ: sb,
-            name: PAIR_NAMES[String(pr[0])] || "目",
-            devPct: pc(Math.hypot(b[0] + a[0], b[1] - a[1]))
-          };
-        });
-
-        var noseTipU = Q(1)[0];
-        var mouthC = [(Q(61)[0] + Q(291)[0]) / 2, (Q(61)[1] + Q(291)[1]) / 2];
-        var chinU = Q(152)[0];
-        var centreDevs = [Math.abs(pc(noseTipU)), Math.abs(pc(mouthC[0])), Math.abs(pc(chinU))];
-        var centreAvg = (centreDevs[0] + centreDevs[1] + centreDevs[2]) / 3;
-
-        var eyeWidths = [distQ(33, 133), distQ(362, 263)];
-        var eyeDiffPct = Math.abs(eyeWidths[0] - eyeWidths[1]) / ((eyeWidths[0] + eyeWidths[1]) / 2) * 100;
-        var browDiffPct = Math.abs(Q(105)[1] - Q(334)[1]) / H * 100;
-        var mouthTiltPct = Math.abs(Q(61)[1] - Q(291)[1]) / H * 100;
-        var cheek234 = Math.abs(Q(234)[0]), cheek454 = Math.abs(Q(454)[0]);
-        var cheekDiffPct = Math.abs(cheek234 - cheek454) / W * 100;
-        var jaw172 = Math.abs(Q(172)[0]), jaw397 = Math.abs(Q(397)[0]);
-        var jawDiffPct = Math.abs(jaw172 - jaw397) / W * 100;
-        var noseW = distQ(98, 327);
-        var mouthW = distQ(61, 291);
-
-        function dispVal(iVal, iIdx, jVal, jIdx) {
-          return P(iIdx)[0] < P(jIdx)[0] ? { r: iVal, l: jVal } : { r: jVal, l: iVal };
-        }
-        var eyeSides = dispVal(eyeWidths[0], 33, eyeWidths[1], 263);
-        var cheekSides = dispVal(cheek234, 234, cheek454, 454);
-        var jawSides = dispVal(jaw172, 172, jaw397, 397);
-        function higherSide(iIdx, jIdx) {
-          var vi = Q(iIdx)[1], vj = Q(jIdx)[1];
-          var higherIdx = vi < vj ? iIdx : jIdx;
-          var otherIdx = vi < vj ? jIdx : iIdx;
-          return P(higherIdx)[0] < P(otherIdx)[0] ? "右" : "左";
-        }
-        var browHigher = higherSide(105, 334);
-        var mouthHigher = higherSide(61, 291);
-
-        /* ---- schematic drawing data: Q coords normalised by face width ---- */
-        function qn(i) { var q = Q(i); return [q[0] / W, q[1] / W]; }
-        function lineOf(list) { return list.map(qn); }
-        var draw = {
-          oval: lineOf([10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]),
-          eyeA: lineOf([33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]),
-          eyeB: lineOf([263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466]),
-          browA: lineOf([70, 63, 105, 66, 107, 55, 65, 52, 53, 46]),
-          browB: lineOf([336, 296, 334, 293, 300, 276, 283, 282, 295, 285]),
-          nose: lineOf([168, 6, 197, 195, 5, 4, 1, 19, 94, 2]),
-          lips: lineOf([61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185])
-        };
-        var centreArrows = [
-          { name: "鼻先", q: qn(1), uPct: pc(noseTipU) },
-          { name: "口の中心", q: [(mouthC[0]) / W, (mouthC[1]) / W], uPct: pc(mouthC[0]) },
-          { name: "顎先", q: qn(152), uPct: pc(chinU) }
-        ];
-
-        /* ---- worst spots (for the spot viewer) ---- */
-        var spots = [];
-        ghosts.forEach(function (g) {
-          if (g.i === 468) return;
-          var a = g.aiQ, b = g.ajQ;
-          spots.push({
-            kind: "pair", name: g.name, mag: g.devPct, i: g.i, j: g.j,
-            focus: [(g.ai[0] + g.aj[0]) / 2, (g.ai[1] + g.aj[1]) / 2],
-            compVPct: (b[1] - a[1]) / H * 100,
-            widthDiffPct: (Math.abs(b[0]) - Math.abs(a[0])) / W * 100,
-            vI: a[1], vJ: b[1]
-          });
-        });
-        spots.push({ kind: "centre", name: "鼻先", mag: Math.abs(pc(noseTipU)), uPct: pc(noseTipU), focus: P(1), idx: 1 });
-        spots.push({ kind: "centre", name: "口の中心", mag: Math.abs(pc(mouthC[0])), uPct: pc(mouthC[0]), focus: [(P(61)[0] + P(291)[0]) / 2, (P(61)[1] + P(291)[1]) / 2], idx: null });
-        spots.push({ kind: "centre", name: "顎先", mag: Math.abs(pc(chinU)), uPct: pc(chinU), focus: P(152), idx: 152 });
-        spots.sort(function (a, b) { return b.mag - a.mag; });
-        spots = spots.slice(0, 3);
-
-        function clamp01(v) { return Math.max(0, Math.min(1, v)); }
-        function cvScore(vals, scale) {
-          var m = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
-          if (!m) return 0;
-          var sd = Math.sqrt(vals.reduce(function (a, b) { return a + (b - m) * (b - m); }, 0) / vals.length);
-          return clamp01(1 - (sd / m) / scale) * 100;
-        }
-        var scSym = clamp01(1 - devAvg / 6) * 100;
-        var scSantei = cvScore([s1, s2, s3], 0.32);
-        var scGogan = cvScore([eyeW1, eyeGap, eyeW2], 0.38) * 0.7 + clamp01(1 - Math.abs(seg[0] - seg[4]) / W / 0.10) * 100 * 0.3;
-        var scCentre = clamp01(1 - centreAvg / 5) * 100;
-        var scOutline = clamp01(1 - ((cheekDiffPct + jawDiffPct) / 2) / 8) * 100;
-        var total = Math.round(scSym * 0.40 + scSantei * 0.20 + scGogan * 0.15 + scCentre * 0.15 + scOutline * 0.10);
-
-        var concerns = [];
-        pairDevs.slice().sort(function (a, b) { return b.devPct - a.devPct; }).slice(0, 2).forEach(function (d) {
-          if (d.devPct >= 1.2) concerns.push(d.name + "の位置に左右差（" + d.devPct.toFixed(1) + "%）");
-        });
-        if (mouthTiltPct >= 1.0) concerns.push("口角の高さに左右差（" + mouthTiltPct.toFixed(1) + "%）");
-        if (eyeDiffPct >= 6) concerns.push("目の大きさに左右差（" + eyeDiffPct.toFixed(1) + "%）");
-        if (Math.abs(pc(noseTipU)) >= 1.5) concerns.push("鼻が中心から少し寄っています");
-        if (!concerns.length) concerns.push("目立つ左右差はありませんでした");
-
-        return {
-          total: total,
-          sub: { sym: scSym, santei: scSantei, gogan: scGogan, centre: scCentre, outline: scOutline },
-          aspect: H / W,
-          santei: { pct: [s1 / sTot * 100, s2 / sTot * 100, s3 / sTot * 100], ratio: [s1 / s2, 1, s3 / s2], lines: [browY, noseBaseY], topV: top, chinV: chinY },
-          gogan: { segPct: seg.map(function (v) { return v / W * 100; }) },
-          sym: { devAvg: devAvg, pairs: pairDevs },
-          centre: { nose: pc(noseTipU), mouth: pc(mouthC[0]), chin: pc(chinU) },
-          diffs: { eye: eyeDiffPct, brow: browDiffPct, mouthTilt: mouthTiltPct, cheek: cheekDiffPct, jaw: jawDiffPct },
-          noseMouth: noseW / mouthW,
-          noseWPct: pc(noseW), mouthWPct: pc(mouthW),
-          ghosts: ghosts,
-          concerns: concerns,
-          sides: { eye: eyeSides, cheek: cheekSides, jaw: jawSides },
-          higher: { brow: browHigher, mouth: mouthHigher },
-          frame: { mid: mid, ax: ax, ay: ay },
-          wNorm: W,
-          draw: draw,
-          centreArrows: centreArrows,
-          spots: spots
-        };
+      /*FUSION_START*/
+      function yawEstimate(lms) {
+        function P(i) { return [lms[i][0], lms[i][1]]; }
+        function d(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
+        var nose = P(1), cA = P(234), cB = P(454);
+        var dA = d(nose, cA), dB = d(nose, cB);
+        var ratio = (dA - dB) / (dA + dB || 1);
+        return -ratio * 80;
       }
-      /*MEASURE_END*/
+      function fuseFrames(frames) {
+        function d2(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
+        var BIN = 8, MAXY = 54;
+        var bins = {};
+        frames.forEach(function (l) {
+          if (!l || l.length < 468) return;
+          var yaw = yawEstimate(l);
+          if (Math.abs(yaw) > MAXY) return;
+          var key = Math.round(yaw / BIN) * BIN;
+          var eAx = (l[33][0] + l[133][0]) / 2, eAy = (l[33][1] + l[133][1]) / 2;
+          var eBx = (l[362][0] + l[263][0]) / 2, eBy = (l[362][1] + l[263][1]) / 2;
+          var mx = (eAx + eBx) / 2, my = (eAy + eBy) / 2;
+          var H = d2(l[10][0], l[10][1], l[152][0], l[152][1]);
+          if (H < 0.05) return;
+          var b = bins[key];
+          if (!b) { b = bins[key] = { sx: new Float64Array(l.length), sy: new Float64Array(l.length), n: 0, yawSum: 0 }; }
+          for (var i = 0; i < l.length; i++) {
+            b.sx[i] += (l[i][0] - mx) / H;
+            b.sy[i] += (l[i][1] - my) / H;
+          }
+          b.n++; b.yawSum += yaw;
+        });
+        var keys = Object.keys(bins).map(Number).sort(function (a, b) { return a - b; });
+        if (keys.length < 3) return null;
+        var N = 478;
+        var coverL = Math.min.apply(null, keys), coverR = Math.max.apply(null, keys);
+        var pts = [];
+        for (var i = 0; i < N; i++) {
+          var scc = 0, scs = 0, sss = 0, scx = 0, ssx = 0, vsum = 0, vn = 0;
+          keys.forEach(function (k) {
+            var b = bins[k];
+            var t = (b.yawSum / b.n) * Math.PI / 180;
+            var X = b.sx[i] / b.n, Y = b.sy[i] / b.n;
+            var c = Math.cos(t), s = Math.sin(t);
+            scc += c * c; scs += c * s; sss += s * s; scx += c * X; ssx += s * X;
+            vsum += Y; vn++;
+          });
+          var det = scc * sss - scs * scs;
+          var u, z;
+          if (Math.abs(det) < 1e-6 || vn < 3) {
+            var mb = bins[keys[Math.floor(keys.length / 2)]];
+            u = mb.sx[i] / mb.n; z = 0;
+          } else {
+            u = (scx * sss - ssx * scs) / det;
+            z = -(ssx * scc - scx * scs) / det;
+          }
+          pts.push({ u: u, v: vsum / vn, z: z });
+        }
+        var zNose = pts[1].z, zCheek = (pts[234].z + pts[454].z) / 2;
+        if (zNose < zCheek) pts.forEach(function (p) { p.z = -p.z; });
+        return { pts: pts, binCount: keys.length, coverL: coverL, coverR: coverR };
+      }
+      function triangulate(pts) {
+        var n = pts.length;
+        var P = pts.map(function (p) { return [p.u, p.v]; });
+        var minx = 1e9, miny = 1e9, maxx = -1e9, maxy = -1e9;
+        P.forEach(function (p) { minx = Math.min(minx, p[0]); maxx = Math.max(maxx, p[0]); miny = Math.min(miny, p[1]); maxy = Math.max(maxy, p[1]); });
+        var d = Math.max(maxx - minx, maxy - miny) * 10 + 1;
+        var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2;
+        P.push([cx - d, cy - d], [cx + d, cy - d], [cx, cy + d]);
+        var tris = [[n, n + 1, n + 2]];
+        function circumContains(t, px, py) {
+          var a = P[t[0]], b = P[t[1]], c = P[t[2]];
+          var dd = 2 * (a[0] * (b[1] - c[1]) + b[0] * (c[1] - a[1]) + c[0] * (a[1] - b[1]));
+          if (Math.abs(dd) < 1e-12) return false;
+          var ux = ((a[0] * a[0] + a[1] * a[1]) * (b[1] - c[1]) + (b[0] * b[0] + b[1] * b[1]) * (c[1] - a[1]) + (c[0] * c[0] + c[1] * c[1]) * (a[1] - b[1])) / dd;
+          var uy = ((a[0] * a[0] + a[1] * a[1]) * (c[0] - b[0]) + (b[0] * b[0] + b[1] * b[1]) * (a[0] - c[0]) + (c[0] * c[0] + c[1] * c[1]) * (b[0] - a[0])) / dd;
+          var r = Math.hypot(a[0] - ux, a[1] - uy);
+          return Math.hypot(px - ux, py - uy) < r - 1e-9;
+        }
+        for (var pi = 0; pi < n; pi++) {
+          var px = P[pi][0], py = P[pi][1];
+          var bad = [];
+          for (var ti = 0; ti < tris.length; ti++) if (circumContains(tris[ti], px, py)) bad.push(ti);
+          var edgeCount = {};
+          function addEdge(a, b) {
+            var k = a < b ? a + "_" + b : b + "_" + a;
+            edgeCount[k] = (edgeCount[k] || 0) + 1;
+          }
+          bad.forEach(function (ti) { var t = tris[ti]; addEdge(t[0], t[1]); addEdge(t[1], t[2]); addEdge(t[2], t[0]); });
+          tris = tris.filter(function (_, ti) { return bad.indexOf(ti) < 0; });
+          Object.keys(edgeCount).forEach(function (k) {
+            if (edgeCount[k] === 1) {
+              var e = k.split("_").map(Number);
+              tris.push([e[0], e[1], pi]);
+            }
+          });
+        }
+        return tris.filter(function (t) { return t[0] < n && t[1] < n && t[2] < n; });
+      }
+      var OVAL_IDX = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+      function buildTriangles(pts) {
+        var oval = OVAL_IDX.map(function (i) { return pts[i]; });
+        function inside(x, y) {
+          var c = false;
+          for (var i = 0, j = oval.length - 1; i < oval.length; j = i++) {
+            var xi = oval[i].u, yi = oval[i].v, xj = oval[j].u, yj = oval[j].v;
+            if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) c = !c;
+          }
+          return c;
+        }
+        return triangulate(pts).filter(function (t) {
+          var a = pts[t[0]], b = pts[t[1]], c = pts[t[2]];
+          function dd(p, q) { return Math.hypot(p.u - q.u, p.v - q.v); }
+          if (dd(a, b) > 0.17 || dd(b, c) > 0.17 || dd(c, a) > 0.17) return false;
+          return inside((a.u + b.u + c.u) / 3, (a.v + b.v + c.v) / 3);
+        });
+      }
+      /*FUSION_END*/
     </script>
 
     <script>
       "use strict";
       var $ = function (id) { return document.getElementById(id); };
       function status(t) { $("status").innerHTML = t; }
-      function escapeHtml(s) {
-        return String(s).replace(/[&<>"']/g, function (c) {
-          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-        });
-      }
-      function fmt(n, d) { return n.toFixed(d === undefined ? 1 : d); }
 
       /* ================= camera ================= */
       var video = $("cam");
@@ -306,7 +224,6 @@
       var stream = null;
       var mpReady = false;
       var latestFace = null;
-      var photoMode = false;
 
       function startCam() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -326,7 +243,7 @@
           camStarted = true;
           $("camBtn").disabled = true;
           $("camBtn").textContent = "カメラ動作中";
-          status(mpReady ? "認識中。顔を映して「撮って測る」を押してね" : "カメラOK。顔のモデルを読み込み中…");
+          status(mpReady ? "認識中。手順1のスキャン開始を押してね" : "カメラOK。顔のモデルを読み込み中…");
         }).catch(function (err) {
           var name = err && err.name ? err.name : "";
           var msg;
@@ -342,7 +259,6 @@
       $("flipBtn").addEventListener("click", function () {
         facing = facing === "user" ? "environment" : "user";
         if (camStarted) { $("camBtn").disabled = false; startCam(); }
-        else status(facing === "user" ? "内カメラに設定。カメラ開始を押してね" : "外カメラに設定。カメラ開始を押してね");
       });
 
       var loadStep = "", loadStart = null, loadTimer = null;
@@ -360,7 +276,7 @@
       window.__mpReadyCb = function () {
         mpReady = true;
         stopLoadTimer();
-        status(camStarted ? "認識中。顔を映して「撮って測る」を押してね" : "モデルの準備OK。「カメラ開始」を押してね");
+        status(camStarted ? "認識中。手順1のスキャン開始を押してね" : "モデルの準備OK。「カメラ開始」を押してね");
       };
       window.__mpErrorCb = function (err) {
         stopLoadTimer();
@@ -382,18 +298,36 @@
         }, 500);
       }
 
-      /* ================= live overlay ================= */
+      /* ================= live overlay + scan recording ================= */
       var KEY_PTS = [10, 152, 234, 454, 33, 133, 362, 263, 1, 2, 61, 291, 98, 327, 105, 334];
+      var scanning = false;
+      var frames = [];
+      var lastPush = 0;
+      var yawMin = 0, yawMax = 0, curYaw = 0;
+
+      function yawPct(y) { return Math.max(0, Math.min(100, (y + 55) / 110 * 100)); }
+      function updateScanUi() {
+        $("covBar").style.left = yawPct(yawMin) + "%";
+        $("covBar").style.width = (yawPct(yawMax) - yawPct(yawMin)) + "%";
+        $("curBar").style.left = yawPct(curYaw) + "%";
+        $("scanInfo").textContent = "記録中… フレーム " + frames.length + " 枚／カバー範囲 左 " + Math.abs(Math.min(0, Math.round(yawMin))) + "° 〜 右 " + Math.max(0, Math.round(yawMax)) + "°（目標：左右40°ずつ）";
+      }
       window.onFaceFrame = function (pts) {
-        if (photoMode) return;
         latestFace = pts;
         if (!pts) { $("readout").textContent = "顔：なし"; return; }
-        var m = measureFace(pts.map(function (p) { return { x: p[0], y: p[1] }; }));
-        if (m) {
-          var off = Math.abs(m.centre.nose);
-          $("readout").textContent = "顔：検出中（正面の目安：" + (off <= 1.5 ? "ほぼ正面" : "少し横向き") + "）";
-        } else {
-          $("readout").textContent = "顔：検出中";
+        curYaw = yawEstimate(pts);
+        var dir = Math.abs(curYaw) < 8 ? "正面付近" : (curYaw > 0 ? "右 約" + Math.round(curYaw) + "°" : "左 約" + Math.abs(Math.round(curYaw)) + "°");
+        $("readout").textContent = "顔：検出中（向き：" + dir + "）";
+        if (scanning) {
+          var now = performance.now();
+          if (now - lastPush > 60 && frames.length < 240) {
+            lastPush = now;
+            frames.push(pts);
+            if (curYaw < yawMin) yawMin = curYaw;
+            if (curYaw > yawMax) yawMax = curYaw;
+            updateScanUi();
+            if (frames.length >= 240) stopScan("フレームが上限（240枚）に達したので止めました。");
+          }
         }
       };
       function coverMap(nx, ny, W, H) {
@@ -404,7 +338,7 @@
       }
       function render() {
         var W = canvas.clientWidth, H = canvas.clientHeight;
-        if (!W || photoMode) return;
+        if (!W) return;
         var dpr = window.devicePixelRatio || 1;
         if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
           canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
@@ -412,7 +346,7 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
         if (!latestFace) return;
-        ctx.fillStyle = "#ffd400";
+        ctx.fillStyle = scanning ? "#22d3ee" : "#ffd400";
         latestFace.forEach(function (p) {
           var q = coverMap(p[0], p[1], W, H);
           ctx.fillRect(q[0] - 1.1, q[1] - 1.1, 2.2, 2.2);
@@ -427,14 +361,35 @@
       }
       (function anim() { requestAnimationFrame(anim); render(); })();
 
-      /* ================= photo capture ================= */
-      var photoLandmarks = null, photoResult = null, photoCanvasSrc = null, selectedSpot = 0;
-      $("shootBtn").addEventListener("click", async function () {
+      function startScan() {
+        if (!camStarted) { status("先にカメラ開始を押してね"); return; }
+        if (!mpReady) { status("モデルの準備が終わってからスキャンしてね"); return; }
+        frames = []; yawMin = 0; yawMax = 0; lastPush = 0;
+        scanning = true;
+        $("scanBtn").textContent = "スキャン停止";
+        $("scanBtn").classList.add("on");
+        status("スキャン中。ゆっくり首を回してね（正面→左→正面→右→正面）");
+        updateScanUi();
+      }
+      function stopScan(note) {
+        scanning = false;
+        $("scanBtn").textContent = "スキャン開始";
+        $("scanBtn").classList.remove("on");
+        $("scanInfo").textContent = "スキャン完了：フレーム " + frames.length + " 枚／カバー範囲 左 " + Math.abs(Math.min(0, Math.round(yawMin))) + "° 〜 右 " + Math.max(0, Math.round(yawMax)) + "°。" + (note || "手順2の写真（任意）を撮って、手順3で3D化できます。");
+        status("スキャンを止めました");
+      }
+      $("scanBtn").addEventListener("click", function () {
+        if (scanning) stopScan(""); else startScan();
+      });
+
+      /* ================= front still (texture) ================= */
+      var photoData = null;
+      $("photoBtn").addEventListener("click", async function () {
         if (!camStarted) { status("先にカメラ開始を押してね"); return; }
         if (!mpReady) { status("モデルの準備が終わってから撮ってね"); return; }
         if (!latestFace) { status("顔が映っていません。顔を画面に入れてから押してね"); return; }
         if (typeof window.__mpSendStill !== "function") { status("まだ準備中です。少し待ってね"); return; }
-        status("撮影中…そのまま動かないで");
+        status("撮影中…正面を向いて動かないで");
         var pc = document.createElement("canvas");
         pc.width = video.videoWidth || 1280;
         pc.height = video.videoHeight || 960;
@@ -442,346 +397,223 @@
         if (window.__mpSetPaused) window.__mpSetPaused(true);
         var lms = null;
         try { lms = await window.__mpSendStill(pc); } catch (e) { lms = null; }
-        if (!lms) {
-          if (window.__mpSetPaused) window.__mpSetPaused(false);
-          status("写真から顔を検出できませんでした。もう一回撮ってね");
-          return;
-        }
-        var m = measureFace(lms.map(function (p) { return { x: p[0], y: p[1] }; }));
-        if (!m) {
-          if (window.__mpSetPaused) window.__mpSetPaused(false);
-          status("うまく測れませんでした。顔全体を映してもう一回");
-          return;
-        }
-        photoLandmarks = lms;
-        photoResult = m;
-        photoCanvasSrc = pc;
-        selectedSpot = 0;
-        var img = $("photoImg");
-        img.width = pc.width; img.height = pc.height;
-        img.getContext("2d").drawImage(pc, 0, 0);
-        photoMode = true;
-        $("stageWrap").classList.add("hidden");
-        $("photoWrap").classList.remove("hidden");
-        $("liveBtns").classList.add("hidden");
-        $("photoBtns").classList.remove("hidden");
-        $("readout").textContent = "測定結果（この写真で固定）";
-        status("測定しました");
-        $("result").classList.remove("hidden");
-        renderResult(m);
-        drawPhotoOverlay();
-        $("photoWrap").scrollIntoView({ behavior: "smooth", block: "start" });
-      });
-      $("retakeBtn").addEventListener("click", function () {
-        photoMode = false;
-        photoLandmarks = null; photoResult = null; photoCanvasSrc = null;
         if (window.__mpSetPaused) window.__mpSetPaused(false);
-        $("photoWrap").classList.add("hidden");
-        $("stageWrap").classList.remove("hidden");
-        $("photoBtns").classList.add("hidden");
-        $("liveBtns").classList.remove("hidden");
-        $("result").classList.add("hidden");
-        status("認識中。顔を映して「撮って測る」を押してね");
+        if (!lms) { status("写真から顔を検出できませんでした。もう一回撮ってね"); return; }
+        photoData = { canvas: pc, lms: lms };
+        $("photoState").textContent = "撮影済み（" + pc.width + "×" + pc.height + "）";
+        status("正面写真を撮りました");
       });
 
-      /* ================= photo overlay (selected spot marker) ================= */
-      function drawPhotoOverlay() {
-        if (!photoLandmarks || !photoResult) return;
-        var ov = $("photoOverlay");
-        var img = $("photoImg");
-        ov.width = img.width; ov.height = img.height;
-        var g = ov.getContext("2d");
-        var W = ov.width, H = ov.height;
-        g.clearRect(0, 0, W, H);
-        var m = photoResult, fr = m.frame;
-        function q2raw(q) { return [fr.mid[0] + q[0] * fr.ax[0] + q[1] * fr.ay[0], fr.mid[1] + q[0] * fr.ax[1] + q[1] * fr.ay[1]]; }
-        g.strokeStyle = "rgba(255,255,255,.45)";
-        g.lineWidth = Math.max(1, W * 0.002);
-        g.setLineDash([W * 0.012, W * 0.010]);
-        var ml1 = q2raw([0, m.santei.topV - (m.santei.chinV - m.santei.topV) * 0.15]);
-        var ml2 = q2raw([0, m.santei.chinV + (m.santei.chinV - m.santei.topV) * 0.08]);
-        g.beginPath(); g.moveTo(ml1[0] * W, ml1[1] * H); g.lineTo(ml2[0] * W, ml2[1] * H); g.stroke();
-        g.setLineDash([]);
-        var s = m.spots[selectedSpot];
-        if (!s) return;
-        var fx = s.focus[0] * W, fy = s.focus[1] * H;
-        g.strokeStyle = "#ff2e88";
-        g.lineWidth = Math.max(2, W * 0.004);
-        g.beginPath(); g.arc(fx, fy, W * 0.085, 0, Math.PI * 2); g.stroke();
-        g.fillStyle = "#ff2e88";
-        g.beginPath(); g.arc(fx, fy, W * 0.008, 0, Math.PI * 2); g.fill();
-      }
-
-      /* ================= schematic face diagram (B) ================= */
-      function devColor(p) { return p < 1.2 ? "#9a9aa6" : (p < 2.5 ? "#ff9f2e" : "#ff2e88"); }
-      function drawScheme() {
-        var cv = $("schemeCanvas");
-        if (!cv || !photoResult) return;
-        var cssW = cv.clientWidth || 360;
-        var cssH = 330;
-        var dpr = window.devicePixelRatio || 1;
-        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
-        cv.style.height = cssH + "px";
-        var g = cv.getContext("2d");
-        g.setTransform(dpr, 0, 0, dpr, 0, 0);
-        var m = photoResult, Wn = m.wNorm;
-        var scale = cssW * 0.40, cx = cssW / 2, cy = cssH * 0.36;
-        function S(q) { return [cx + (-q[0]) * scale, cy + q[1] * scale]; }
-        /* midline */
-        g.strokeStyle = "rgba(255,255,255,.25)";
-        g.lineWidth = 1;
-        g.setLineDash([5, 5]);
-        g.beginPath(); g.moveTo(cx, 8); g.lineTo(cx, cssH - 8); g.stroke();
-        g.setLineDash([]);
-        /* features */
-        g.strokeStyle = "#c9c9d4";
-        g.lineWidth = 1.6;
-        function poly(pts, close) {
-          if (!pts || pts.length < 2) return;
-          g.beginPath();
-          pts.forEach(function (q, i) { var p = S(q); if (i === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
-          if (close) g.closePath();
-          g.stroke();
-        }
-        poly(m.draw.oval, true);
-        poly(m.draw.eyeA, true);
-        poly(m.draw.eyeB, true);
-        poly(m.draw.browA, false);
-        poly(m.draw.browB, false);
-        poly(m.draw.nose, false);
-        poly(m.draw.lips, true);
-        /* arrows: ghost -> actual, exaggerated x4 */
-        function arrow(fromQ, toQ, color) {
-          var dx = toQ[0] - fromQ[0], dy = toQ[1] - fromQ[1];
-          var len = Math.hypot(dx, dy);
-          if (len < 0.0005) return;
-          var drawLen = Math.min(len * 4, 0.11);
-          var ux = dx / len, uy = dy / len;
-          var a = S(fromQ);
-          var b = [a[0] + (-ux) * drawLen * scale, a[1] + uy * drawLen * scale];
-          g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 2.2;
-          g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
-          var ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
-          g.beginPath();
-          g.moveTo(b[0], b[1]);
-          g.lineTo(b[0] - 7 * Math.cos(ang - 0.42), b[1] - 7 * Math.sin(ang - 0.42));
-          g.lineTo(b[0] - 7 * Math.cos(ang + 0.42), b[1] - 7 * Math.sin(ang + 0.42));
-          g.closePath(); g.fill();
-          g.beginPath(); g.arc(a[0], a[1], 2.4, 0, Math.PI * 2); g.fill();
-        }
-        m.ghosts.forEach(function (gh) {
-          if (gh.devPct < 0.8) return;
-          var col = devColor(gh.devPct);
-          arrow([gh.giQ[0] / Wn, gh.giQ[1] / Wn], [gh.aiQ[0] / Wn, gh.aiQ[1] / Wn], col);
-          arrow([gh.gjQ[0] / Wn, gh.gjQ[1] / Wn], [gh.ajQ[0] / Wn, gh.ajQ[1] / Wn], col);
-        });
-        m.centreArrows.forEach(function (ca) {
-          if (Math.abs(ca.uPct) < 1.2) return;
-          arrow([0, ca.q[1]], ca.q, devColor(Math.abs(ca.uPct)));
-        });
-        /* labels for the biggest deviations */
-        var labelled = m.ghosts.filter(function (gh) { return gh.devPct >= 1.2; })
-          .sort(function (a, b) { return b.devPct - a.devPct; }).slice(0, 5);
-        g.font = "600 11px sans-serif";
-        g.textAlign = "center";
-        labelled.forEach(function (gh) {
-          var midQ = [(gh.aiQ[0] + gh.ajQ[0]) / 2 / Wn, (gh.aiQ[1] + gh.ajQ[1]) / 2 / Wn];
-          var p = S(midQ);
-          g.fillStyle = "rgba(16,16,20,.65)";
-          var tw = g.measureText(gh.name).width;
-          g.fillRect(p[0] - tw / 2 - 3, p[1] - 20, tw + 6, 14);
-          g.fillStyle = "#f2f2f5";
-          g.fillText(gh.name, p[0], p[1] - 9);
+      /* ================= build 3D ================= */
+      function fallbackPts(lms) {
+        var mx = (lms[33][0] + lms[133][0] + lms[362][0] + lms[263][0]) / 4;
+        var my = (lms[33][1] + lms[133][1] + lms[362][1] + lms[263][1]) / 4;
+        var H = Math.hypot(lms[10][0] - lms[152][0], lms[10][1] - lms[152][1]) || 1;
+        var zEye = ((lms[468] ? lms[468][2] : 0) + (lms[473] ? lms[473][2] : 0)) / 2;
+        return lms.map(function (p) {
+          return { u: (p[0] - mx) / H, v: (p[1] - my) / H, z: -((p[2] || 0) - zEye) / H };
         });
       }
-
-      /* ================= worst-spot viewer (C) ================= */
-      function magWord(p) { return p < 1.2 ? "わずかに" : (p < 2.5 ? "少し" : "はっきり"); }
-      function sideOfRawX(x) {
-        /* displayed side: raw x smaller than face centre appears on the right (mirrored view) */
-        return x < photoResult.frame.mid[0] ? "右" : "左";
-      }
-      function spotSentence(s) {
-        if (!s) return "";
-        if (s.mag < 0.8) return s.name + "：目立つズレはありませんでした";
-        if (s.kind === "centre") {
-          var side = s.uPct > 0 ? "左" : "右";
-          return s.name + "が中心から" + side + "へ" + magWord(s.mag) + "寄っています（" + fmt(s.mag) + "%）";
-        }
-        /* pair */
-        if (Math.abs(s.compVPct) >= Math.abs(s.widthDiffPct)) {
-          var lowerIdx = s.vI > s.vJ ? s.i : s.j;
-          var lowerSide = sideOfRawX(photoLandmarks[lowerIdx][0]);
-          return s.name + "は" + lowerSide + "の方が" + magWord(Math.abs(s.compVPct)) + "低いです（差 " + fmt(Math.abs(s.compVPct)) + "%）";
-        }
-        var widerIdx = s.widthDiffPct > 0 ? s.j : s.i;
-        var widerSide = sideOfRawX(photoLandmarks[widerIdx][0]);
-        return s.name + "は" + widerSide + "の方が" + magWord(Math.abs(s.widthDiffPct)) + "外側に張っています（差 " + fmt(Math.abs(s.widthDiffPct)) + "%）";
-      }
-      function drawCrop() {
-        var cv = $("cropCanvas");
-        if (!cv || !photoResult || !photoCanvasSrc) return;
-        var s = photoResult.spots[selectedSpot];
-        if (!s) return;
-        var pw = photoCanvasSrc.width, ph = photoCanvasSrc.height;
-        var cw = pw * 0.38, ch = cw * 0.78;
-        var ox = Math.max(0, Math.min(pw - cw, s.focus[0] * pw - cw / 2));
-        var oy = Math.max(0, Math.min(ph - ch, s.focus[1] * ph - ch / 2));
-        var cssW = cv.clientWidth || 360;
-        var cssH = Math.round(cssW * 0.75);
-        var dpr = window.devicePixelRatio || 1;
-        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
-        cv.style.height = cssH + "px";
-        var g = cv.getContext("2d");
-        g.setTransform(dpr, 0, 0, dpr, 0, 0);
-        g.drawImage(photoCanvasSrc, ox, oy, cw, ch, 0, 0, cssW, cssH);
-        function M(nx, ny) { return [(nx * pw - ox) / cw * cssW, (ny * ph - oy) / ch * cssH]; }
-        var m = photoResult;
-        if (s.kind === "pair") {
-          var gh = null;
-          m.ghosts.forEach(function (x) { if (x.i === s.i && x.j === s.j) gh = x; });
-          if (gh) {
-            [[gh.ai, gh.gi], [gh.aj, gh.gj]].forEach(function (pr) {
-              var a = M(pr[0][0], pr[0][1]);
-              var gx = pr[0][0] + (pr[1][0] - pr[0][0]) * 2, gy = pr[0][1] + (pr[1][1] - pr[0][1]) * 2;
-              var b = M(gx, gy);
-              g.strokeStyle = "#ff2e88"; g.lineWidth = 2;
-              g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
-              g.fillStyle = "#22d3ee";
-              g.beginPath(); g.arc(b[0], b[1], 5, 0, Math.PI * 2); g.fill();
-              g.fillStyle = "#ffd400";
-              g.beginPath(); g.arc(a[0], a[1], 5, 0, Math.PI * 2); g.fill();
-            });
-          }
+      $("buildBtn").addEventListener("click", function () {
+        var fused = null, note = "";
+        if (frames.length >= 30) fused = fuseFrames(frames);
+        var pts = null;
+        if (fused) {
+          pts = fused.pts;
+          note = "スキャン " + frames.length + " フレーム／角度ビン " + fused.binCount + " 個（左 " + Math.abs(Math.min(0, fused.coverL)) + "° 〜 右 " + Math.max(0, fused.coverR) + "°）";
+          if (Math.abs(fused.coverL) < 20 || fused.coverR < 20) note += " ※角度カバーが狭めなので奥行きは弱めです";
+        } else if (photoData) {
+          pts = fallbackPts(photoData.lms);
+          note = "スキャンが無いので、正面写真1枚の推定奥行きで作りました（多視点より形は弱めです）";
+        } else if (frames.length > 0 && frames.length < 30) {
+          $("buildInfo").textContent = "フレームが少なすぎます（" + frames.length + " 枚）。もう少し長くスキャンしてね";
+          return;
         } else {
-          /* centre spot: midline point vs actual point */
-          var fr = m.frame;
-          var focusP = M(s.focus[0], s.focus[1]);
-          g.fillStyle = "#ffd400";
-          g.beginPath(); g.arc(focusP[0], focusP[1], 5, 0, Math.PI * 2); g.fill();
-          g.strokeStyle = "rgba(255,255,255,.7)";
-          g.setLineDash([5, 4]);
-          var cxPx = (fr.mid[0] * pw - ox) / cw * cssW;
-          g.beginPath(); g.moveTo(cxPx, 0); g.lineTo(cxPx, cssH); g.stroke();
-          g.setLineDash([]);
+          $("buildInfo").textContent = "先に手順1のスキャン（または手順2の写真）をしてね";
+          return;
         }
-      }
-      function selectSpot(idx) {
-        selectedSpot = idx;
-        var btns = $("spotBtns");
-        if (btns) {
-          Array.prototype.forEach.call(btns.children, function (b, i) {
-            b.classList.toggle("on", i === idx);
+        var tris = buildTriangles(pts);
+        if (tris.length < 100) { $("buildInfo").textContent = "メッシュを作れませんでした。スキャンをやり直してね"; return; }
+        var vMean = 0, zMean = 0;
+        pts.forEach(function (p) { vMean += p.v; zMean += p.z; });
+        vMean /= pts.length; zMean /= pts.length;
+        var positions = new Float32Array(pts.length * 3);
+        pts.forEach(function (p, i) {
+          positions[i * 3] = p.u;
+          positions[i * 3 + 1] = -(p.v - vMean);
+          positions[i * 3 + 2] = p.z - zMean;
+        });
+        var uvs = new Float32Array(pts.length * 2);
+        if (photoData) {
+          photoData.lms.forEach(function (p, i) {
+            uvs[i * 2] = p[0];
+            uvs[i * 2 + 1] = 1 - p[1];
+          });
+        } else {
+          pts.forEach(function (p, i) {
+            uvs[i * 2] = p.u / 0.62 + 0.5;
+            uvs[i * 2 + 1] = 1 - (p.v / 1.15 + 0.5);
           });
         }
-        var s = photoResult.spots[idx];
-        $("spotSentence").textContent = s ? spotSentence(s) : "";
-        drawCrop();
-        drawPhotoOverlay();
-      }
-
-      /* ================= result rendering ================= */
-      function barRow(label, v) {
-        return '<div class="bar-row"><span class="lab">' + label + '</span>' +
-          '<span class="bar-track"><span class="bar-fill" style="width:' + Math.round(v) + '%"></span></span>' +
-          '<span class="val">' + Math.round(v) + '</span></div>';
-      }
-      function kv(k2, v) { return '<div class="kv"><span class="k">' + k2 + '</span><span class="v">' + v + '</span></div>'; }
-      function pairRow(label, rVal, lVal) {
-        var mx = Math.max(rVal, lVal) || 1;
-        return '<div class="pair-row"><span class="lab">' + label + '</span><span class="pair-bars">' +
-          '<span class="pair-line"><span class="side">右</span><span class="track"><span class="fill fill-r" style="width:' + Math.round(rVal / mx * 100) + '%"></span></span></span>' +
-          '<span class="pair-line"><span class="side">左</span><span class="track"><span class="fill fill-l" style="width:' + Math.round(lVal / mx * 100) + '%"></span></span></span>' +
-          '</span><span class="val" style="width:6.5em;text-align:right;font-weight:600">' + fmt(rVal, 2) + " / " + fmt(lVal, 2) + '</span></div>';
-      }
-      function bandHtml(values, labels, colors) {
-        var tot = values.reduce(function (a, b) { return a + b; }, 0) || 1;
-        var band = '<div class="band">', lab = '<div class="band-lab">';
-        values.forEach(function (v, i) {
-          var p = v / tot * 100;
-          band += '<div style="flex:' + p.toFixed(2) + ';background:' + colors[i % colors.length] + '">' + fmt(p) + '%</div>';
-          lab += '<div style="flex:' + p.toFixed(2) + '">' + labels[i] + '</div>';
+        var indices = new Uint32Array(tris.length * 3);
+        tris.forEach(function (t, i) {
+          indices[i * 3] = t[0]; indices[i * 3 + 1] = t[1]; indices[i * 3 + 2] = t[2];
         });
-        return band + '</div>' + lab + '</div>';
-      }
-      function centreText(pct) {
-        if (Math.abs(pct) < 0.05) return "ほぼ中心";
-        return (pct > 0 ? "左" : "右") + "へ " + fmt(Math.abs(pct)) + "%";
-      }
-      function renderResult(m) {
-        var rough = '<div id="scoreBig">' + m.total + '<span> / 100</span></div>';
-        rough += '<p class="small" style="margin:0">バランススコア（左右対称と均等さから算出）</p>';
-        rough += barRow("左右対称", m.sub.sym);
-        rough += barRow("三庭の均等さ", m.sub.santei);
-        rough += barRow("五眼の均等さ", m.sub.gogan);
-        rough += barRow("中心の配置", m.sub.centre);
-        rough += barRow("輪郭の左右差", m.sub.outline);
-        rough += "<h2>顔の図（矢印＝対称な位置からのズレ、長さは4倍強調）</h2>";
-        rough += '<canvas id="schemeCanvas"></canvas>';
-        rough += '<p class="small">矢印の色：灰＝わずか／オレンジ＝少し／ピンク＝はっきり。点があるべき対称な位置から、実際の位置へ矢印が伸びています。</p>';
-        rough += "<h2>ズレが大きい所（写真で確認）</h2>";
-        rough += '<div class="btn-row" id="spotBtns"></div>';
-        rough += '<canvas id="cropCanvas"></canvas>';
-        rough += '<p id="spotSentence"></p>';
-        rough += '<p class="small">拡大図の黄色＝実際の点、水色＝対称な位置（差は2倍強調）。</p>';
-        rough += "<h2>三庭（縦の3分割）</h2>";
-        rough += bandHtml(m.santei.pct, ["額", "鼻", "顎"], ["#ffd400", "#ff9f2e", "#ff2e88"]);
-        rough += "<h2>五眼（横の5分割）</h2>";
-        rough += bandHtml(m.gogan.segPct, ["外", "目", "間", "目", "外"], ["#8a8a96", "#22d3ee", "#8a8a96", "#22d3ee", "#8a8a96"]);
-        $("roughView").innerHTML = rough;
-
-        var btns = $("spotBtns");
-        m.spots.forEach(function (s, i) {
-          var b = document.createElement("button");
-          b.type = "button";
-          b.textContent = ["①", "②", "③"][i] + " " + s.name;
-          b.addEventListener("click", function () { selectSpot(i); });
-          btns.appendChild(b);
-        });
-        drawScheme();
-        selectSpot(0);
-
-        var d = "";
-        d += "<h2>左右ペア（右／左）</h2>";
-        d += pairRow("目の大きさ", m.sides.eye.r, m.sides.eye.l);
-        d += pairRow("頬の幅", m.sides.cheek.r, m.sides.cheek.l);
-        d += pairRow("あごの幅", m.sides.jaw.r, m.sides.jaw.l);
-        d += kv("眉の高さの左右差", fmt(m.diffs.brow) + "%（" + m.higher.brow + "が高い）");
-        d += kv("口角の高さの左右差", fmt(m.diffs.mouthTilt) + "%（" + m.higher.mouth + "が高い）");
-        d += "<h2>比率</h2>";
-        d += kv("顔の縦横比（高さ÷幅）", fmt(m.aspect, 2));
-        d += kv("三庭（額：鼻：顎）", fmt(m.santei.ratio[0], 2) + " : 1 : " + fmt(m.santei.ratio[2], 2));
-        d += kv("鼻幅 ÷ 口幅", fmt(m.noseMouth, 2));
-        d += kv("鼻幅（顔幅比）", fmt(m.noseWPct) + "%");
-        d += kv("口幅（顔幅比）", fmt(m.mouthWPct) + "%");
-        d += kv("目の大きさの左右差", fmt(m.diffs.eye) + "%");
-        d += "<h2>中心からのズレ（画面基準）</h2>";
-        d += kv("鼻先", centreText(m.centre.nose));
-        d += kv("口の中心", centreText(m.centre.mouth));
-        d += kv("顎先", centreText(m.centre.chin));
-        d += kv("対称のズレ平均（顔幅比）", fmt(m.sym.devAvg) + "%");
-        d += "<h2>対称の内訳（部位別のズレ、顔幅比）</h2>";
-        m.sym.pairs.slice().sort(function (a, b) { return b.devPct - a.devPct; }).forEach(function (p) {
-          d += kv(p.name, fmt(p.devPct) + "%");
-        });
-        $("detailView").innerHTML = d;
-      }
-      $("tabRough").addEventListener("click", function () {
-        $("tabRough").classList.add("on"); $("tabDetail").classList.remove("on");
-        $("roughView").classList.remove("hidden"); $("detailView").classList.add("hidden");
+        var model = {
+          positions: positions, uvs: uvs, indices: indices,
+          texture: photoData ? photoData.canvas : null
+        };
+        $("buildInfo").textContent = note + "／三角形 " + tris.length + " 個";
+        showViewer(model);
       });
-      $("tabDetail").addEventListener("click", function () {
-        $("tabDetail").classList.add("on"); $("tabRough").classList.remove("on");
-        $("detailView").classList.remove("hidden"); $("roughView").classList.add("hidden");
-      });
+      function showViewer(model) {
+        var tries = 0;
+        (function wait() {
+          if (typeof window.__showFace3D === "function") {
+            $("viewerWrap").classList.remove("hidden");
+            $("viewerBtns").classList.remove("hidden");
+            window.__showFace3D($("viewerWrap"), model);
+            $("viewerWrap").scrollIntoView({ behavior: "smooth", block: "start" });
+            return;
+          }
+          if (++tries > 40) { $("buildInfo").textContent += "（3D表示ライブラリを読み込めませんでした。再読み込みしてね）"; return; }
+          setTimeout(wait, 500);
+        })();
+      }
+      function viewerToggle(id, name) {
+        $(id).addEventListener("click", function () {
+          var on = !$(id).classList.contains("on");
+          $(id).classList.toggle("on", on);
+          if (window.__viewerAPI) window.__viewerAPI.set(name, on);
+        });
+      }
+      viewerToggle("rotBtn", "rotate");
+      viewerToggle("wireBtn", "wire");
+      viewerToggle("texBtn", "texture");
+      viewerToggle("mirrorBtn", "mirror");
 
       hookModule();
       status("「カメラ開始」を押してね（モデルは先読み中）");
     </script>
 
     <script>
+      /* Three.js viewer via classic script tags, CDN fallback jsdelivr -> unpkg. */
+      (function () {
+        "use strict";
+        var CDNS = ["https://cdn.jsdelivr.net/npm/", "https://unpkg.com/"];
+        var libsPromise = null;
+        var renderer = null, scene = null, camera = null, controls = null, mesh = null;
+        var matTex = null, matPlain = null, containerEl = null;
+        var settings = { rotate: true, wire: false, texture: true, mirror: true };
+        var animStarted = false;
+
+        function loadScript(url) {
+          return new Promise(function (resolve, reject) {
+            var s = document.createElement("script");
+            s.src = url;
+            s.onload = function () { resolve(); };
+            s.onerror = function () { reject(new Error("load fail: " + url)); };
+            document.head.appendChild(s);
+          });
+        }
+        async function loadPkgFile(pkgPath) {
+          var err = null;
+          for (var i = 0; i < CDNS.length; i++) {
+            try { await loadScript(CDNS[i] + pkgPath); return; } catch (e) { err = e; }
+          }
+          throw err || new Error("three load failed");
+        }
+        function ensureLibs() {
+          if (!libsPromise) {
+            libsPromise = (async function () {
+              await loadPkgFile("three@0.128.0/build/three.min.js");
+              await loadPkgFile("three@0.128.0/examples/js/controls/OrbitControls.js");
+            })();
+          }
+          return libsPromise;
+        }
+        function applySettings() {
+          if (!mesh) return;
+          var useTex = settings.texture && matTex;
+          mesh.material = useTex ? matTex : matPlain;
+          mesh.material.wireframe = settings.wire;
+          mesh.scale.x = settings.mirror ? -1 : 1;
+          if (controls) controls.autoRotate = settings.rotate;
+        }
+        window.__viewerAPI = {
+          set: function (name, val) { settings[name] = val; applySettings(); }
+        };
+        window.__showFace3D = async function (container, model) {
+          containerEl = container;
+          try { await ensureLibs(); } catch (e) { return; }
+          var W = container.clientWidth || 360, H = container.clientHeight || 270;
+          if (!renderer) {
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(38, W / H, 0.05, 20);
+            camera.position.set(0, 0.02, 1.55);
+            scene.add(new THREE.HemisphereLight(0xffffff, 0x3a3a44, 0.95));
+            var key = new THREE.DirectionalLight(0xffffff, 0.75);
+            key.position.set(0.6, 0.9, 1.2);
+            scene.add(key);
+            var rim = new THREE.DirectionalLight(0x88aaff, 0.4);
+            rim.position.set(-1.0, 0.3, -0.9);
+            scene.add(rim);
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.08;
+            controls.minDistance = 0.7;
+            controls.maxDistance = 3.2;
+            controls.autoRotateSpeed = 1.4;
+            container.appendChild(renderer.domElement);
+            window.addEventListener("resize", function () {
+              if (!containerEl || !renderer) return;
+              var w = containerEl.clientWidth || 360, h = containerEl.clientHeight || 270;
+              renderer.setSize(w, h);
+              camera.aspect = w / h;
+              camera.updateProjectionMatrix();
+            });
+          }
+          renderer.setSize(W, H);
+          camera.aspect = W / H;
+          camera.updateProjectionMatrix();
+          if (mesh) { scene.remove(mesh); mesh.geometry.dispose(); mesh = null; }
+          if (matTex) { if (matTex.map) matTex.map.dispose(); matTex.dispose(); matTex = null; }
+          if (matPlain) { matPlain.dispose(); matPlain = null; }
+          var geo = new THREE.BufferGeometry();
+          geo.setAttribute("position", new THREE.BufferAttribute(model.positions, 3));
+          geo.setAttribute("uv", new THREE.BufferAttribute(model.uvs, 2));
+          geo.setIndex(new THREE.BufferAttribute(model.indices, 1));
+          geo.computeVertexNormals();
+          matPlain = new THREE.MeshStandardMaterial({ color: 0xd9a37e, roughness: 0.75, metalness: 0.0, side: THREE.DoubleSide });
+          if (model.texture) {
+            var tex = new THREE.CanvasTexture(model.texture);
+            tex.encoding = THREE.sRGBEncoding;
+            matTex = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85, metalness: 0.0, side: THREE.DoubleSide });
+          }
+          mesh = new THREE.Mesh(geo, matPlain);
+          scene.add(mesh);
+          applySettings();
+          if (!animStarted) {
+            animStarted = true;
+            (function loop() {
+              requestAnimationFrame(loop);
+              if (!renderer || !mesh) return;
+              if (controls) controls.update();
+              renderer.render(scene, camera);
+            })();
+          }
+        };
+        ensureLibs().catch(function () { /* viewer will retry on build */ });
+      })();
+    </script>
+
+    <script>
       /* MediaPipe FaceMesh via classic script tags (no ES modules),
-         per-file CDN fallback: jsdelivr -> unpkg. Supports one-shot still capture. */
+         per-file CDN fallback: jsdelivr -> unpkg. Landmarks include z.
+         Supports one-shot still capture. */
       (function () {
         "use strict";
         var CDNS = ["https://cdn.jsdelivr.net/npm/", "https://unpkg.com/"];
@@ -809,7 +641,7 @@
         }
         function onFaces(r) {
           var lms = r.multiFaceLandmarks && r.multiFaceLandmarks[0]
-            ? r.multiFaceLandmarks[0].map(function (p) { return [p.x, p.y]; }) : null;
+            ? r.multiFaceLandmarks[0].map(function (p) { return [p.x, p.y, p.z || 0]; }) : null;
           if (stillWaiter) {
             var w = stillWaiter; stillWaiter = null;
             w(lms);
