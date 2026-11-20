@@ -58,7 +58,7 @@
       </div>
 
       <p id="readout">手：— ／ 顔：—</p>
-      <p class="small">手は21点の骨格、顔は枠と特徴点（目・鼻・口・耳）を表示します。つまむ（親指と人差し指をくっつけ）ると「つまんでる！」と出ます。顔検知は自分の顔で試すなら「カメラ切替」で内カメラに。</p>
+      <p class="small">手は21点の骨格、顔は478点の点群（顔全体のランドマーク）を表示します。つまむ（親指と人差し指をくっつけ）ると「つまんでる！」と出ます。顔検知は自分の顔で試すなら「カメラ切替」で内カメラに。</p>
     </div>
 
     <script>
@@ -204,7 +204,7 @@
           ht = "手：" + (h0.handed === "Left" ? "左手" : h0.handed === "Right" ? "右手" : "検出") + (h0.pinch ? "（つまんでる！）" : "");
           if (r.hands.length > 1) ht += " ほか" + (r.hands.length - 1) + "つ";
         }
-        var ft = r.faces.length ? "顔：" + r.faces.length + "つ検出" : "顔：なし";
+        var ft = r.faces.length ? "顔：" + r.faces.length + "つ検出（" + (r.faces[0].pts ? r.faces[0].pts.length : 0) + "点）" : "顔：なし";
         var txt = ht + " ／ " + ft;
         if (txt !== lastReadout) {
           lastReadout = txt;
@@ -229,19 +229,13 @@
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
 
-        /* faces: box + keypoints */
+        /* faces: full landmark point cloud (478 pts with refineLandmarks) */
         latest.faces.forEach(function (f) {
-          var tl = coverMap(f.bbox[0], f.bbox[1], W, H);
-          var br = coverMap(f.bbox[0] + f.bbox[2], f.bbox[1] + f.bbox[3], W, H);
-          ctx.strokeStyle = "#ffd400"; ctx.lineWidth = 3;
-          ctx.strokeRect(tl[0], tl[1], br[0] - tl[0], br[1] - tl[1]);
           ctx.fillStyle = "#ffd400";
-          f.keypoints.forEach(function (kp) {
-            var p = coverMap(kp[0], kp[1], W, H);
-            ctx.beginPath(); ctx.arc(p[0], p[1], 3.5, 0, Math.PI * 2); ctx.fill();
+          f.pts.forEach(function (p0) {
+            var p = coverMap(p0[0], p0[1], W, H);
+            ctx.fillRect(p[0] - 1.3, p[1] - 1.3, 2.6, 2.6);
           });
-          ctx.font = "bold 13px sans-serif";
-          ctx.fillText("顔", tl[0], Math.max(14, tl[1] - 6));
         });
 
         /* hands: skeleton */
@@ -322,12 +316,8 @@
           pushFrame();
         }
         function onFaces(r) {
-          latestFaces = (r.detections || []).map(function (d) {
-            var bb = d.boundingBox || { xCenter: 0, yCenter: 0, width: 0, height: 0 };
-            return {
-              bbox: [bb.xCenter - bb.width / 2, bb.yCenter - bb.height / 2, bb.width, bb.height],
-              keypoints: (d.keypoints || []).map(function (k) { return [k.x, k.y]; })
-            };
+          latestFaces = (r.multiFaceLandmarks || []).map(function (lms) {
+            return { pts: lms.map(function (p) { return [p.x, p.y]; }) };
           });
           pushFrame();
         }
@@ -347,7 +337,7 @@
                 prog("ライブラリ読込中（手）");
                 baseHands = await loadPkg("@mediapipe/hands", "hands.js");
                 prog("ライブラリ読込中（顔）");
-                baseFace = await loadPkg("@mediapipe/face_detection", "face_detection.js");
+                baseFace = await loadPkg("@mediapipe/face_mesh", "face_mesh.js");
               })();
             }
             await libsPromise;
@@ -366,8 +356,8 @@
             if (!faceDet) {
               prog("顔のモデル読込中");
               try {
-                faceDet = new FaceDetection({ locateFile: function (f) { return baseFace + f; } });
-                faceDet.setOptions({ model: "short", minDetectionConfidence: 0.5 });
+                faceDet = new FaceMesh({ locateFile: function (f) { return baseFace + f; } });
+                faceDet.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
                 faceDet.onResults(onFaces);
                 await faceDet.send({ image: warm });
                 faceOk = true;
