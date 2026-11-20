@@ -39,6 +39,11 @@
       #stage3d { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #050508; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
       #stage3d canvas { display: block; }
       input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
+      select {
+        font: inherit; font-size: 14px; font-weight: 600; min-height: 2.6rem;
+        border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+        border-radius: 10px; padding: 6px 10px; flex: 1;
+      }
       .item { border-top: 1px solid var(--line); padding: 9px 2px; font-size: 13.5px; line-height: 1.65; }
       .item button { min-height: 2.1rem; padding: 4px 10px; font-size: 12.5px; }
       h2 { font-size: 14px; margin: 6px 0 0; }
@@ -82,6 +87,10 @@
       </div>
 
       <div id="panel3d" class="hidden">
+        <div class="btn-row">
+          <span class="small">再生する動き</span>
+          <select id="playSel"></select>
+        </div>
         <div id="stage3d"></div>
         <div class="btn-row" style="margin-top:8px">
           <button id="playBtn" class="primary" type="button">⏸ 一時停止</button>
@@ -360,7 +369,7 @@
         if (records.length > 10) records.length = 10;
         saveRecords();
         $("recInfo").textContent = "保存しました（" + (dur / 1000).toFixed(1) + "秒）。「3D再生」で見られます";
-        renderRecList();
+        renderRecList(); renderPlaySel();
       }
       $("recBtn").addEventListener("click", function () { if (rec) stopRec(); else startRec(); });
       function renderRecList() {
@@ -383,7 +392,7 @@
               } else if (act === "del") {
                 if (window.confirm("この録画を消しますか？")) {
                   records = records.filter(function (x) { return x.id !== r.id; });
-                  saveRecords(); renderRecList();
+                  saveRecords(); renderRecList(); renderPlaySel();
                 }
               }
             });
@@ -392,6 +401,22 @@
         });
       }
       renderRecList();
+      function renderPlaySel() {
+        var sel = $("playSel");
+        if (!sel) return;
+        var cur = sel.value;
+        sel.innerHTML = "";
+        var opt = document.createElement("option");
+        opt.value = "sample"; opt.textContent = "サンプル（指ダンス）";
+        sel.appendChild(opt);
+        records.forEach(function (r) {
+          var o = document.createElement("option");
+          o.value = String(r.id);
+          o.textContent = "録画 " + fmtDate(r.date) + "（" + (r.dur / 1000).toFixed(1) + "秒）";
+          sel.appendChild(o);
+        });
+        if (cur && sel.querySelector('option[value="' + cur + '"]')) sel.value = cur;
+      }
 
       /* ================= 3D player ================= */
       var T = null, threePromise = null;
@@ -425,7 +450,13 @@
           try { await loadPkgP("three@0.128.0/examples/js/controls/OrbitControls.js"); } catch (e) { /* orbit optional */ }
           T = window.THREE;
           buildScene();
-          loadSample();
+          renderPlaySel();
+          if (records.length) {
+            loadRecording(records[0]);
+            $("playSel").value = String(records[0].id);
+          } else {
+            loadSample();
+          }
           requestAnimationFrame(playerLoop);
           $("playInfo").textContent = "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
         })().catch(function (e) {
@@ -511,6 +542,7 @@
         $("playBtn").textContent = "⏸ 一時停止";
         play.label = "録画 " + fmtDate(r.date);
         $("playInfo").textContent = play.label + "（" + (play.dur / 1000).toFixed(1) + "秒）を再生中";
+        var selR = $("playSel"); if (selR) selR.value = String(r.id);
       }
       /* procedural sample: fingers curl in sequence (finger dance) */
       function chainPts(start, dir, lens, curls) {
@@ -558,6 +590,7 @@
         play.frames = frames;
         play.dur = 4000; play.t = 0; play.playing = true;
         play.label = "サンプル";
+        var selS = $("playSel"); if (selS) selS.value = "sample";
       }
       var scratch = null;
       function playerLoop(ts) {
@@ -584,6 +617,20 @@
         }
         renderer3.render(scene, camera3);
       }
+      $("playSel").addEventListener("change", function () {
+        var v = $("playSel").value;
+        initPlayer().then(function () {
+          if (v === "sample") {
+            loadSample();
+            $("playInfo").textContent = "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
+          } else {
+            var r = records.filter(function (x) { return String(x.id) === v; })[0];
+            if (r) loadRecording(r);
+          }
+          play.playing = true;
+          $("playBtn").textContent = "⏸ 一時停止";
+        });
+      });
       $("playBtn").addEventListener("click", function () {
         play.playing = !play.playing;
         $("playBtn").textContent = play.playing ? "⏸ 一時停止" : "▶ 再生";
