@@ -327,7 +327,20 @@
       var records = [];
       try {
         var rs = JSON.parse(localStorage.getItem(REC_KEY) || "[]");
-        if (Array.isArray(rs)) records = rs;
+        if (Array.isArray(rs)) {
+          records = rs.filter(function (r) {
+            return r && Array.isArray(r.frames) && r.frames.length >= 2;
+          }).map(function (r) {
+            var fr = r.frames.filter(function (f) {
+              return f && Array.isArray(f.p) && f.p.length === 21;
+            }).map(function (f) {
+              return { t: +f.t || 0, p: f.p.map(function (pt) {
+                return [+pt[0] || 0, +pt[1] || 0, +pt[2] || 0];
+              }) };
+            });
+            return { id: r.id || 0, date: r.date, dur: +r.dur || (fr.length ? fr[fr.length - 1].t : 0), frames: fr };
+          }).filter(function (r) { return r.frames.length >= 2; });
+        }
       } catch (e) { records = []; }
       function saveRecords() {
         try { localStorage.setItem(REC_KEY, JSON.stringify(records)); }
@@ -388,7 +401,10 @@
               var act = btn.getAttribute("data-act");
               if (act === "play") {
                 setAppMode("3d");
-                initPlayer().then(function () { loadRecording(r); });
+                initPlayer().then(function () {
+                  try { loadRecording(r); }
+                  catch (e) { loadSample(); $("playInfo").textContent = "この録画は読み込めませんでした。サンプルを表示します"; }
+                });
               } else if (act === "del") {
                 if (window.confirm("この録画を消しますか？")) {
                   records = records.filter(function (x) { return x.id !== r.id; });
@@ -449,16 +465,22 @@
           await loadPkgP("three@0.128.0/build/three.min.js");
           try { await loadPkgP("three@0.128.0/examples/js/controls/OrbitControls.js"); } catch (e) { /* orbit optional */ }
           T = window.THREE;
-          buildScene();
-          renderPlaySel();
-          if (records.length) {
-            loadRecording(records[0]);
-            $("playSel").value = String(records[0].id);
-          } else {
-            loadSample();
+          if (!scene) {
+            buildScene();
+            renderPlaySel();
+            var loadedRec = false;
+            if (records.length) {
+              try { loadRecording(records[0]); loadedRec = true; }
+              catch (e) { loadedRec = false; }
+            }
+            if (!loadedRec) {
+              loadSample();
+              $("playInfo").textContent = records.length
+                ? "録画を読み込めなかったのでサンプルを表示しています"
+                : "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
+            }
+            requestAnimationFrame(playerLoop);
           }
-          requestAnimationFrame(playerLoop);
-          $("playInfo").textContent = "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
         })().catch(function (e) {
           $("playInfo").textContent = "3Dライブラリを読み込めませんでした：" + (e && e.message ? e.message : e);
           threePromise = null;
@@ -529,10 +551,14 @@
       }
       function prepFrames(frames) {
         return frames.map(function (f) {
-          var pts = f.p.map(function (a) { return new T.Vector3(a[0], -a[1], -a[2]); });
+          var pts = [];
+          for (var i = 0; i < 21; i++) {
+            var a = (f.p && f.p[i]) || [0, 0, 0];
+            pts.push(new T.Vector3(+a[0] || 0, -(+a[1] || 0), -(+a[2] || 0)));
+          }
           var w = pts[0].clone();
           var s = pts[9].distanceTo(pts[0]) || 1;
-          return { t: f.t, pts: pts.map(function (v) { return v.sub(w).divideScalar(s); }) };
+          return { t: +f.t || 0, pts: pts.map(function (v) { return v.sub(w).divideScalar(s); }) };
         });
       }
       function loadRecording(r) {
@@ -625,7 +651,10 @@
             $("playInfo").textContent = "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
           } else {
             var r = records.filter(function (x) { return String(x.id) === v; })[0];
-            if (r) loadRecording(r);
+            if (r) {
+              try { loadRecording(r); }
+              catch (e) { loadSample(); $("playInfo").textContent = "この録画は読み込めませんでした。サンプルを表示します"; }
+            }
           }
           play.playing = true;
           $("playBtn").textContent = "⏸ 一時停止";
