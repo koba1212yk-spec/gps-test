@@ -45,6 +45,8 @@
       button:disabled { opacity: .45; }
       button:active { transform: translateY(1px); }
       .live { font-size: 15px; font-weight: 600; }
+      .vbtn { min-height: 2.1rem; padding: 4px 12px; font-size: 13px; }
+      .vbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
       #routeList { display: flex; flex-direction: column; }
       .route-item { border-top: 1px solid var(--line); padding: 9px 2px; font-size: 13.5px; line-height: 1.65; }
       .route-item button { min-height: 2.1rem; padding: 4px 10px; font-size: 12.5px; font-weight: 600; }
@@ -57,10 +59,15 @@
       <h1>ルート記録</h1>
       <p class="status" id="status">「スタート」を押して歩くと、ルートが線で描かれます</p>
 
+      <div class="btn-row">
+        <span class="small" style="align-self:center">色の意味：</span>
+        <button id="modeSpeed" class="vbtn on" type="button">スピード</button>
+        <button id="modeTime" class="vbtn" type="button">時間</button>
+      </div>
       <canvas id="stage" width="600" height="450"></canvas>
+      <div class="legend" id="segLegend"></div>
       <div class="legend">
-        <span><i style="background:var(--route)"></i>今回のルート</span>
-        <span><i style="background:var(--prev)"></i>前回（比較時）</span>
+        <span><i style="background:var(--prev)"></i>前回（比較時・グレー破線）</span>
         <span>● 緑＝スタート　● 赤＝ゴール</span>
       </div>
 
@@ -170,16 +177,31 @@
                   h - (pad + (y - minY) * scale + (h - pad * 2 - spanY * scale) / 2)];
         }
         viewRoutes.forEach(function (vr) {
-          var sm = smoothLine(vr.pts);
-          ctx.beginPath();
-          sm.forEach(function (a, i) {
-            var xy = proj(a[0], a[1]);
-            if (i === 0) ctx.moveTo(xy[0], xy[1]); else ctx.lineTo(xy[0], xy[1]);
-          });
-          ctx.strokeStyle = vr.color; ctx.lineWidth = vr.dash ? 3 : 4;
-          ctx.setLineDash(vr.dash ? [7, 6] : []);
-          ctx.lineJoin = "round"; ctx.lineCap = "round";
-          ctx.stroke(); ctx.setLineDash([]);
+          if (vr.seg) {
+            buildSegments(vr).forEach(function (sg) {
+              var sm2 = smoothLine(sg.pts);
+              ctx.beginPath();
+              sm2.forEach(function (a, i) {
+                var xy = proj(a[0], a[1]);
+                if (i === 0) ctx.moveTo(xy[0], xy[1]); else ctx.lineTo(xy[0], xy[1]);
+              });
+              ctx.strokeStyle = segColor(sg); ctx.lineWidth = 5;
+              ctx.setLineDash([]);
+              ctx.lineJoin = "round"; ctx.lineCap = "round";
+              ctx.stroke();
+            });
+          } else {
+            var sm = smoothLine(vr.pts);
+            ctx.beginPath();
+            sm.forEach(function (a, i) {
+              var xy = proj(a[0], a[1]);
+              if (i === 0) ctx.moveTo(xy[0], xy[1]); else ctx.lineTo(xy[0], xy[1]);
+            });
+            ctx.strokeStyle = vr.color; ctx.lineWidth = vr.dash ? 3 : 4;
+            ctx.setLineDash(vr.dash ? [7, 6] : []);
+            ctx.lineJoin = "round"; ctx.lineCap = "round";
+            ctx.stroke(); ctx.setLineDash([]);
+          }
           var s = proj(vr.pts[0][0], vr.pts[0][1]);
           var g = proj(vr.pts[vr.pts.length - 1][0], vr.pts[vr.pts.length - 1][1]);
           ctx.beginPath(); ctx.arc(s[0], s[1], 6, 0, Math.PI * 2);
@@ -189,6 +211,68 @@
         });
       }
       window.addEventListener("resize", draw);
+
+      /* ================= segment colors (every ~10 m) ================= */
+      var colorMode = "speed";
+      try { if (localStorage.getItem("gyosen-route-mode") === "time") colorMode = "time"; } catch (e) { /* ignore */ }
+      function buildSegments(vr) {
+        var pts = vr.pts;
+        if (!pts || pts.length < 2) return [];
+        var hasT = typeof pts[0][2] === "number";
+        var cum = [0];
+        for (var i = 1; i < pts.length; i++) {
+          cum.push(cum[i - 1] + haversineM({ lat: pts[i - 1][0], lng: pts[i - 1][1] }, { lat: pts[i][0], lng: pts[i][1] }));
+        }
+        var totalD = vr.dist || cum[cum.length - 1];
+        function tAt(i) { return hasT ? pts[i][2] : (totalD > 0 ? (vr.dur || 0) * cum[i] / totalD : 0); }
+        var segs = [], cur = [pts[0]], acc = 0, tStart = tAt(0);
+        for (var j = 1; j < pts.length; j++) {
+          acc += cum[j] - cum[j - 1];
+          cur.push(pts[j]);
+          if (acc >= 10) {
+            segs.push({ pts: cur, dist: acc, dur: Math.max(0.1, tAt(j) - tStart) });
+            cur = [pts[j]]; acc = 0; tStart = tAt(j);
+          }
+        }
+        if (cur.length > 1) {
+          if (segs.length && acc < 5) {
+            var lastS = segs[segs.length - 1];
+            lastS.pts = lastS.pts.concat(cur.slice(1));
+            lastS.dist += acc;
+            lastS.dur += Math.max(0, tAt(pts.length - 1) - tStart);
+          } else {
+            segs.push({ pts: cur, dist: acc, dur: Math.max(0.1, tAt(pts.length - 1) - tStart) });
+          }
+        }
+        return segs;
+      }
+      function segColor(sg) {
+        var cols = ["#4169c9", "#2faf5f", "#e8c81a", "#ef8f1d", "#d93a2b"];
+        var v, stops;
+        if (colorMode === "speed") { v = (sg.dist / sg.dur) * 3.6; stops = [2.5, 4, 5.5, 7]; }
+        else { v = sg.dur; stops = [6, 8, 10, 14]; cols = cols.slice().reverse(); }
+        for (var i = 0; i < stops.length; i++) if (v < stops[i]) return cols[i];
+        return cols[cols.length - 1];
+      }
+      function chip(c, t) { return "<span><i style=\"background:" + c + "\"></i>" + t + "</span>"; }
+      function renderLegend() {
+        var el = $("segLegend");
+        if (!el) return;
+        var body = colorMode === "speed"
+          ? chip("#4169c9", "遅い 〜2.5km/h") + chip("#2faf5f", "2.5〜4") + chip("#e8c81a", "4〜5.5") + chip("#ef8f1d", "5.5〜7") + chip("#d93a2b", "7〜 速い")
+          : chip("#d93a2b", "速い 〜6秒") + chip("#ef8f1d", "6〜8秒") + chip("#e8c81a", "8〜10秒") + chip("#2faf5f", "10〜14秒") + chip("#4169c9", "14秒〜 遅い");
+        el.innerHTML = "<span>10mごとの" + (colorMode === "speed" ? "スピード" : "かかった時間") + "：</span>" + body;
+      }
+      function setMode(m) {
+        colorMode = m;
+        try { localStorage.setItem("gyosen-route-mode", m); } catch (e) { /* ignore */ }
+        $("modeSpeed").classList.toggle("on", m === "speed");
+        $("modeTime").classList.toggle("on", m === "time");
+        renderLegend();
+        draw();
+      }
+      $("modeSpeed").addEventListener("click", function () { setMode("speed"); });
+      $("modeTime").addEventListener("click", function () { setMode("time"); });
 
       /* ================= recording ================= */
       var watchId = null;
@@ -205,6 +289,13 @@
         var sec = (Date.now() - rec.startT) / 1000;
         $("live").textContent = "記録中… 距離 " + Math.round(rec.dist) + " m ・ 時間 " + fmtDur(sec);
       }
+      function liveViewRoute() {
+        var t0 = rec.pts.length ? rec.pts[0].t : Date.now();
+        return {
+          seg: true, dist: rec.dist, dur: Math.max(1, (Date.now() - rec.startT) / 1000),
+          pts: rec.pts.map(function (q) { return [q.lat, q.lng, Math.round((q.t - t0) / 1000)]; })
+        };
+      }
       function onPos(pos) {
         if (!rec) return;
         var c = pos.coords;
@@ -213,14 +304,13 @@
         var now = Date.now();
         var last = rec.pts[rec.pts.length - 1];
         if (last) {
-          if (now - rec.lastT < 4000) return;
+          if (now - rec.lastT < 2000) return;
           var d = haversineM(last, p);
-          if (d < 4) return;
-          rec.dist += d;
+          if (d >= 1) rec.dist += d;
         }
         rec.pts.push({ lat: p.lat, lng: p.lng, t: now });
         rec.lastT = now;
-        viewRoutes = [{ pts: rec.pts.map(function (q) { return [q.lat, q.lng]; }), color: "#e07b00" }];
+        viewRoutes = [liveViewRoute()];
         draw();
         refreshLive();
       }
@@ -280,15 +370,16 @@
           if (thin[thin.length - 1] !== pts[pts.length - 1]) thin.push(pts[pts.length - 1]);
           pts = thin;
         }
+        var t0 = pts[0].t;
         routes.unshift({
           id: Date.now(), name: name, date: new Date().toISOString(),
           dist: Math.round(r.dist), dur: Math.round(dur),
-          pts: pts.map(function (p) { return [Math.round(p.lat * 1e6) / 1e6, Math.round(p.lng * 1e6) / 1e6]; })
+          pts: pts.map(function (p) { return [Math.round(p.lat * 1e6) / 1e6, Math.round(p.lng * 1e6) / 1e6, Math.round((p.t - t0) / 1000)]; })
         });
         if (routes.length > 30) routes.length = 30;
         saveRoutes();
         renderList();
-        viewRoutes = [{ pts: routes[0].pts, color: "#e07b00" }];
+        viewRoutes = [{ pts: routes[0].pts, seg: true, dist: routes[0].dist, dur: routes[0].dur }];
         draw();
         $("status").innerHTML = "保存しました：<b>" + escapeHtml(name) + "</b> ・ " + Math.round(r.dist) + " m ・ " + fmtDur(dur) + " ・ ペース " + fmtPace(r.dist, dur);
       }
@@ -326,14 +417,14 @@
             btn.addEventListener("click", function () {
               var act = btn.getAttribute("data-act");
               if (act === "show") {
-                viewRoutes = [{ pts: r.pts, color: "#e07b00" }];
+                viewRoutes = [{ pts: r.pts, seg: true, dist: r.dist, dur: r.dur }];
                 draw();
                 $("status").textContent = r.name + "：" + Math.round(r.dist) + " m ・ " + fmtDur(r.dur);
                 window.scrollTo({ top: 0, behavior: "smooth" });
               } else if (act === "cmp" && prev) {
                 viewRoutes = [
                   { pts: prev.pts, color: "#8a8a8a", dash: true },
-                  { pts: r.pts, color: "#e07b00" }
+                  { pts: r.pts, seg: true, dist: r.dist, dur: r.dur }
                 ];
                 draw();
                 var dd2 = r.dur - prev.dur;
@@ -356,7 +447,7 @@
       }
 
       renderList();
-      draw();
+      setMode(colorMode);
     </script>
   </body>
 </html>
