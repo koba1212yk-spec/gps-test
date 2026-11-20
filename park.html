@@ -5,439 +5,414 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>ルート記録</title>
+    <title>公園グラフィティ</title>
     <style>
       :root {
-        --bg: #f4f6f3; --panel: #ffffff; --ink: #16211a; --ink-dim: #5c6a60;
-        --line: #d9e0d8; --accent: #0f7a4d; --accent-ink: #ffffff; --accent-soft: #e3f2e9;
-        --route: #e07b00; --prev: #8a8a8a;
+        --bg: #101014; --panel: #1b1b21; --ink: #f2f2f5; --ink-dim: #a7a7b3;
+        --line: #33333d; --accent: #ff2e88; --accent-ink: #ffffff;
         --sans: "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Noto Sans JP", sans-serif;
       }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #0e1511; --panel: #18221b; --ink: #e6efe8; --ink-dim: #9db3a4;
-          --line: #2b3a2f; --accent: #2fbf7f; --accent-ink: #06231a; --accent-soft: #173828;
-        }
-      }
       * { box-sizing: border-box; }
-      html, body { height: 100%; }
       body {
         margin: 0; background: var(--bg); color: var(--ink);
         font-family: var(--sans); -webkit-tap-highlight-color: transparent;
       }
       #app { display: flex; flex-direction: column; min-height: 100dvh; max-width: 640px; margin: 0 auto; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); gap: 10px; }
       h1 { font-size: 18px; margin: 2px 0 0; }
-      .status { font-size: 13px; color: var(--ink-dim); line-height: 1.6; min-height: 1.6em; }
+      .status { font-size: 13px; color: var(--ink-dim); line-height: 1.6; min-height: 1.6em; margin: 0; }
       .status b { color: var(--ink); }
-      #stage {
-        background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
-        width: 100%; aspect-ratio: 4 / 3; display: block; touch-action: manipulation;
+      #stageWrap { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
+      #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+      #draw { position: absolute; inset: 0; width: 100%; height: 100%; }
+      #banner {
+        position: absolute; left: 50%; top: 10px; transform: translateX(-50%);
+        background: rgba(0,0,0,.65); color: #fff; font-size: 13px; font-weight: 700;
+        padding: 6px 12px; border-radius: 999px; display: none; white-space: nowrap;
       }
-      .legend { font-size: 11.5px; color: var(--ink-dim); display: flex; gap: 14px; flex-wrap: wrap; }
-      .legend i { display: inline-block; width: 18px; height: 4px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
-      .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+      #banner.on { display: block; }
+      .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       button {
         font: inherit; font-size: 15px; font-weight: 600; min-height: 2.8rem;
         border: 1px solid var(--line); background: var(--panel); color: var(--ink);
         border-radius: 10px; padding: 8px 14px; cursor: pointer;
       }
       button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+      button.on { background: #2c2c35; border-color: var(--accent); color: var(--accent); }
       button:disabled { opacity: .45; }
       button:active { transform: translateY(1px); }
-      .live { font-size: 15px; font-weight: 600; }
-      .vbtn { min-height: 2.1rem; padding: 4px 12px; font-size: 13px; }
-      .vbtn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-      #routeList { display: flex; flex-direction: column; }
-      .route-item { border-top: 1px solid var(--line); padding: 9px 2px; font-size: 13.5px; line-height: 1.65; }
-      .route-item button { min-height: 2.1rem; padding: 4px 10px; font-size: 12.5px; font-weight: 600; }
+      .chip {
+        width: 38px; height: 38px; min-height: 38px; border-radius: 50%; padding: 0;
+        border: 3px solid transparent;
+      }
+      .chip.on { border-color: #fff; }
       .small { font-size: 11.5px; color: var(--ink-dim); }
+      .g-item { border-top: 1px solid var(--line); padding: 9px 2px; font-size: 13.5px; line-height: 1.65; }
+      .g-item button { min-height: 2.1rem; padding: 4px 10px; font-size: 12.5px; }
       h2 { font-size: 14px; margin: 6px 0 0; }
+      .hidden { display: none !important; }
     </style>
   </head>
   <body>
     <div id="app">
-      <h1>ルート記録</h1>
-      <p class="status" id="status">「スタート」を押して歩くと、ルートが線で描かれます</p>
+      <h1>公園グラフィティ</h1>
+      <p class="status" id="status">読み込み中…</p>
 
-      <div class="btn-row">
-        <span class="small" style="align-self:center">色の意味：</span>
-        <button id="modeSpeed" class="vbtn on" type="button">スピード</button>
-        <button id="modeTime" class="vbtn" type="button">時間</button>
-      </div>
-      <canvas id="stage" width="600" height="450"></canvas>
-      <div class="legend" id="segLegend"></div>
-      <div class="legend">
-        <span><i style="background:var(--prev)"></i>前回（比較時・グレー破線）</span>
-        <span>● 緑＝スタート　● 赤＝ゴール</span>
+      <div id="stageWrap">
+        <video id="cam" playsinline muted autoplay></video>
+        <canvas id="draw"></canvas>
+        <div id="banner"></div>
       </div>
 
       <div class="btn-row">
-        <button id="startBtn" class="primary" type="button">スタート</button>
-        <button id="goalBtn" type="button" disabled>ゴール（保存）</button>
-        <button id="cancelBtn" type="button" disabled>やめる</button>
+        <button id="modeDraw" class="on" type="button">描く</button>
+        <button id="modeView" type="button">見る</button>
+        <button id="camBtn" class="primary" type="button">カメラ開始</button>
       </div>
-      <p class="live" id="live"></p>
 
-      <h2>記録一覧</h2>
-      <div id="routeList"></div>
+      <div id="drawPanel">
+        <div class="btn-row" id="colors"></div>
+        <div class="btn-row" style="margin-top:8px">
+          <button id="undoBtn" type="button">1本戻す</button>
+          <button id="clearBtn" type="button">全部消す</button>
+          <button id="saveBtn" class="primary" type="button">ここに貼る</button>
+        </div>
+        <p class="small">つまむ（親指と人差し指をくっつける）と線が引けます。離すとペンが上がります。指先の丸がペンの位置です。</p>
+      </div>
+
+      <div id="viewPanel" class="hidden">
+        <p class="small" id="viewInfo">近くの落書きを探しています…</p>
+        <h2>保存した落書き</h2>
+        <div id="gList"></div>
+      </div>
     </div>
 
-    <script>
-      "use strict";
-      var $ = function (id) { return document.getElementById(id); };
+    <script type="module">
+      import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/dist/vision_bundle.mjs";
+
+      const $ = (id) => document.getElementById(id);
+      const status = (t) => { $("status").innerHTML = t; };
 
       /* ================= storage ================= */
-      var ROUTES_KEY = "gyosen-routes-v1";
-      var routes = [];
+      const G_KEY = "gyosen-graffiti-v1";
+      let graffiti = [];
       try {
-        var savedRoutes = JSON.parse(localStorage.getItem(ROUTES_KEY) || "[]");
-        if (Array.isArray(savedRoutes)) routes = savedRoutes;
-      } catch (e) { routes = []; }
-      function saveRoutes() {
-        try { localStorage.setItem(ROUTES_KEY, JSON.stringify(routes)); } catch (e) { /* ignore */ }
+        const s = JSON.parse(localStorage.getItem(G_KEY) || "[]");
+        if (Array.isArray(s)) graffiti = s;
+      } catch (e) { graffiti = []; }
+      function saveStore() {
+        try { localStorage.setItem(G_KEY, JSON.stringify(graffiti)); } catch (e) { /* ignore */ }
       }
 
-      /* ================= geo helpers ================= */
+      /* ================= helpers ================= */
       function haversineM(a, b) {
-        var R = 6371000, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
-        var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) *
-                Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const R = 6371000, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
+        const s = Math.sin(dLat / 2) ** 2 +
+          Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
         return 2 * R * Math.asin(Math.sqrt(s));
       }
-      function pad2(n) { return (n < 10 ? "0" : "") + n; }
-      function fmtDur(sec) {
-        sec = Math.max(0, Math.round(sec));
-        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-        return h > 0 ? h + ":" + pad2(m) + ":" + pad2(s) : m + ":" + pad2(s);
-      }
-      function fmtPace(distM, sec) {
-        if (!distM || distM < 10) return "—";
-        var p = sec / (distM / 1000);
-        return Math.floor(p / 60) + ":" + pad2(Math.round(p % 60)) + " /km";
-      }
+      const pad2 = (n) => (n < 10 ? "0" : "") + n;
       function fmtDate(iso) {
-        var d = new Date(iso);
+        const d = new Date(iso);
         return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
       }
       function escapeHtml(s) {
-        return String(s).replace(/[&<>"']/g, function (c) {
-          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-        });
+        return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
       }
 
-      /* ================= drawing ================= */
-      var canvas = $("stage");
-      var ctx = canvas.getContext("2d");
-      var viewRoutes = [];   // [{pts:[[lat,lng]...], color, dash}]
-      function smoothLine(lls) {
-        var p = lls.map(function (a) { return [a[0], a[1]]; });
-        for (var it = 0; it < 2; it++) {
-          if (p.length < 3) break;
-          var out = [p[0]];
-          for (var i = 0; i < p.length - 1; i++) {
-            var a = p[i], b = p[i + 1];
-            out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
-            out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
-          }
-          out.push(p[p.length - 1]);
-          p = out;
-        }
-        return p;
+      /* ================= state ================= */
+      const COLORS = ["#ff2e88", "#ff7a00", "#ffd400", "#2ee66b", "#00b7ff", "#8a5cff", "#ffffff", "#16161c"];
+      let color = COLORS[0];
+      let mode = "draw";               // draw | view
+      let strokes = [];                // current drawing [{color, w, pts:[[x,y]...]}] (normalized)
+      let curStroke = null;
+      let smooth = null;               // smoothed fingertip {x,y}
+      let pinch = false;
+      let myPos = null;                // {lat,lng,acc}
+      let viewTarget = null;           // graffiti shown on camera
+      let viewIsPreview = false;
+      let watchId = null;
+
+      /* ================= colors UI ================= */
+      const colorsEl = $("colors");
+      COLORS.forEach((c) => {
+        const b = document.createElement("button");
+        b.type = "button"; b.className = "chip" + (c === color ? " on" : "");
+        b.style.background = c; b.setAttribute("aria-label", "色 " + c);
+        b.addEventListener("click", () => {
+          color = c;
+          colorsEl.querySelectorAll(".chip").forEach((x) => x.classList.toggle("on", x === b));
+        });
+        colorsEl.appendChild(b);
+      });
+
+      /* ================= camera + hand tracking ================= */
+      const video = $("cam");
+      const canvas = $("draw");
+      const ctx = canvas.getContext("2d");
+      let landmarker = null;
+      let camStarted = false;
+
+      async function initLandmarker() {
+        const fileset = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
+        );
+        const opts = (delegate) => ({
+          baseOptions: {
+            modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+            delegate
+          },
+          runningMode: "VIDEO", numHands: 1
+        });
+        try { landmarker = await HandLandmarker.createFromOptions(fileset, opts("GPU")); }
+        catch (e) { landmarker = await HandLandmarker.createFromOptions(fileset, opts("CPU")); }
       }
-      function draw() {
-        var dpr = window.devicePixelRatio || 1;
-        var w = canvas.clientWidth, h = canvas.clientHeight;
-        if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
-          canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
-        }
-        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        ctx.clearRect(0, 0, w, h);
-        var all = [];
-        viewRoutes.forEach(function (vr) { all = all.concat(vr.pts); });
-        if (!all.length) {
-          ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--ink-dim");
-          ctx.font = "13px sans-serif"; ctx.textAlign = "center";
-          ctx.fillText("ここにルートの線が描かれます", w / 2, h / 2);
+
+      async function startCam() {
+        if (camStarted) return;
+        camStarted = true;
+        $("camBtn").disabled = true;
+        status("カメラと手の認識を準備中…（初回は少し時間がかかります）");
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 960 } },
+            audio: false
+          });
+          video.srcObject = stream;
+          await video.play();
+        } catch (e) {
+          status("カメラを開けませんでした。Chromeのカメラ許可を確認してね");
+          camStarted = false; $("camBtn").disabled = false;
           return;
         }
-        var lat0 = all[0][0], lng0 = all[0][1];
-        var mLat = 111320, mLng = 111320 * Math.cos(lat0 * Math.PI / 180);
-        var pts = all.map(function (a) { return { x: (a[1] - lng0) * mLng, y: (a[0] - lat0) * mLat }; });
-        var minX = Math.min.apply(null, pts.map(function (p) { return p.x; }));
-        var maxX = Math.max.apply(null, pts.map(function (p) { return p.x; }));
-        var minY = Math.min.apply(null, pts.map(function (p) { return p.y; }));
-        var maxY = Math.max.apply(null, pts.map(function (p) { return p.y; }));
-        var spanX = Math.max(10, maxX - minX), spanY = Math.max(10, maxY - minY);
-        var pad = 26;
-        var scale = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
-        function proj(lat, lng) {
-          var x = (lng - lng0) * mLng, y = (lat - lat0) * mLat;
-          return [pad + (x - minX) * scale + (w - pad * 2 - spanX * scale) / 2,
-                  h - (pad + (y - minY) * scale + (h - pad * 2 - spanY * scale) / 2)];
+        try {
+          await initLandmarker();
+          status(mode === "draw"
+            ? "準備OK。カメラに手をかざして、つまんで描いてみて"
+            : "準備OK。落書きのある場所に近づくと浮かびます");
+        } catch (e) {
+          status("手の認識を読み込めませんでした。通信状態を確認して、再読み込みしてね");
+          return;
         }
-        viewRoutes.forEach(function (vr) {
-          if (vr.seg) {
-            buildSegments(vr).forEach(function (sg) {
-              var sm2 = smoothLine(sg.pts);
-              ctx.beginPath();
-              sm2.forEach(function (a, i) {
-                var xy = proj(a[0], a[1]);
-                if (i === 0) ctx.moveTo(xy[0], xy[1]); else ctx.lineTo(xy[0], xy[1]);
-              });
-              ctx.strokeStyle = segColor(sg); ctx.lineWidth = 5;
-              ctx.setLineDash([]);
-              ctx.lineJoin = "round"; ctx.lineCap = "round";
-              ctx.stroke();
-            });
+        requestAnimationFrame(loop);
+      }
+      $("camBtn").addEventListener("click", startCam);
+
+      let lastVideoTime = -1;
+      function loop() {
+        requestAnimationFrame(loop);
+        if (landmarker && video.readyState >= 2 && video.currentTime !== lastVideoTime) {
+          lastVideoTime = video.currentTime;
+          try {
+            const res = landmarker.detectForVideo(video, performance.now());
+            handleHands(res);
+          } catch (e) { /* transient */ }
+        }
+        render();
+      }
+
+      function handleHands(res) {
+        const lms = res && res.landmarks && res.landmarks[0];
+        if (!lms) {
+          pinch = false; curStroke = null; smooth = null;
+          return;
+        }
+        const tip = lms[8], thumb = lms[4];
+        const d = Math.hypot(tip.x - thumb.x, tip.y - thumb.y);
+        pinch = d < 0.055;
+        if (!smooth) smooth = { x: tip.x, y: tip.y };
+        smooth.x += (tip.x - smooth.x) * 0.45;
+        smooth.y += (tip.y - smooth.y) * 0.45;
+        if (mode !== "draw") return;
+        if (pinch) {
+          if (!curStroke) {
+            curStroke = { color, w: 0.03, pts: [[smooth.x, smooth.y]] };
+            strokes.push(curStroke);
           } else {
-            var sm = smoothLine(vr.pts);
+            const last = curStroke.pts[curStroke.pts.length - 1];
+            if (Math.hypot(smooth.x - last[0], smooth.y - last[1]) > 0.004) {
+              curStroke.pts.push([smooth.x, smooth.y]);
+            }
+          }
+        } else {
+          curStroke = null;
+        }
+      }
+
+      /* ================= rendering ================= */
+      function drawStroke(s, W, H) {
+        if (s.pts.length < 2) {
+          // dot
+          ctx.beginPath();
+          ctx.arc(s.pts[0][0] * W, s.pts[0][1] * H, s.w * W * 0.5, 0, Math.PI * 2);
+          ctx.fillStyle = s.color; ctx.globalAlpha = 0.9; ctx.fill(); ctx.globalAlpha = 1;
+          return;
+        }
+        const passes = [[2.1, 0.13], [1.0, 0.9]];
+        for (const [mult, alpha] of passes) {
+          ctx.beginPath();
+          s.pts.forEach(([x, y], i) => {
+            const px = x * W, py = y * H;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          });
+          ctx.strokeStyle = s.color;
+          ctx.lineWidth = Math.max(2, s.w * W * mult);
+          ctx.globalAlpha = alpha;
+          ctx.lineJoin = "round"; ctx.lineCap = "round";
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
+      }
+      function render() {
+        const W = canvas.clientWidth, H = canvas.clientHeight;
+        if (!W) return;
+        const dpr = window.devicePixelRatio || 1;
+        if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+          canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+        }
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, W, H);
+        const show = mode === "draw" ? strokes : (viewTarget ? viewTarget.strokes : []);
+        show.forEach((s) => drawStroke(s, W, H));
+        // fingertip cursor
+        if (smooth && landmarker) {
+          ctx.beginPath();
+          ctx.arc(smooth.x * W, smooth.y * H, pinch ? 13 : 9, 0, Math.PI * 2);
+          ctx.strokeStyle = pinch ? "#ff2e88" : "rgba(255,255,255,.9)";
+          ctx.lineWidth = 3; ctx.stroke();
+          if (pinch) {
             ctx.beginPath();
-            sm.forEach(function (a, i) {
-              var xy = proj(a[0], a[1]);
-              if (i === 0) ctx.moveTo(xy[0], xy[1]); else ctx.lineTo(xy[0], xy[1]);
-            });
-            ctx.strokeStyle = vr.color; ctx.lineWidth = vr.dash ? 3 : 4;
-            ctx.setLineDash(vr.dash ? [7, 6] : []);
-            ctx.lineJoin = "round"; ctx.lineCap = "round";
-            ctx.stroke(); ctx.setLineDash([]);
+            ctx.arc(smooth.x * W, smooth.y * H, 3.5, 0, Math.PI * 2);
+            ctx.fillStyle = "#ff2e88"; ctx.fill();
           }
-          var s = proj(vr.pts[0][0], vr.pts[0][1]);
-          var g = proj(vr.pts[vr.pts.length - 1][0], vr.pts[vr.pts.length - 1][1]);
-          ctx.beginPath(); ctx.arc(s[0], s[1], 6, 0, Math.PI * 2);
-          ctx.fillStyle = "#0f7a4d"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = "#fff"; ctx.stroke();
-          ctx.beginPath(); ctx.arc(g[0], g[1], 6, 0, Math.PI * 2);
-          ctx.fillStyle = "#b3261e"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.stroke();
-        });
+        }
       }
-      window.addEventListener("resize", draw);
+      window.addEventListener("resize", render);
 
-      /* ================= segment colors (every ~10 m) ================= */
-      var colorMode = "speed";
-      try { if (localStorage.getItem("gyosen-route-mode") === "time") colorMode = "time"; } catch (e) { /* ignore */ }
-      function buildSegments(vr) {
-        var pts = vr.pts;
-        if (!pts || pts.length < 2) return [];
-        var hasT = typeof pts[0][2] === "number";
-        var cum = [0];
-        for (var i = 1; i < pts.length; i++) {
-          cum.push(cum[i - 1] + haversineM({ lat: pts[i - 1][0], lng: pts[i - 1][1] }, { lat: pts[i][0], lng: pts[i][1] }));
-        }
-        var totalD = vr.dist || cum[cum.length - 1];
-        function tAt(i) { return hasT ? pts[i][2] : (totalD > 0 ? (vr.dur || 0) * cum[i] / totalD : 0); }
-        var segs = [], cur = [pts[0]], acc = 0, tStart = tAt(0);
-        for (var j = 1; j < pts.length; j++) {
-          acc += cum[j] - cum[j - 1];
-          cur.push(pts[j]);
-          if (acc >= 10) {
-            segs.push({ pts: cur, dist: acc, dur: Math.max(0.1, tAt(j) - tStart) });
-            cur = [pts[j]]; acc = 0; tStart = tAt(j);
-          }
-        }
-        if (cur.length > 1) {
-          if (segs.length && acc < 5) {
-            var lastS = segs[segs.length - 1];
-            lastS.pts = lastS.pts.concat(cur.slice(1));
-            lastS.dist += acc;
-            lastS.dur += Math.max(0, tAt(pts.length - 1) - tStart);
-          } else {
-            segs.push({ pts: cur, dist: acc, dur: Math.max(0.1, tAt(pts.length - 1) - tStart) });
-          }
-        }
-        return segs;
-      }
-      function segColor(sg) {
-        var cols = ["#4169c9", "#2faf5f", "#e8c81a", "#ef8f1d", "#d93a2b"];
-        var v, stops;
-        if (colorMode === "speed") { v = (sg.dist / sg.dur) * 3.6; stops = [2.5, 4, 5.5, 7]; }
-        else { v = sg.dur; stops = [6, 8, 10, 14]; cols = cols.slice().reverse(); }
-        for (var i = 0; i < stops.length; i++) if (v < stops[i]) return cols[i];
-        return cols[cols.length - 1];
-      }
-      function chip(c, t) { return "<span><i style=\"background:" + c + "\"></i>" + t + "</span>"; }
-      function renderLegend() {
-        var el = $("segLegend");
-        if (!el) return;
-        var body = colorMode === "speed"
-          ? chip("#4169c9", "遅い 〜2.5km/h") + chip("#2faf5f", "2.5〜4") + chip("#e8c81a", "4〜5.5") + chip("#ef8f1d", "5.5〜7") + chip("#d93a2b", "7〜 速い")
-          : chip("#d93a2b", "速い 〜6秒") + chip("#ef8f1d", "6〜8秒") + chip("#e8c81a", "8〜10秒") + chip("#2faf5f", "10〜14秒") + chip("#4169c9", "14秒〜 遅い");
-        el.innerHTML = "<span>10mごとの" + (colorMode === "speed" ? "スピード" : "かかった時間") + "：</span>" + body;
-      }
+      /* ================= draw actions ================= */
+      $("undoBtn").addEventListener("click", () => { strokes.pop(); curStroke = null; });
+      $("clearBtn").addEventListener("click", () => { strokes = []; curStroke = null; });
+      $("saveBtn").addEventListener("click", () => {
+        if (!strokes.length) { status("まだ何も描いてないよ"); return; }
+        if (!("geolocation" in navigator)) { status("このブラウザはGPSに未対応です"); return; }
+        status("位置を取っています…");
+        navigator.geolocation.getCurrentPosition((pos) => {
+          const g = {
+            id: Date.now(),
+            lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy),
+            date: new Date().toISOString(),
+            strokes: strokes.map((s) => ({
+              color: s.color, w: s.w,
+              pts: s.pts.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000])
+            }))
+          };
+          graffiti.unshift(g);
+          if (graffiti.length > 50) graffiti.length = 50;
+          saveStore();
+          strokes = []; curStroke = null;
+          myPos = { lat: g.lat, lng: g.lng, acc: g.acc };
+          status("貼りました！（精度 ±" + g.acc + "m）「見る」で近づくと浮かびます");
+          renderList();
+        }, () => {
+          status("位置を取れませんでした。空が見える場所でもう一回試してね");
+        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+      });
+
+      /* ================= view mode ================= */
       function setMode(m) {
-        colorMode = m;
-        try { localStorage.setItem("gyosen-route-mode", m); } catch (e) { /* ignore */ }
-        $("modeSpeed").classList.toggle("on", m === "speed");
-        $("modeTime").classList.toggle("on", m === "time");
-        renderLegend();
-        draw();
-      }
-      $("modeSpeed").addEventListener("click", function () { setMode("speed"); });
-      $("modeTime").addEventListener("click", function () { setMode("time"); });
-
-      /* ================= recording ================= */
-      var watchId = null;
-      var rec = null;   // {startT, pts:[{lat,lng,t}], lastT, dist}
-      var timer = null;
-
-      function setButtons(on) {
-        $("startBtn").disabled = on;
-        $("goalBtn").disabled = !on;
-        $("cancelBtn").disabled = !on;
-      }
-      function refreshLive() {
-        if (!rec) { $("live").textContent = ""; return; }
-        var sec = (Date.now() - rec.startT) / 1000;
-        $("live").textContent = "記録中… 距離 " + Math.round(rec.dist) + " m ・ 時間 " + fmtDur(sec);
-      }
-      function liveViewRoute() {
-        var t0 = rec.pts.length ? rec.pts[0].t : Date.now();
-        return {
-          seg: true, dist: rec.dist, dur: Math.max(1, (Date.now() - rec.startT) / 1000),
-          pts: rec.pts.map(function (q) { return [q.lat, q.lng, Math.round((q.t - t0) / 1000)]; })
-        };
-      }
-      function onPos(pos) {
-        if (!rec) return;
-        var c = pos.coords;
-        if (c.accuracy > 40) return;
-        var p = { lat: c.latitude, lng: c.longitude };
-        var now = Date.now();
-        var last = rec.pts[rec.pts.length - 1];
-        if (last) {
-          if (now - rec.lastT < 2000) return;
-          var d = haversineM(last, p);
-          if (d >= 1) rec.dist += d;
+        mode = m;
+        $("modeDraw").classList.toggle("on", m === "draw");
+        $("modeView").classList.toggle("on", m === "view");
+        $("drawPanel").classList.toggle("hidden", m !== "draw");
+        $("viewPanel").classList.toggle("hidden", m !== "view");
+        curStroke = null;
+        if (m === "view") {
+          startWatch();
+          renderList();
+          status("見るモード。落書きのある場所に近づくと、カメラに浮かびます");
+        } else {
+          stopWatch();
+          viewTarget = null; viewIsPreview = false;
+          $("banner").classList.remove("on");
+          status("描くモード。カメラに手をかざして、つまんで描いてみて");
         }
-        rec.pts.push({ lat: p.lat, lng: p.lng, t: now });
-        rec.lastT = now;
-        viewRoutes = [liveViewRoute()];
-        draw();
-        refreshLive();
       }
-      function onErr(err) {
-        var msg = "位置を取れなかった…";
-        if (err.code === 1) msg = "位置情報が許可されてないみたい。Chromeの設定で許可してね";
-        else if (err.code === 2) msg = "今は位置を取れないみたい。空が見える場所だと取りやすいよ";
-        else if (err.code === 3) msg = "位置の取得が時間切れした…もう一回試してね";
-        $("status").textContent = msg;
-      }
-      function startRec() {
-        if (!("geolocation" in navigator)) { $("status").textContent = "このブラウザはGPSに未対応です。Chromeで開いてね"; return; }
-        rec = { startT: Date.now(), pts: [], lastT: 0, dist: 0 };
-        viewRoutes = [];
-        draw();
-        watchId = navigator.geolocation.watchPosition(onPos, onErr,
-          { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
-        setButtons(true);
-        timer = setInterval(refreshLive, 1000);
-        refreshLive();
-        $("status").textContent = "記録中。歩くと線が伸びていきます";
+      $("modeDraw").addEventListener("click", () => setMode("draw"));
+      $("modeView").addEventListener("click", () => setMode("view"));
+
+      function startWatch() {
+        if (watchId !== null || !("geolocation" in navigator)) return;
+        watchId = navigator.geolocation.watchPosition((pos) => {
+          myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
+          updateNearby();
+        }, () => { $("viewInfo").textContent = "位置を取れていません。許可と電波を確認してね"; },
+          { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
       }
       function stopWatch() {
         if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-        if (timer) { clearInterval(timer); timer = null; }
       }
-      function suggestRouteName(r) {
-        var s = r.pts[0], e = r.pts[r.pts.length - 1];
-        for (var i = 0; i < routes.length; i++) {
-          var q = routes[i];
-          if (!q.pts || !q.pts.length) continue;
-          var qs = { lat: q.pts[0][0], lng: q.pts[0][1] };
-          var qe = { lat: q.pts[q.pts.length - 1][0], lng: q.pts[q.pts.length - 1][1] };
-          if (haversineM(s, qs) < 30 && haversineM(e, qe) < 30) return q.name;
-        }
-        return "ルート" + (routes.length + 1);
-      }
-      function endRec(save) {
-        var r = rec; rec = null;
-        stopWatch();
-        setButtons(false);
-        $("live").textContent = "";
-        if (!save) { $("status").textContent = "記録をやめました"; viewRoutes = []; draw(); return; }
-        if (!r || r.pts.length < 2 || r.dist < 10) {
-          $("status").textContent = "短すぎて保存できませんでした。もう少し歩いてからゴールしてね";
-          viewRoutes = []; draw();
-          return;
-        }
-        var dur = (r.pts[r.pts.length - 1].t - r.pts[0].t) / 1000;
-        var name = window.prompt("ルートの名前（同じ名前だと前回と比較できます）", suggestRouteName(r));
-        if (name === null) { $("status").textContent = "保存をやめました"; viewRoutes = []; draw(); return; }
-        name = (name || "").trim() || suggestRouteName(r);
-        var pts = r.pts;
-        if (pts.length > 600) {
-          var thin = [], step = Math.ceil(pts.length / 600);
-          for (var i = 0; i < pts.length; i += step) thin.push(pts[i]);
-          if (thin[thin.length - 1] !== pts[pts.length - 1]) thin.push(pts[pts.length - 1]);
-          pts = thin;
-        }
-        var t0 = pts[0].t;
-        routes.unshift({
-          id: Date.now(), name: name, date: new Date().toISOString(),
-          dist: Math.round(r.dist), dur: Math.round(dur),
-          pts: pts.map(function (p) { return [Math.round(p.lat * 1e6) / 1e6, Math.round(p.lng * 1e6) / 1e6, Math.round((p.t - t0) / 1000)]; })
+      function nearest() {
+        if (!myPos) return null;
+        let best = null, bestD = Infinity;
+        graffiti.forEach((g) => {
+          const d = haversineM(myPos, g);
+          if (d < bestD) { bestD = d; best = g; }
         });
-        if (routes.length > 30) routes.length = 30;
-        saveRoutes();
-        renderList();
-        viewRoutes = [{ pts: routes[0].pts, seg: true, dist: routes[0].dist, dur: routes[0].dur }];
-        draw();
-        $("status").innerHTML = "保存しました：<b>" + escapeHtml(name) + "</b> ・ " + Math.round(r.dist) + " m ・ " + fmtDur(dur) + " ・ ペース " + fmtPace(r.dist, dur);
+        return best ? { g: best, d: bestD } : null;
       }
-      $("startBtn").addEventListener("click", startRec);
-      $("goalBtn").addEventListener("click", function () { endRec(true); });
-      $("cancelBtn").addEventListener("click", function () { endRec(false); });
-
-      /* ================= list & compare ================= */
+      function updateNearby() {
+        const n = nearest();
+        if (!viewIsPreview) {
+          if (n && n.d <= 25) {
+            viewTarget = n.g;
+            $("banner").textContent = "落書きが浮かんでる！（" + fmtDate(n.g.date) + "）";
+            $("banner").classList.add("on");
+          } else {
+            viewTarget = null;
+            $("banner").classList.remove("on");
+          }
+        }
+        $("viewInfo").textContent = !graffiti.length
+          ? "まだ落書きがありません。「描く」で描いて貼ってね"
+          : n
+            ? "一番近い落書きまで約 " + Math.round(n.d) + " m（25m以内で浮かびます）・精度 ±" + Math.round(myPos.acc) + "m"
+            : "位置を取り中…";
+        renderList();
+      }
       function renderList() {
-        var box = $("routeList");
+        const box = $("gList");
         box.innerHTML = "";
-        if (!routes.length) {
-          box.innerHTML = '<p class="small">まだ記録がありません。「スタート」を押して歩くと、ここに残ります。</p>';
+        if (!graffiti.length) {
+          box.innerHTML = '<p class="small">まだありません。</p>';
           return;
         }
-        routes.forEach(function (r, idx) {
-          var prev = null;
-          for (var i = idx + 1; i < routes.length; i++) {
-            if (routes[i].name === r.name) { prev = routes[i]; break; }
-          }
-          var cmp = "";
-          if (prev) {
-            var dd = r.dur - prev.dur;
-            cmp = " ・ 前回より <b>" + (dd === 0 ? "同じタイム" : (dd < 0 ? "−" + Math.abs(dd) + "秒（速い）" : "＋" + dd + "秒（遅い）")) + "</b>";
-          }
-          var div = document.createElement("div");
-          div.className = "route-item";
-          div.innerHTML = "<b>" + escapeHtml(r.name) + "</b> <span class=\"small\">" + fmtDate(r.date) + "</span><br>" +
-            Math.round(r.dist) + " m ・ " + fmtDur(r.dur) + " ・ ペース " + fmtPace(r.dist, r.dur) + cmp +
+        const sorted = graffiti.slice().sort((a, b) => {
+          if (!myPos) return b.id - a.id;
+          return haversineM(myPos, a) - haversineM(myPos, b);
+        });
+        sorted.forEach((g) => {
+          const d = myPos ? Math.round(haversineM(myPos, g)) : null;
+          const div = document.createElement("div");
+          div.className = "g-item";
+          div.innerHTML = "<b>落書き " + fmtDate(g.date) + "</b>" +
+            (d !== null ? " <span class=\"small\">約" + d + "m先</span>" : "") +
             "<div class=\"btn-row\" style=\"margin-top:6px\">" +
-            "<button type=\"button\" data-act=\"show\">線を見る</button>" +
-            (prev ? "<button type=\"button\" data-act=\"cmp\">前回と比較</button>" : "") +
-            "<button type=\"button\" data-act=\"del\">削除</button></div>";
-          Array.prototype.forEach.call(div.querySelectorAll("button"), function (btn) {
-            btn.addEventListener("click", function () {
-              var act = btn.getAttribute("data-act");
+            "<button type=\"button\" data-act=\"show\">カメラで見る</button>" +
+            "<button type=\"button\" data-act=\"del\">消す</button></div>";
+          div.querySelectorAll("button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const act = btn.getAttribute("data-act");
               if (act === "show") {
-                viewRoutes = [{ pts: r.pts, seg: true, dist: r.dist, dur: r.dur }];
-                draw();
-                $("status").textContent = r.name + "：" + Math.round(r.dist) + " m ・ " + fmtDur(r.dur);
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              } else if (act === "cmp" && prev) {
-                viewRoutes = [
-                  { pts: prev.pts, color: "#8a8a8a", dash: true },
-                  { pts: r.pts, seg: true, dist: r.dist, dur: r.dur }
-                ];
-                draw();
-                var dd2 = r.dur - prev.dur;
-                $("status").innerHTML = "比較：<b>" + escapeHtml(r.name) + "</b> 今回 " + fmtDur(r.dur) + " / 前回 " + fmtDur(prev.dur) +
-                  " → " + (dd2 === 0 ? "同じタイム" : (dd2 < 0 ? Math.abs(dd2) + "秒 速くなった！" : dd2 + "秒 遅くなった")) +
-                  "（グレー破線＝前回、オレンジ＝今回）";
+                if (mode !== "view") setMode("view");
+                viewTarget = g; viewIsPreview = true;
+                $("banner").textContent = "プレビュー中（" + fmtDate(g.date) + " の落書き）";
+                $("banner").classList.add("on");
                 window.scrollTo({ top: 0, behavior: "smooth" });
               } else if (act === "del") {
-                if (window.confirm("この記録を消しますか？")) {
-                  routes = routes.filter(function (x) { return x.id !== r.id; });
-                  saveRoutes();
+                if (window.confirm("この落書きを消しますか？")) {
+                  graffiti = graffiti.filter((x) => x.id !== g.id);
+                  saveStore();
+                  if (viewTarget && viewTarget.id === g.id) { viewTarget = null; viewIsPreview = false; $("banner").classList.remove("on"); }
                   renderList();
-                  viewRoutes = []; draw();
                 }
               }
             });
@@ -447,7 +422,7 @@
       }
 
       renderList();
-      setMode(colorMode);
+      status("「カメラ開始」を押してね。描くモードでは手をかざして描けます");
     </script>
   </body>
 </html>
