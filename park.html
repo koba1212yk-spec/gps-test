@@ -71,11 +71,19 @@
         <span id="photoState" class="small">未撮影（無くても3Dは作れます）</span>
       </div>
 
-      <h2>手順3：3D化</h2>
+      <h2>手順3：横顔写真（輪郭の補正用、任意だけど推奨）</h2>
+      <div class="btn-row">
+        <button id="profBtn" type="button">横顔写真を撮る</button>
+        <span id="profState" class="small">未撮影（鼻・顎など「前に出てる所」の奥行きを実写で補正します）</span>
+      </div>
+      <p class="small" style="margin:0">横顔写真の撮り方：カメラに向かって真横（80°くらい）まで顔を向けて、ボタンを押す。左右どちら向きでもOK。</p>
+
+      <h2>手順4：3D化</h2>
       <div class="btn-row">
         <button id="buildBtn" class="primary" type="button">3Dを作る</button>
       </div>
       <p id="buildInfo"></p>
+      <canvas id="profileCanvas" class="hidden" style="width:100%;border-radius:12px;border:1px solid var(--line);background:#17171d"></canvas>
 
       <div id="viewerWrap" class="hidden"></div>
       <div class="btn-row hidden" id="viewerBtns">
@@ -190,6 +198,33 @@
         return tris.filter(function (t) { return t[0] < n && t[1] < n && t[2] < n; });
       }
       var OVAL_IDX = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
+      /* Midline/profile points whose depth is corrected from a profile photo.
+         In a near-profile view the image x-axis is (almost) the depth axis,
+         so these points' forward positions are measured directly. */
+      var PROFILE_IDX = [10, 151, 9, 8, 168, 6, 197, 195, 5, 4, 1, 19, 94, 2, 13, 14, 0, 17, 152, 175];
+      function mergeProfile(pts, profLms) {
+        if (!profLms || profLms.length < 468) return 0;
+        var ex = (profLms[33][0] + profLms[133][0] + profLms[362][0] + profLms[263][0]) / 4;
+        var ey = (profLms[33][1] + profLms[133][1] + profLms[362][1] + profLms[263][1]) / 4;
+        var H = Math.hypot(profLms[10][0] - profLms[152][0], profLms[10][1] - profLms[152][1]);
+        if (H < 0.05) return 0;
+        var fwd = profLms[1][0] - ex;
+        if (Math.abs(fwd) < 0.01) return 0;
+        fwd = fwd > 0 ? 1 : -1;
+        function depth(i) { return fwd * (profLms[i][0] - ex) / H; }
+        function vprof(i) { return (profLms[i][1] - ey) / H; }
+        var dBridge = depth(168), zBridge = pts[168].z, vBridgeF = pts[168].v, vBridgeP = vprof(168);
+        var applied = 0;
+        PROFILE_IDX.forEach(function (i) {
+          if (!pts[i] || !profLms[i]) return;
+          var dz = depth(i) - dBridge + zBridge;
+          pts[i].z = pts[i].z * 0.35 + dz * 0.65;
+          var dv = vprof(i) - vBridgeP + vBridgeF;
+          pts[i].v = pts[i].v * 0.5 + dv * 0.5;
+          applied++;
+        });
+        return applied;
+      }
       function buildTriangles(pts) {
         var oval = OVAL_IDX.map(function (i) { return pts[i]; });
         function inside(x, y) {
@@ -327,6 +362,7 @@
             if (curYaw > yawMax) yawMax = curYaw;
             updateScanUi();
             if (frames.length >= 240) stopScan("フレームが上限（240枚）に達したので止めました。");
+            else if (frames.length >= 50 && yawMin <= -38 && yawMax >= 38) stopScan("十分な範囲（左右38°以上）が撮れたので自動で止めました。スキャンは1回でOKです。");
           }
         }
       };
@@ -375,7 +411,7 @@
         scanning = false;
         $("scanBtn").textContent = "スキャン開始";
         $("scanBtn").classList.remove("on");
-        $("scanInfo").textContent = "スキャン完了：フレーム " + frames.length + " 枚／カバー範囲 左 " + Math.abs(Math.min(0, Math.round(yawMin))) + "° 〜 右 " + Math.max(0, Math.round(yawMax)) + "°。" + (note || "手順2の写真（任意）を撮って、手順3で3D化できます。");
+        $("scanInfo").textContent = "スキャン完了：フレーム " + frames.length + " 枚／カバー範囲 左 " + Math.abs(Math.min(0, Math.round(yawMin))) + "° 〜 右 " + Math.max(0, Math.round(yawMax)) + "°。" + (note || "手順2・3の写真（任意）を撮って、手順4で3D化できます。");
         status("スキャンを止めました");
       }
       $("scanBtn").addEventListener("click", function () {
@@ -404,6 +440,28 @@
         status("正面写真を撮りました");
       });
 
+      /* ================= profile still (silhouette depth) ================= */
+      var profData = null;
+      $("profBtn").addEventListener("click", async function () {
+        if (!camStarted) { status("先にカメラ開始を押してね"); return; }
+        if (!mpReady) { status("モデルの準備が終わってから撮ってね"); return; }
+        if (!latestFace) { status("顔が映っていません。真横を向いてから押してね（横向きでも点が出ている状態で）"); return; }
+        if (typeof window.__mpSendStill !== "function") { status("まだ準備中です。少し待ってね"); return; }
+        status("横顔を撮影中…そのまま動かないで");
+        var pc = document.createElement("canvas");
+        pc.width = video.videoWidth || 1280;
+        pc.height = video.videoHeight || 960;
+        pc.getContext("2d").drawImage(video, 0, 0, pc.width, pc.height);
+        if (window.__mpSetPaused) window.__mpSetPaused(true);
+        var lms = null;
+        try { lms = await window.__mpSendStill(pc); } catch (e) { lms = null; }
+        if (window.__mpSetPaused) window.__mpSetPaused(false);
+        if (!lms) { status("横顔から顔を検出できませんでした。少しだけ正面寄り（70°くらい）で試してね"); return; }
+        profData = { canvas: pc, lms: lms };
+        $("profState").textContent = "撮影済み（輪郭の補正に使います）";
+        status("横顔写真を撮りました");
+      });
+
       /* ================= build 3D ================= */
       function fallbackPts(lms) {
         var mx = (lms[33][0] + lms[133][0] + lms[362][0] + lms[263][0]) / 4;
@@ -413,6 +471,42 @@
         return lms.map(function (p) {
           return { u: (p[0] - mx) / H, v: (p[1] - my) / H, z: -((p[2] || 0) - zEye) / H };
         });
+      }
+      function drawProfilePlot(pts) {
+        var cv = $("profileCanvas");
+        var cssW = cv.clientWidth || 360, cssH = 190;
+        var dpr = window.devicePixelRatio || 1;
+        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+        cv.style.height = cssH + "px";
+        cv.classList.remove("hidden");
+        var g = cv.getContext("2d");
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var zMin = 1e9, zMax = -1e9, vMin = 1e9, vMax = -1e9;
+        pts.forEach(function (p) {
+          zMin = Math.min(zMin, p.z); zMax = Math.max(zMax, p.z);
+          vMin = Math.min(vMin, p.v); vMax = Math.max(vMax, p.v);
+        });
+        var pad = 0.05;
+        zMin -= pad; zMax += pad; vMin -= pad; vMax += pad;
+        function X(z) { return (z - zMin) / (zMax - zMin) * (cssW - 16) + 8; }
+        function Y(v) { return (v - vMin) / (vMax - vMin) * (cssH - 16) + 8; }
+        g.strokeStyle = "rgba(255,255,255,.25)";
+        g.lineWidth = 1;
+        g.beginPath(); g.moveTo(X(pts[468].z), 4); g.lineTo(X(pts[468].z), cssH - 4); g.stroke();
+        g.fillStyle = "#8a8a96";
+        pts.forEach(function (p) { g.fillRect(X(p.z) - 1.2, Y(p.v) - 1.2, 2.4, 2.4); });
+        function mark(i, color, label) {
+          var p = pts[i];
+          g.fillStyle = color;
+          g.beginPath(); g.arc(X(p.z), Y(p.v), 4.5, 0, Math.PI * 2); g.fill();
+          g.font = "600 11px sans-serif";
+          g.fillText(label, X(p.z) + 7, Y(p.v) + 4);
+        }
+        mark(1, "#ff2e88", "鼻");
+        mark(152, "#22d3ee", "顎");
+        g.fillStyle = "#a7a7b3";
+        g.font = "11px sans-serif";
+        g.fillText("← 後ろ　／　前 →（横から見た点の図。白線＝目の面）", 8, cssH - 6);
       }
       $("buildBtn").addEventListener("click", function () {
         var fused = null, note = "";
@@ -431,6 +525,11 @@
         } else {
           $("buildInfo").textContent = "先に手順1のスキャン（または手順2の写真）をしてね";
           return;
+        }
+        if (profData) {
+          var applied = mergeProfile(pts, profData.lms);
+          if (applied > 0) note += "／横顔写真で輪郭（鼻・顎など）を補正";
+          else note += "／横顔写真は使えませんでした";
         }
         var tris = buildTriangles(pts);
         if (tris.length < 100) { $("buildInfo").textContent = "メッシュを作れませんでした。スキャンをやり直してね"; return; }
@@ -464,6 +563,7 @@
           texture: photoData ? photoData.canvas : null
         };
         $("buildInfo").textContent = note + "／三角形 " + tris.length + " 個";
+        drawProfilePlot(pts);
         showViewer(model);
       });
       function showViewer(model) {
