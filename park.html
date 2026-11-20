@@ -121,6 +121,12 @@
       .avg-bar.open { display: block; }
       .avg-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s linear; }
       .small { font-size: 11.5px; color: var(--ink-dim); }
+
+      /* ---- route panel ---- */
+      #routePanel { display: none; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 10px; }
+      #routePanel.open { display: block; }
+      .route-item { border-top: 1px solid var(--line); padding: 8px 2px; font-size: 13px; line-height: 1.6; }
+      .route-item button { min-height: 2rem; padding: 4px 10px; font-size: 12.5px; }
     </style>
   </head>
   <body>
@@ -141,6 +147,7 @@
           <button id="hereBtn" type="button">現在地へ</button>
           <button id="parkBtn" type="button">公園全体</button>
           <button id="calibBtn" type="button">位置合わせ</button>
+          <button id="routeBtn" type="button">ルート記録</button>
         </div>
         <div class="info-line" id="infoLine">
           歩いた距離 <b>0 m</b> ・ 精度 <b>—</b> ・ 位置合わせ <b>未</b>
@@ -162,6 +169,20 @@
             <button type="button" data-line="genshinan">源心庵</button>
           </div>
           <p class="small">ボタンを押すとキャラが喋ります。音声: VOICEVOX:ずんだもん / VOICEVOX:春日部つむぎ</p>
+        </div>
+
+        <div id="routePanel">
+          <div class="voice-head">
+            <b>ルート記録</b>
+            <span class="small">START→GOALを記録して前回と比較</span>
+          </div>
+          <div class="btn-row">
+            <button id="routeStartBtn" class="primary" type="button">スタート</button>
+            <button id="routeGoalBtn" type="button" disabled>ゴール（保存）</button>
+            <button id="routeCancelBtn" type="button" disabled>やめる</button>
+          </div>
+          <p class="small" id="routeStatus">まだ記録してないよ。「スタート」を押して歩いてね</p>
+          <div id="routeList"></div>
         </div>
 
         <div id="calibPanel">
@@ -346,6 +367,7 @@
           rawDot.setLatLng([rawPos.lat, rawPos.lng]);
           if (!map.hasLayer(rawDot)) rawDot.addTo(map);
         } else if (map.hasLayer(rawDot)) map.removeLayer(rawDot);
+        routeSample(corr);
         say("追跡中。±" + Math.round(rawPos.acc) + "mで取れてるよ", "グレーの点は補正前のGPS位置（合わせた時だけ表示）", false);
         refreshInfo();
       }
@@ -528,6 +550,214 @@
       });
       refreshVoiceBtns();
 
+      /* ================= route recording ================= */
+      var ROUTES_KEY = "gyosen-routes-v1";
+      var routes = [];
+      try {
+        var savedRoutes = JSON.parse(localStorage.getItem(ROUTES_KEY) || "[]");
+        if (Array.isArray(savedRoutes)) routes = savedRoutes;
+      } catch (e) { routes = []; }
+      var rec = null;          // {startT, pts:[{lat,lng,t}], lastT, dist}
+      var routeTimer = null;
+      var routeLayer = L.layerGroup().addTo(map);
+
+      function pad2(n) { return (n < 10 ? "0" : "") + n; }
+      function fmtDur(sec) {
+        sec = Math.max(0, Math.round(sec));
+        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+        return h > 0 ? h + ":" + pad2(m) + ":" + pad2(s) : m + ":" + pad2(s);
+      }
+      function fmtPace(distM, sec) {
+        if (!distM || distM < 10) return "—";
+        var p = sec / (distM / 1000);
+        return Math.floor(p / 60) + ":" + pad2(Math.round(p % 60)) + " /km";
+      }
+      function fmtDate(iso) {
+        var d = new Date(iso);
+        return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+      }
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+      function saveRoutes() {
+        try { localStorage.setItem(ROUTES_KEY, JSON.stringify(routes)); } catch (e) { /* ignore */ }
+      }
+
+      function routeSample(corr) {
+        if (!rec) return;
+        if (!rawPos || rawPos.acc > 40) return;
+        var now = Date.now();
+        var last = rec.pts[rec.pts.length - 1];
+        if (last) {
+          if (now - rec.lastT < 4000) return;
+          var d = haversineM(last, corr);
+          if (d < 4) return;
+          rec.dist += d;
+        }
+        rec.pts.push({ lat: corr.lat, lng: corr.lng, t: now });
+        rec.lastT = now;
+        refreshRecStatus();
+      }
+      function refreshRecStatus() {
+        if (!rec) return;
+        var sec = (Date.now() - rec.startT) / 1000;
+        $("routeStatus").textContent = "記録中… 距離 " + Math.round(rec.dist) + " m ・ 時間 " + fmtDur(sec);
+      }
+      function setRecButtons(on) {
+        $("routeStartBtn").disabled = on;
+        $("routeGoalBtn").disabled = !on;
+        $("routeCancelBtn").disabled = !on;
+      }
+      function startRoute() {
+        if (watchId === null) startWatch();
+        rec = { startT: Date.now(), pts: [], lastT: 0, dist: 0 };
+        if (targetPos) {
+          rec.pts.push({ lat: targetPos.lat, lng: targetPos.lng, t: Date.now() });
+          rec.lastT = Date.now();
+        }
+        setRecButtons(true);
+        routeTimer = setInterval(refreshRecStatus, 1000);
+        refreshRecStatus();
+        say("ルート記録スタート！", "ゴールまで歩いてね。ざっくり4秒・4mごとに記録するよ", false);
+      }
+      function suggestRouteName(r) {
+        var s = r.pts[0], e = r.pts[r.pts.length - 1];
+        for (var i = 0; i < routes.length; i++) {
+          var q = routes[i];
+          if (!q.pts || !q.pts.length) continue;
+          var qs = { lat: q.pts[0][0], lng: q.pts[0][1] };
+          var qe = { lat: q.pts[q.pts.length - 1][0], lng: q.pts[q.pts.length - 1][1] };
+          if (haversineM(s, qs) < 30 && haversineM(e, qe) < 30) return q.name;
+        }
+        return "ルート" + (routes.length + 1);
+      }
+      function endRoute(save) {
+        if (routeTimer) { clearInterval(routeTimer); routeTimer = null; }
+        var r = rec; rec = null;
+        setRecButtons(false);
+        if (!save) { $("routeStatus").textContent = "記録をやめたよ"; return; }
+        if (!r || r.pts.length < 2 || r.dist < 10) {
+          $("routeStatus").textContent = "短すぎて保存できなかった…もう少し歩いてからゴールしてね";
+          say("短すぎたみたい", "もう少し歩いてからゴールしてね", false);
+          return;
+        }
+        var dur = (r.pts[r.pts.length - 1].t - r.pts[0].t) / 1000;
+        var name = window.prompt("ルートの名前（同じ名前だと前回と比較できます）", suggestRouteName(r));
+        if (name === null) { $("routeStatus").textContent = "保存をやめたよ"; return; }
+        name = (name || "").trim() || suggestRouteName(r);
+        var pts = r.pts;
+        if (pts.length > 600) {
+          var thin = [], step = Math.ceil(pts.length / 600);
+          for (var i = 0; i < pts.length; i += step) thin.push(pts[i]);
+          if (thin[thin.length - 1] !== pts[pts.length - 1]) thin.push(pts[pts.length - 1]);
+          pts = thin;
+        }
+        routes.unshift({
+          id: Date.now(), name: name, date: new Date().toISOString(),
+          dist: Math.round(r.dist), dur: Math.round(dur),
+          pts: pts.map(function (p) { return [Math.round(p.lat * 1e6) / 1e6, Math.round(p.lng * 1e6) / 1e6]; })
+        });
+        if (routes.length > 30) routes.length = 30;
+        saveRoutes();
+        renderRouteList();
+        routeLayer.clearLayers();
+        showRoute(routes[0], "#e07b00");
+        $("routeStatus").textContent = "保存したよ：" + name + " ・ " + Math.round(r.dist) + " m ・ " + fmtDur(dur) + " ・ ペース " + fmtPace(r.dist, dur);
+        say("ゴール！記録したよ", name + "：" + Math.round(r.dist) + "m を " + fmtDur(dur), false);
+      }
+
+      function smoothLine(lls) {
+        var p = lls.map(function (a) { return [a[0], a[1]]; });
+        for (var it = 0; it < 2; it++) {
+          if (p.length < 3) break;
+          var out = [p[0]];
+          for (var i = 0; i < p.length - 1; i++) {
+            var a = p[i], b = p[i + 1];
+            out.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25]);
+            out.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]);
+          }
+          out.push(p[p.length - 1]);
+          p = out;
+        }
+        return p;
+      }
+      function showRoute(r, color, dash) {
+        var lls = r.pts;
+        L.polyline(smoothLine(lls), { color: color, weight: 5, opacity: 0.9, dashArray: dash || null, interactive: false }).addTo(routeLayer);
+        L.circleMarker(lls[0], { radius: 6, color: "#ffffff", weight: 2, fillColor: color, fillOpacity: 1, interactive: false }).addTo(routeLayer);
+        L.circleMarker(lls[lls.length - 1], { radius: 6, color: color, weight: 2, fillColor: "#ffffff", fillOpacity: 1, interactive: false }).addTo(routeLayer);
+      }
+      function compareRoutes(cur, prev) {
+        routeLayer.clearLayers();
+        showRoute(prev, "#8a8a8a", "6 8");
+        showRoute(cur, "#e07b00");
+        map.fitBounds(L.latLngBounds(cur.pts.concat(prev.pts)));
+        var dd = cur.dur - prev.dur;
+        var tail = dd === 0 ? "同じタイム" : (dd < 0 ? Math.abs(dd) + "秒 速くなった！" : dd + "秒 遅くなった");
+        $("routeStatus").textContent = "比較：" + cur.name + " 今回 " + fmtDur(cur.dur) + " / 前回 " + fmtDur(prev.dur) + " → " + tail +
+          " ・ 距離 今回 " + Math.round(cur.dist) + "m / 前回 " + Math.round(prev.dist) + "m（グレー破線＝前回、オレンジ＝今回）";
+        say("前回と比べたよ", tail, false);
+      }
+      function renderRouteList() {
+        var box = $("routeList");
+        if (!box) return;
+        box.innerHTML = "";
+        if (!routes.length) {
+          box.innerHTML = '<p class="small">まだ記録がないよ。「スタート」を押して歩くと、ここに残るよ。</p>';
+          return;
+        }
+        routes.forEach(function (r, idx) {
+          var prev = null;
+          for (var i = idx + 1; i < routes.length; i++) {
+            if (routes[i].name === r.name) { prev = routes[i]; break; }
+          }
+          var cmp = "";
+          if (prev) {
+            var dd = r.dur - prev.dur;
+            cmp = " ・ 前回より <b>" + (dd === 0 ? "同じタイム" : (dd < 0 ? "−" + Math.abs(dd) + "秒（速い）" : "＋" + dd + "秒（遅い）")) + "</b>";
+          }
+          var div = document.createElement("div");
+          div.className = "route-item";
+          div.innerHTML = "<b>" + escapeHtml(r.name) + "</b> <span class=\"small\">" + fmtDate(r.date) + "</span><br>" +
+            Math.round(r.dist) + " m ・ " + fmtDur(r.dur) + " ・ ペース " + fmtPace(r.dist, r.dur) + cmp +
+            "<div class=\"btn-row\" style=\"margin-top:6px\">" +
+            "<button type=\"button\" data-act=\"show\">地図で見る</button>" +
+            (prev ? "<button type=\"button\" data-act=\"cmp\">前回と比較</button>" : "") +
+            "<button type=\"button\" data-act=\"del\">削除</button></div>";
+          Array.prototype.forEach.call(div.querySelectorAll("button"), function (btn) {
+            btn.addEventListener("click", function () {
+              var act = btn.getAttribute("data-act");
+              if (act === "show") {
+                routeLayer.clearLayers();
+                showRoute(r, "#e07b00");
+                map.fitBounds(L.latLngBounds(r.pts));
+              } else if (act === "cmp" && prev) {
+                compareRoutes(r, prev);
+              } else if (act === "del") {
+                if (window.confirm("この記録を消す？")) {
+                  routes = routes.filter(function (x) { return x.id !== r.id; });
+                  saveRoutes();
+                  renderRouteList();
+                  routeLayer.clearLayers();
+                }
+              }
+            });
+          });
+          box.appendChild(div);
+        });
+      }
+      $("routeBtn").addEventListener("click", function () {
+        var open = $("routePanel").classList.toggle("open");
+        $("routeBtn").classList.toggle("on", open);
+        if (open) say("ルート記録だよ", "スタートからゴールまでを記録して、前回と比較できるよ", false);
+      });
+      $("routeStartBtn").addEventListener("click", startRoute);
+      $("routeGoalBtn").addEventListener("click", function () { endRoute(true); });
+      $("routeCancelBtn").addEventListener("click", function () { endRoute(false); });
+
+      renderRouteList();
       refreshInfo();
     </script>
   </body>
