@@ -58,11 +58,11 @@
       .kv { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding: 7px 2px; font-size: 13.5px; }
       .kv .k { color: var(--ink-dim); }
       .kv .v { font-weight: 600; text-align: right; }
-      h2 { font-size: 14px; margin: 12px 0 2px; }
+      h2 { font-size: 14px; margin: 14px 0 2px; }
       .hidden { display: none !important; }
       ul.notes { margin: 4px 0; padding-left: 1.2em; font-size: 13px; line-height: 1.8; }
-      .legend { font-size: 12px; color: var(--ink-dim); }
-      .legend .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin: 0 3px 0 8px; }
+      #schemeCanvas, #cropCanvas { width: 100%; border-radius: 12px; border: 1px solid var(--line); background: #17171d; display: block; }
+      #spotSentence { font-size: 15px; font-weight: 600; line-height: 1.7; margin: 6px 0 0; }
     </style>
   </head>
   <body>
@@ -86,8 +86,6 @@
       </div>
       <div class="btn-row hidden" id="photoBtns">
         <button id="retakeBtn" type="button">撮り直し</button>
-        <button id="exaggBtn" type="button">ズレ強調：OFF</button>
-        <span class="legend"><span class="dot" style="background:#ffd400"></span>実際の点<span class="dot" style="background:#22d3ee"></span>対称にした点</span>
       </div>
       <p id="readout">顔：—</p>
 
@@ -105,14 +103,6 @@
 
     <script>
       "use strict";
-      var $ = function (id) { return document.getElementById(id); };
-      function status(t) { $("status").innerHTML = t; }
-      function escapeHtml(s) {
-        return String(s).replace(/[&<>"']/g, function (c) {
-          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-        });
-      }
-
       /*MEASURE_START*/
       function measureFace(lms) {
         function P(i) { return [lms[i].x, lms[i].y]; }
@@ -164,7 +154,6 @@
         });
         var devAvg = pairDevs.reduce(function (s, d) { return s + d.devPct; }, 0) / pairDevs.length;
 
-        /* symmetrised ("ghost") positions for the paired points, in raw image coords */
         var GHOST_PAIRS = PAIRS.concat([[468, 473]]);
         var ghosts = GHOST_PAIRS.map(function (pr) {
           var a = Q(pr[0]), b = Q(pr[1]);
@@ -174,6 +163,8 @@
             i: pr[0], j: pr[1],
             ai: P(pr[0]), aj: P(pr[1]),
             gi: raw(sa), gj: raw(sb),
+            aiQ: a, ajQ: b, giQ: sa, gjQ: sb,
+            name: PAIR_NAMES[String(pr[0])] || "目",
             devPct: pc(Math.hypot(b[0] + a[0], b[1] - a[1]))
           };
         });
@@ -195,7 +186,6 @@
         var noseW = distQ(98, 327);
         var mouthW = distQ(61, 291);
 
-        /* displayed side: preview is mirrored, so the point with smaller raw x appears on the right */
         function dispVal(iVal, iIdx, jVal, jIdx) {
           return P(iIdx)[0] < P(jIdx)[0] ? { r: iVal, l: jVal } : { r: jVal, l: iVal };
         }
@@ -203,7 +193,6 @@
         var cheekSides = dispVal(cheek234, 234, cheek454, 454);
         var jawSides = dispVal(jaw172, 172, jaw397, 397);
         function higherSide(iIdx, jIdx) {
-          /* smaller v = higher; returns displayed side that is higher */
           var vi = Q(iIdx)[1], vj = Q(jIdx)[1];
           var higherIdx = vi < vj ? iIdx : jIdx;
           var otherIdx = vi < vj ? jIdx : iIdx;
@@ -211,6 +200,43 @@
         }
         var browHigher = higherSide(105, 334);
         var mouthHigher = higherSide(61, 291);
+
+        /* ---- schematic drawing data: Q coords normalised by face width ---- */
+        function qn(i) { var q = Q(i); return [q[0] / W, q[1] / W]; }
+        function lineOf(list) { return list.map(qn); }
+        var draw = {
+          oval: lineOf([10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109]),
+          eyeA: lineOf([33, 7, 163, 144, 145, 153, 154, 155, 133, 173, 157, 158, 159, 160, 161, 246]),
+          eyeB: lineOf([263, 249, 390, 373, 374, 380, 381, 382, 362, 398, 384, 385, 386, 387, 388, 466]),
+          browA: lineOf([70, 63, 105, 66, 107, 55, 65, 52, 53, 46]),
+          browB: lineOf([336, 296, 334, 293, 300, 276, 283, 282, 295, 285]),
+          nose: lineOf([168, 6, 197, 195, 5, 4, 1, 19, 94, 2]),
+          lips: lineOf([61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185])
+        };
+        var centreArrows = [
+          { name: "鼻先", q: qn(1), uPct: pc(noseTipU) },
+          { name: "口の中心", q: [(mouthC[0]) / W, (mouthC[1]) / W], uPct: pc(mouthC[0]) },
+          { name: "顎先", q: qn(152), uPct: pc(chinU) }
+        ];
+
+        /* ---- worst spots (for the spot viewer) ---- */
+        var spots = [];
+        ghosts.forEach(function (g) {
+          if (g.i === 468) return;
+          var a = g.aiQ, b = g.ajQ;
+          spots.push({
+            kind: "pair", name: g.name, mag: g.devPct, i: g.i, j: g.j,
+            focus: [(g.ai[0] + g.aj[0]) / 2, (g.ai[1] + g.aj[1]) / 2],
+            compVPct: (b[1] - a[1]) / H * 100,
+            widthDiffPct: (Math.abs(b[0]) - Math.abs(a[0])) / W * 100,
+            vI: a[1], vJ: b[1]
+          });
+        });
+        spots.push({ kind: "centre", name: "鼻先", mag: Math.abs(pc(noseTipU)), uPct: pc(noseTipU), focus: P(1), idx: 1 });
+        spots.push({ kind: "centre", name: "口の中心", mag: Math.abs(pc(mouthC[0])), uPct: pc(mouthC[0]), focus: [(P(61)[0] + P(291)[0]) / 2, (P(61)[1] + P(291)[1]) / 2], idx: null });
+        spots.push({ kind: "centre", name: "顎先", mag: Math.abs(pc(chinU)), uPct: pc(chinU), focus: P(152), idx: 152 });
+        spots.sort(function (a, b) { return b.mag - a.mag; });
+        spots = spots.slice(0, 3);
 
         function clamp01(v) { return Math.max(0, Math.min(1, v)); }
         function cvScore(vals, scale) {
@@ -239,7 +265,7 @@
           total: total,
           sub: { sym: scSym, santei: scSantei, gogan: scGogan, centre: scCentre, outline: scOutline },
           aspect: H / W,
-          santei: { pct: [s1 / sTot * 100, s2 / sTot * 100, s3 / sTot * 100], ratio: [s1 / s2, 1, s3 / s2], lines: [browY, noseBaseY], midQ: mid, axQ: ax, ayQ: ay, topV: top, chinV: chinY },
+          santei: { pct: [s1 / sTot * 100, s2 / sTot * 100, s3 / sTot * 100], ratio: [s1 / s2, 1, s3 / s2], lines: [browY, noseBaseY], topV: top, chinV: chinY },
           gogan: { segPct: seg.map(function (v) { return v / W * 100; }) },
           sym: { devAvg: devAvg, pairs: pairDevs },
           centre: { nose: pc(noseTipU), mouth: pc(mouthC[0]), chin: pc(chinU) },
@@ -250,7 +276,11 @@
           concerns: concerns,
           sides: { eye: eyeSides, cheek: cheekSides, jaw: jawSides },
           higher: { brow: browHigher, mouth: mouthHigher },
-          frame: { mid: mid, ax: ax, ay: ay }
+          frame: { mid: mid, ax: ax, ay: ay },
+          wNorm: W,
+          draw: draw,
+          centreArrows: centreArrows,
+          spots: spots
         };
       }
       /*MEASURE_END*/
@@ -397,8 +427,8 @@
       }
       (function anim() { requestAnimationFrame(anim); render(); })();
 
-      /* ================= photo capture + measurement ================= */
-      var photoLandmarks = null, photoResult = null, exaggerate = false;
+      /* ================= photo capture ================= */
+      var photoLandmarks = null, photoResult = null, photoCanvasSrc = null, selectedSpot = 0;
       $("shootBtn").addEventListener("click", async function () {
         if (!camStarted) { status("先にカメラ開始を押してね"); return; }
         if (!mpReady) { status("モデルの準備が終わってから撮ってね"); return; }
@@ -417,14 +447,16 @@
           status("写真から顔を検出できませんでした。もう一回撮ってね");
           return;
         }
-        photoLandmarks = lms;
         var m = measureFace(lms.map(function (p) { return { x: p[0], y: p[1] }; }));
         if (!m) {
           if (window.__mpSetPaused) window.__mpSetPaused(false);
           status("うまく測れませんでした。顔全体を映してもう一回");
           return;
         }
+        photoLandmarks = lms;
         photoResult = m;
+        photoCanvasSrc = pc;
+        selectedSpot = 0;
         var img = $("photoImg");
         img.width = pc.width; img.height = pc.height;
         img.getContext("2d").drawImage(pc, 0, 0);
@@ -435,14 +467,14 @@
         $("photoBtns").classList.remove("hidden");
         $("readout").textContent = "測定結果（この写真で固定）";
         status("測定しました");
-        drawPhotoOverlay();
-        renderResult(m);
         $("result").classList.remove("hidden");
+        renderResult(m);
+        drawPhotoOverlay();
         $("photoWrap").scrollIntoView({ behavior: "smooth", block: "start" });
       });
       $("retakeBtn").addEventListener("click", function () {
         photoMode = false;
-        photoLandmarks = null; photoResult = null;
+        photoLandmarks = null; photoResult = null; photoCanvasSrc = null;
         if (window.__mpSetPaused) window.__mpSetPaused(false);
         $("photoWrap").classList.add("hidden");
         $("stageWrap").classList.remove("hidden");
@@ -451,12 +483,8 @@
         $("result").classList.add("hidden");
         status("認識中。顔を映して「撮って測る」を押してね");
       });
-      $("exaggBtn").addEventListener("click", function () {
-        exaggerate = !exaggerate;
-        $("exaggBtn").textContent = exaggerate ? "ズレ強調：ON（×3）" : "ズレ強調：OFF";
-        $("exaggBtn").classList.toggle("on", exaggerate);
-        drawPhotoOverlay();
-      });
+
+      /* ================= photo overlay (selected spot marker) ================= */
       function drawPhotoOverlay() {
         if (!photoLandmarks || !photoResult) return;
         var ov = $("photoOverlay");
@@ -465,43 +493,191 @@
         var g = ov.getContext("2d");
         var W = ov.width, H = ov.height;
         g.clearRect(0, 0, W, H);
-        /* all points, faint */
-        g.fillStyle = "rgba(255,212,0,.55)";
-        photoLandmarks.forEach(function (p) { g.fillRect(p[0] * W - 1, p[1] * H - 1, 2, 2); });
-        var m = photoResult;
-        var fr = m.frame;
-        /* midline + santei boundary lines */
+        var m = photoResult, fr = m.frame;
         function q2raw(q) { return [fr.mid[0] + q[0] * fr.ax[0] + q[1] * fr.ay[0], fr.mid[1] + q[0] * fr.ax[1] + q[1] * fr.ay[1]]; }
-        g.strokeStyle = "rgba(255,255,255,.5)";
+        g.strokeStyle = "rgba(255,255,255,.45)";
         g.lineWidth = Math.max(1, W * 0.002);
         g.setLineDash([W * 0.012, W * 0.010]);
         var ml1 = q2raw([0, m.santei.topV - (m.santei.chinV - m.santei.topV) * 0.15]);
         var ml2 = q2raw([0, m.santei.chinV + (m.santei.chinV - m.santei.topV) * 0.08]);
         g.beginPath(); g.moveTo(ml1[0] * W, ml1[1] * H); g.lineTo(ml2[0] * W, ml2[1] * H); g.stroke();
         g.setLineDash([]);
-        g.strokeStyle = "rgba(255,255,255,.45)";
-        m.santei.lines.forEach(function (v) {
-          var a = q2raw([-0.62, v]), b = q2raw([0.62, v]);
-          g.beginPath(); g.moveTo(a[0] * W, a[1] * H); g.lineTo(b[0] * W, b[1] * H); g.stroke();
-        });
-        /* ghost pairs */
-        var k = exaggerate ? 3 : 1;
+        var s = m.spots[selectedSpot];
+        if (!s) return;
+        var fx = s.focus[0] * W, fy = s.focus[1] * H;
+        g.strokeStyle = "#ff2e88";
+        g.lineWidth = Math.max(2, W * 0.004);
+        g.beginPath(); g.arc(fx, fy, W * 0.085, 0, Math.PI * 2); g.stroke();
+        g.fillStyle = "#ff2e88";
+        g.beginPath(); g.arc(fx, fy, W * 0.008, 0, Math.PI * 2); g.fill();
+      }
+
+      /* ================= schematic face diagram (B) ================= */
+      function devColor(p) { return p < 1.2 ? "#9a9aa6" : (p < 2.5 ? "#ff9f2e" : "#ff2e88"); }
+      function drawScheme() {
+        var cv = $("schemeCanvas");
+        if (!cv || !photoResult) return;
+        var cssW = cv.clientWidth || 360;
+        var cssH = 330;
+        var dpr = window.devicePixelRatio || 1;
+        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+        cv.style.height = cssH + "px";
+        var g = cv.getContext("2d");
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        var m = photoResult, Wn = m.wNorm;
+        var scale = cssW * 0.40, cx = cssW / 2, cy = cssH * 0.36;
+        function S(q) { return [cx + (-q[0]) * scale, cy + q[1] * scale]; }
+        /* midline */
+        g.strokeStyle = "rgba(255,255,255,.25)";
+        g.lineWidth = 1;
+        g.setLineDash([5, 5]);
+        g.beginPath(); g.moveTo(cx, 8); g.lineTo(cx, cssH - 8); g.stroke();
+        g.setLineDash([]);
+        /* features */
+        g.strokeStyle = "#c9c9d4";
+        g.lineWidth = 1.6;
+        function poly(pts, close) {
+          if (!pts || pts.length < 2) return;
+          g.beginPath();
+          pts.forEach(function (q, i) { var p = S(q); if (i === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
+          if (close) g.closePath();
+          g.stroke();
+        }
+        poly(m.draw.oval, true);
+        poly(m.draw.eyeA, true);
+        poly(m.draw.eyeB, true);
+        poly(m.draw.browA, false);
+        poly(m.draw.browB, false);
+        poly(m.draw.nose, false);
+        poly(m.draw.lips, true);
+        /* arrows: ghost -> actual, exaggerated x4 */
+        function arrow(fromQ, toQ, color) {
+          var dx = toQ[0] - fromQ[0], dy = toQ[1] - fromQ[1];
+          var len = Math.hypot(dx, dy);
+          if (len < 0.0005) return;
+          var drawLen = Math.min(len * 4, 0.11);
+          var ux = dx / len, uy = dy / len;
+          var a = S(fromQ);
+          var b = [a[0] + (-ux) * drawLen * scale, a[1] + uy * drawLen * scale];
+          g.strokeStyle = color; g.fillStyle = color; g.lineWidth = 2.2;
+          g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+          var ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+          g.beginPath();
+          g.moveTo(b[0], b[1]);
+          g.lineTo(b[0] - 7 * Math.cos(ang - 0.42), b[1] - 7 * Math.sin(ang - 0.42));
+          g.lineTo(b[0] - 7 * Math.cos(ang + 0.42), b[1] - 7 * Math.sin(ang + 0.42));
+          g.closePath(); g.fill();
+          g.beginPath(); g.arc(a[0], a[1], 2.4, 0, Math.PI * 2); g.fill();
+        }
         m.ghosts.forEach(function (gh) {
-          var gi = [gh.ai[0] + (gh.gi[0] - gh.ai[0]) * k, gh.ai[1] + (gh.gi[1] - gh.ai[1]) * k];
-          var gj = [gh.aj[0] + (gh.gj[0] - gh.aj[0]) * k, gh.aj[1] + (gh.gj[1] - gh.aj[1]) * k];
-          if (gh.devPct >= 1.0) {
-            g.strokeStyle = "rgba(255,46,136,.75)";
-            g.lineWidth = Math.max(1, W * 0.0025);
-            g.beginPath(); g.moveTo(gh.ai[0] * W, gh.ai[1] * H); g.lineTo(gi[0] * W, gi[1] * H); g.stroke();
-            g.beginPath(); g.moveTo(gh.aj[0] * W, gh.aj[1] * H); g.lineTo(gj[0] * W, gj[1] * H); g.stroke();
-          }
-          g.fillStyle = "#22d3ee";
-          g.beginPath(); g.arc(gi[0] * W, gi[1] * H, W * 0.006, 0, Math.PI * 2); g.fill();
-          g.beginPath(); g.arc(gj[0] * W, gj[1] * H, W * 0.006, 0, Math.PI * 2); g.fill();
-          g.fillStyle = "#ffd400";
-          g.beginPath(); g.arc(gh.ai[0] * W, gh.ai[1] * H, W * 0.006, 0, Math.PI * 2); g.fill();
-          g.beginPath(); g.arc(gh.aj[0] * W, gh.aj[1] * H, W * 0.006, 0, Math.PI * 2); g.fill();
+          if (gh.devPct < 0.8) return;
+          var col = devColor(gh.devPct);
+          arrow([gh.giQ[0] / Wn, gh.giQ[1] / Wn], [gh.aiQ[0] / Wn, gh.aiQ[1] / Wn], col);
+          arrow([gh.gjQ[0] / Wn, gh.gjQ[1] / Wn], [gh.ajQ[0] / Wn, gh.ajQ[1] / Wn], col);
         });
+        m.centreArrows.forEach(function (ca) {
+          if (Math.abs(ca.uPct) < 1.2) return;
+          arrow([0, ca.q[1]], ca.q, devColor(Math.abs(ca.uPct)));
+        });
+        /* labels for the biggest deviations */
+        var labelled = m.ghosts.filter(function (gh) { return gh.devPct >= 1.2; })
+          .sort(function (a, b) { return b.devPct - a.devPct; }).slice(0, 5);
+        g.font = "600 11px sans-serif";
+        g.textAlign = "center";
+        labelled.forEach(function (gh) {
+          var midQ = [(gh.aiQ[0] + gh.ajQ[0]) / 2 / Wn, (gh.aiQ[1] + gh.ajQ[1]) / 2 / Wn];
+          var p = S(midQ);
+          g.fillStyle = "rgba(16,16,20,.65)";
+          var tw = g.measureText(gh.name).width;
+          g.fillRect(p[0] - tw / 2 - 3, p[1] - 20, tw + 6, 14);
+          g.fillStyle = "#f2f2f5";
+          g.fillText(gh.name, p[0], p[1] - 9);
+        });
+      }
+
+      /* ================= worst-spot viewer (C) ================= */
+      function magWord(p) { return p < 1.2 ? "わずかに" : (p < 2.5 ? "少し" : "はっきり"); }
+      function sideOfRawX(x) {
+        /* displayed side: raw x smaller than face centre appears on the right (mirrored view) */
+        return x < photoResult.frame.mid[0] ? "右" : "左";
+      }
+      function spotSentence(s) {
+        if (!s) return "";
+        if (s.mag < 0.8) return s.name + "：目立つズレはありませんでした";
+        if (s.kind === "centre") {
+          var side = s.uPct > 0 ? "左" : "右";
+          return s.name + "が中心から" + side + "へ" + magWord(s.mag) + "寄っています（" + fmt(s.mag) + "%）";
+        }
+        /* pair */
+        if (Math.abs(s.compVPct) >= Math.abs(s.widthDiffPct)) {
+          var lowerIdx = s.vI > s.vJ ? s.i : s.j;
+          var lowerSide = sideOfRawX(photoLandmarks[lowerIdx][0]);
+          return s.name + "は" + lowerSide + "の方が" + magWord(Math.abs(s.compVPct)) + "低いです（差 " + fmt(Math.abs(s.compVPct)) + "%）";
+        }
+        var widerIdx = s.widthDiffPct > 0 ? s.j : s.i;
+        var widerSide = sideOfRawX(photoLandmarks[widerIdx][0]);
+        return s.name + "は" + widerSide + "の方が" + magWord(Math.abs(s.widthDiffPct)) + "外側に張っています（差 " + fmt(Math.abs(s.widthDiffPct)) + "%）";
+      }
+      function drawCrop() {
+        var cv = $("cropCanvas");
+        if (!cv || !photoResult || !photoCanvasSrc) return;
+        var s = photoResult.spots[selectedSpot];
+        if (!s) return;
+        var pw = photoCanvasSrc.width, ph = photoCanvasSrc.height;
+        var cw = pw * 0.38, ch = cw * 0.78;
+        var ox = Math.max(0, Math.min(pw - cw, s.focus[0] * pw - cw / 2));
+        var oy = Math.max(0, Math.min(ph - ch, s.focus[1] * ph - ch / 2));
+        var cssW = cv.clientWidth || 360;
+        var cssH = Math.round(cssW * 0.75);
+        var dpr = window.devicePixelRatio || 1;
+        cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr);
+        cv.style.height = cssH + "px";
+        var g = cv.getContext("2d");
+        g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        g.drawImage(photoCanvasSrc, ox, oy, cw, ch, 0, 0, cssW, cssH);
+        function M(nx, ny) { return [(nx * pw - ox) / cw * cssW, (ny * ph - oy) / ch * cssH]; }
+        var m = photoResult;
+        if (s.kind === "pair") {
+          var gh = null;
+          m.ghosts.forEach(function (x) { if (x.i === s.i && x.j === s.j) gh = x; });
+          if (gh) {
+            [[gh.ai, gh.gi], [gh.aj, gh.gj]].forEach(function (pr) {
+              var a = M(pr[0][0], pr[0][1]);
+              var gx = pr[0][0] + (pr[1][0] - pr[0][0]) * 2, gy = pr[0][1] + (pr[1][1] - pr[0][1]) * 2;
+              var b = M(gx, gy);
+              g.strokeStyle = "#ff2e88"; g.lineWidth = 2;
+              g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke();
+              g.fillStyle = "#22d3ee";
+              g.beginPath(); g.arc(b[0], b[1], 5, 0, Math.PI * 2); g.fill();
+              g.fillStyle = "#ffd400";
+              g.beginPath(); g.arc(a[0], a[1], 5, 0, Math.PI * 2); g.fill();
+            });
+          }
+        } else {
+          /* centre spot: midline point vs actual point */
+          var fr = m.frame;
+          var focusP = M(s.focus[0], s.focus[1]);
+          g.fillStyle = "#ffd400";
+          g.beginPath(); g.arc(focusP[0], focusP[1], 5, 0, Math.PI * 2); g.fill();
+          g.strokeStyle = "rgba(255,255,255,.7)";
+          g.setLineDash([5, 4]);
+          var cxPx = (fr.mid[0] * pw - ox) / cw * cssW;
+          g.beginPath(); g.moveTo(cxPx, 0); g.lineTo(cxPx, cssH); g.stroke();
+          g.setLineDash([]);
+        }
+      }
+      function selectSpot(idx) {
+        selectedSpot = idx;
+        var btns = $("spotBtns");
+        if (btns) {
+          Array.prototype.forEach.call(btns.children, function (b, i) {
+            b.classList.toggle("on", i === idx);
+          });
+        }
+        var s = photoResult.spots[idx];
+        $("spotSentence").textContent = s ? spotSentence(s) : "";
+        drawCrop();
+        drawPhotoOverlay();
       }
 
       /* ================= result rendering ================= */
@@ -511,12 +687,12 @@
           '<span class="val">' + Math.round(v) + '</span></div>';
       }
       function kv(k2, v) { return '<div class="kv"><span class="k">' + k2 + '</span><span class="v">' + v + '</span></div>'; }
-      function pairRow(label, rVal, lVal, unit) {
+      function pairRow(label, rVal, lVal) {
         var mx = Math.max(rVal, lVal) || 1;
         return '<div class="pair-row"><span class="lab">' + label + '</span><span class="pair-bars">' +
           '<span class="pair-line"><span class="side">右</span><span class="track"><span class="fill fill-r" style="width:' + Math.round(rVal / mx * 100) + '%"></span></span></span>' +
           '<span class="pair-line"><span class="side">左</span><span class="track"><span class="fill fill-l" style="width:' + Math.round(lVal / mx * 100) + '%"></span></span></span>' +
-          '</span><span class="val" style="width:6.5em;text-align:right;font-weight:600">' + fmt(rVal, 2) + " / " + fmt(lVal, 2) + (unit || "") + '</span></div>';
+          '</span><span class="val" style="width:6.5em;text-align:right;font-weight:600">' + fmt(rVal, 2) + " / " + fmt(lVal, 2) + '</span></div>';
       }
       function bandHtml(values, labels, colors) {
         var tot = values.reduce(function (a, b) { return a + b; }, 0) || 1;
@@ -528,6 +704,10 @@
         });
         return band + '</div>' + lab + '</div>';
       }
+      function centreText(pct) {
+        if (Math.abs(pct) < 0.05) return "ほぼ中心";
+        return (pct > 0 ? "左" : "右") + "へ " + fmt(Math.abs(pct)) + "%";
+      }
       function renderResult(m) {
         var rough = '<div id="scoreBig">' + m.total + '<span> / 100</span></div>';
         rough += '<p class="small" style="margin:0">バランススコア（左右対称と均等さから算出）</p>';
@@ -536,15 +716,30 @@
         rough += barRow("五眼の均等さ", m.sub.gogan);
         rough += barRow("中心の配置", m.sub.centre);
         rough += barRow("輪郭の左右差", m.sub.outline);
+        rough += "<h2>顔の図（矢印＝対称な位置からのズレ、長さは4倍強調）</h2>";
+        rough += '<canvas id="schemeCanvas"></canvas>';
+        rough += '<p class="small">矢印の色：灰＝わずか／オレンジ＝少し／ピンク＝はっきり。点があるべき対称な位置から、実際の位置へ矢印が伸びています。</p>';
+        rough += "<h2>ズレが大きい所（写真で確認）</h2>";
+        rough += '<div class="btn-row" id="spotBtns"></div>';
+        rough += '<canvas id="cropCanvas"></canvas>';
+        rough += '<p id="spotSentence"></p>';
+        rough += '<p class="small">拡大図の黄色＝実際の点、水色＝対称な位置（差は2倍強調）。</p>';
         rough += "<h2>三庭（縦の3分割）</h2>";
         rough += bandHtml(m.santei.pct, ["額", "鼻", "顎"], ["#ffd400", "#ff9f2e", "#ff2e88"]);
         rough += "<h2>五眼（横の5分割）</h2>";
         rough += bandHtml(m.gogan.segPct, ["外", "目", "間", "目", "外"], ["#8a8a96", "#22d3ee", "#8a8a96", "#22d3ee", "#8a8a96"]);
-        rough += "<h2>気になる点</h2><ul class=\"notes\">";
-        m.concerns.forEach(function (c) { rough += "<li>" + escapeHtml(c) + "</li>"; });
-        rough += "</ul>";
-        rough += '<p class="small">写真の水色の点が「左右対称にした位置」。黄色の実際の点と離れている所ほどズレています。「ズレ強調」で差を3倍にできます。</p>';
         $("roughView").innerHTML = rough;
+
+        var btns = $("spotBtns");
+        m.spots.forEach(function (s, i) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.textContent = ["①", "②", "③"][i] + " " + s.name;
+          b.addEventListener("click", function () { selectSpot(i); });
+          btns.appendChild(b);
+        });
+        drawScheme();
+        selectSpot(0);
 
         var d = "";
         d += "<h2>左右ペア（右／左）</h2>";
@@ -560,10 +755,10 @@
         d += kv("鼻幅（顔幅比）", fmt(m.noseWPct) + "%");
         d += kv("口幅（顔幅比）", fmt(m.mouthWPct) + "%");
         d += kv("目の大きさの左右差", fmt(m.diffs.eye) + "%");
-        d += "<h2>中心からのズレ（画面基準、＋は右）</h2>";
-        d += kv("鼻先", (m.centre.nose >= 0 ? "+" : "") + fmt(m.centre.nose) + "%");
-        d += kv("口の中心", (m.centre.mouth >= 0 ? "+" : "") + fmt(m.centre.mouth) + "%");
-        d += kv("顎先", (m.centre.chin >= 0 ? "+" : "") + fmt(m.centre.chin) + "%");
+        d += "<h2>中心からのズレ（画面基準）</h2>";
+        d += kv("鼻先", centreText(m.centre.nose));
+        d += kv("口の中心", centreText(m.centre.mouth));
+        d += kv("顎先", centreText(m.centre.chin));
         d += kv("対称のズレ平均（顔幅比）", fmt(m.sym.devAvg) + "%");
         d += "<h2>対称の内訳（部位別のズレ、顔幅比）</h2>";
         m.sym.pairs.slice().sort(function (a, b) { return b.devPct - a.devPct; }).forEach(function (p) {
