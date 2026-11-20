@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>公園グラフィティ</title>
+    <title>MediaPipeテスト（手＋顔）</title>
     <style>
       :root {
         --bg: #101014; --panel: #1b1b21; --ink: #f2f2f5; --ink-dim: #a7a7b3;
@@ -24,12 +24,6 @@
       #stageWrap { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
       #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
       #draw { position: absolute; inset: 0; width: 100%; height: 100%; }
-      #banner {
-        position: absolute; left: 50%; top: 10px; transform: translateX(-50%);
-        background: rgba(0,0,0,.65); color: #fff; font-size: 13px; font-weight: 700;
-        padding: 6px 12px; border-radius: 999px; display: none; white-space: nowrap;
-      }
-      #banner.on { display: block; }
       .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       button {
         font: inherit; font-size: 15px; font-weight: 600; min-height: 2.8rem;
@@ -40,50 +34,31 @@
       button.on { background: #2c2c35; border-color: var(--accent); color: var(--accent); }
       button:disabled { opacity: .45; }
       button:active { transform: translateY(1px); }
-      .chip {
-        width: 38px; height: 38px; min-height: 38px; border-radius: 50%; padding: 0;
-        border: 3px solid transparent;
-      }
-      .chip.on { border-color: #fff; }
-      .small { font-size: 11.5px; color: var(--ink-dim); }
-      .g-item { border-top: 1px solid var(--line); padding: 9px 2px; font-size: 13.5px; line-height: 1.65; }
-      .g-item button { min-height: 2.1rem; padding: 4px 10px; font-size: 12.5px; }
-      h2 { font-size: 14px; margin: 6px 0 0; }
-      .hidden { display: none !important; }
+      .small { font-size: 11.5px; color: var(--ink-dim); line-height: 1.7; }
+      #readout { font-size: 14px; line-height: 1.7; margin: 0; }
     </style>
   </head>
   <body>
     <div id="app">
-      <h1>公園グラフィティ</h1>
+      <h1>MediaPipeテスト（手＋顔）</h1>
       <p class="status" id="status">読み込み中…</p>
 
       <div id="stageWrap">
         <video id="cam" playsinline muted autoplay></video>
         <canvas id="draw"></canvas>
-        <div id="banner"></div>
       </div>
 
       <div class="btn-row">
-        <button id="modeDraw" class="on" type="button">描く</button>
-        <button id="modeView" type="button">見る</button>
         <button id="camBtn" class="primary" type="button">カメラ開始</button>
+        <button id="flipBtn" type="button">カメラ切替（内/外）</button>
+      </div>
+      <div class="btn-row">
+        <button id="handBtn" class="on" type="button">手：ON</button>
+        <button id="faceBtn" class="on" type="button">顔：ON</button>
       </div>
 
-      <div id="drawPanel">
-        <div class="btn-row" id="colors"></div>
-        <div class="btn-row" style="margin-top:8px">
-          <button id="undoBtn" type="button">1本戻す</button>
-          <button id="clearBtn" type="button">全部消す</button>
-          <button id="saveBtn" class="primary" type="button">ここに貼る</button>
-        </div>
-        <p class="small">つまむ（親指と人差し指をくっつける）と線が引けます。離すとペンが上がります。指先の丸がペンの位置です。</p>
-      </div>
-
-      <div id="viewPanel" class="hidden">
-        <p class="small" id="viewInfo">近くの落書きを探しています…</p>
-        <h2>保存した落書き</h2>
-        <div id="gList"></div>
-      </div>
+      <p id="readout">手：— ／ 顔：—</p>
+      <p class="small">手は21点の骨格、顔は枠と特徴点（目・鼻・口・耳）を表示します。つまむ（親指と人差し指をくっつけ）ると「つまんでる！」と出ます。顔検知は自分の顔で試すなら「カメラ切替」で内カメラに。</p>
     </div>
 
     <script>
@@ -91,65 +66,19 @@
       var $ = function (id) { return document.getElementById(id); };
       function status(t) { $("status").innerHTML = t; }
 
-      /* ================= storage ================= */
-      var G_KEY = "gyosen-graffiti-v1";
-      var graffiti = [];
-      try {
-        var gs = JSON.parse(localStorage.getItem(G_KEY) || "[]");
-        if (Array.isArray(gs)) graffiti = gs;
-      } catch (e) { graffiti = []; }
-      function saveStore() {
-        try { localStorage.setItem(G_KEY, JSON.stringify(graffiti)); } catch (e) { /* ignore */ }
-      }
-
-      /* ================= helpers ================= */
-      function haversineM(a, b) {
-        var R = 6371000, dLat = (b.lat - a.lat) * Math.PI / 180, dLng = (b.lng - a.lng) * Math.PI / 180;
-        var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) *
-                Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        return 2 * R * Math.asin(Math.sqrt(s));
-      }
-      function pad2(n) { return (n < 10 ? "0" : "") + n; }
-      function fmtDate(iso) {
-        var d = new Date(iso);
-        return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
-      }
-      function escapeHtml(s) {
-        return String(s).replace(/[&<>"']/g, function (c) {
-          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
-        });
-      }
-
-      /* ================= state ================= */
-      var COLORS = ["#ff2e88", "#ff7a00", "#ffd400", "#2ee66b", "#00b7ff", "#8a5cff", "#ffffff", "#16161c"];
-      var color = COLORS[0];
-      var mode = "draw";
-      var strokes = [];
-      var curStroke = null;
-      var smooth = null;
-      var pinch = false;
-      var handReady = false;
-      var myPos = null;
-      var viewTarget = null;
-      var viewIsPreview = false;
-      var watchId = null;
-
-      /* ================= colors UI ================= */
-      var colorsEl = $("colors");
-      COLORS.forEach(function (c) {
-        var b = document.createElement("button");
-        b.type = "button";
-        b.className = "chip" + (c === color ? " on" : "");
-        b.style.background = c;
-        b.setAttribute("aria-label", "色 " + c);
-        b.addEventListener("click", function () {
-          color = c;
-          Array.prototype.forEach.call(colorsEl.querySelectorAll(".chip"), function (x) {
-            x.classList.toggle("on", x === b);
-          });
-        });
-        colorsEl.appendChild(b);
+      var want = { hand: true, face: true };
+      window.__mpWant = want;
+      $("handBtn").addEventListener("click", function () {
+        want.hand = !want.hand;
+        $("handBtn").textContent = want.hand ? "手：ON" : "手：OFF";
+        $("handBtn").classList.toggle("on", want.hand);
+        if (!want.hand) latest.hands = [];
+      });
+      $("faceBtn").addEventListener("click", function () {
+        want.face = !want.face;
+        $("faceBtn").textContent = want.face ? "顔：ON" : "顔：OFF";
+        $("faceBtn").classList.toggle("on", want.face);
+        if (!want.face) latest.faces = [];
       });
 
       /* ================= camera ================= */
@@ -157,46 +86,35 @@
       var canvas = $("draw");
       var ctx = canvas.getContext("2d");
       var camStarted = false;
+      var facing = "environment";
+      var stream = null;
+      var mpReady = false;
 
       function startCam() {
-        if (camStarted) return;
-        camStarted = true;
-        $("camBtn").disabled = true;
-        status("カメラを起動中…");
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           status("このブラウザではカメラが使えません。リンクをChromeで開いてね（アプリ内ブラウザでは動かないことがあります）");
-          camStarted = false; $("camBtn").disabled = false;
           return;
         }
+        status("カメラを起動中…");
         navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 960 } },
+          video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } },
           audio: false
-        }).then(function (stream) {
-          video.srcObject = stream;
+        }).then(function (s) {
+          if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+          stream = s;
+          video.srcObject = s;
           var pr = video.play();
           if (pr && pr.catch) pr.catch(function () { /* ignore */ });
-          status("カメラOK。手の認識を読み込み中…");
-          setTimeout(function () {
-            if (!handReady) status("手の認識の読み込みに時間がかかっています。そのまま待つか、通信状態を確認して再読み込みしてね");
-          }, 20000);
-          if (typeof window.__handStart === "function") {
-            window.__handStart(video);
+          camStarted = true;
+          $("camBtn").disabled = true;
+          $("camBtn").textContent = "カメラ動作中";
+          if (mpReady) {
+            status("認識中。手をかざす／顔を映してみて");
           } else {
-            // module may still be loading; retry for up to 10 s
-            var tries = 0;
-            var iv = setInterval(function () {
-              tries++;
-              if (typeof window.__handStart === "function") {
-                clearInterval(iv);
-                window.__handStart(video);
-              } else if (tries > 20) {
-                clearInterval(iv);
-                if (!handReady) status("手の認識ライブラリを読み込めませんでした。通信状態を確認して、再読み込みしてね");
-              }
-            }, 500);
+            status("カメラOK。認識モデルを読み込み中…");
+            hookModule();
           }
         }).catch(function (err) {
-          camStarted = false; $("camBtn").disabled = false;
           var name = err && err.name ? err.name : "";
           var msg;
           if (name === "NotAllowedError") msg = "カメラの許可が拒否されました。Chromeのアドレスバー左端のアイコン→「権限」からカメラを許可して、もう一回押してね";
@@ -208,68 +126,70 @@
         });
       }
       $("camBtn").addEventListener("click", startCam);
-
-      window.__handReadyCb = function () {
-        handReady = true;
-        status(mode === "draw"
-          ? "準備OK。カメラに手をかざして、つまんで描いてみて"
-          : "準備OK。落書きのある場所に近づくと浮かびます");
-      };
-      window.__handErrorCb = function () {
-        if (!handReady) status("手の認識を読み込めませんでした。通信状態を確認して、再読み込みしてね");
-      };
-
-      /* called by the MediaPipe module for every video frame */
-      window.onHandFrame = function (lms) {
-        if (!lms) {
-          pinch = false; curStroke = null; smooth = null;
-          return;
-        }
-        var tip = lms[8], thumb = lms[4];
-        var d = Math.hypot(tip.x - thumb.x, tip.y - thumb.y);
-        pinch = d < 0.055;
-        if (!smooth) smooth = { x: tip.x, y: tip.y };
-        smooth.x += (tip.x - smooth.x) * 0.45;
-        smooth.y += (tip.y - smooth.y) * 0.45;
-        if (mode !== "draw") return;
-        if (pinch) {
-          if (!curStroke) {
-            curStroke = { color: color, w: 0.03, pts: [[smooth.x, smooth.y]] };
-            strokes.push(curStroke);
-          } else {
-            var last = curStroke.pts[curStroke.pts.length - 1];
-            if (Math.hypot(smooth.x - last[0], smooth.y - last[1]) > 0.004) {
-              curStroke.pts.push([smooth.x, smooth.y]);
-            }
-          }
+      $("flipBtn").addEventListener("click", function () {
+        facing = facing === "environment" ? "user" : "environment";
+        if (camStarted) {
+          $("camBtn").disabled = false;
+          startCam();
         } else {
-          curStroke = null;
+          status(facing === "user" ? "内カメラに設定。カメラ開始を押してね" : "外カメラに設定。カメラ開始を押してね");
+        }
+      });
+
+      function hookModule() {
+        if (typeof window.__mpStart === "function") {
+          window.__mpStart(video);
+          return;
+        }
+        var tries = 0;
+        var iv = setInterval(function () {
+          tries++;
+          if (typeof window.__mpStart === "function") {
+            clearInterval(iv);
+            window.__mpStart(video);
+          } else if (tries > 24) {
+            clearInterval(iv);
+            if (!mpReady) status("認識ライブラリを読み込めませんでした。通信状態を確認して、再読み込みしてね");
+          }
+        }, 500);
+      }
+
+      window.__mpReadyCb = function (handOk, faceOk) {
+        mpReady = true;
+        var parts = [];
+        parts.push(handOk ? "手の認識OK" : "手の認識は読み込み失敗");
+        parts.push(faceOk ? "顔検知OK" : "顔検知は読み込み失敗");
+        status("準備OK（" + parts.join("・") + "）。手をかざす／顔を映してみて");
+      };
+      window.__mpErrorCb = function () {
+        if (!mpReady) status("認識モデルを読み込めませんでした。通信状態を確認して、再読み込みしてね");
+      };
+
+      /* ================= results + rendering ================= */
+      var latest = { hands: [], faces: [] };
+      var lastReadout = "";
+      window.onMpFrame = function (r) {
+        latest = r;
+        var ht = "手：なし";
+        if (r.hands.length) {
+          var h0 = r.hands[0];
+          ht = "手：" + (h0.handed === "Left" ? "左手" : h0.handed === "Right" ? "右手" : "検出") + (h0.pinch ? "（つまんでる！）" : "");
+          if (r.hands.length > 1) ht += " ほか" + (r.hands.length - 1) + "つ";
+        }
+        var ft = r.faces.length ? "顔：" + r.faces.length + "つ検出" : "顔：なし";
+        var txt = ht + " ／ " + ft;
+        if (txt !== lastReadout) {
+          lastReadout = txt;
+          $("readout").textContent = txt;
         }
       };
 
-      /* ================= rendering ================= */
-      function drawStroke(s, W, H) {
-        if (!s.pts.length) return;
-        if (s.pts.length < 2) {
-          ctx.beginPath();
-          ctx.arc(s.pts[0][0] * W, s.pts[0][1] * H, Math.max(2, s.w * W * 0.5), 0, Math.PI * 2);
-          ctx.fillStyle = s.color; ctx.globalAlpha = 0.9; ctx.fill(); ctx.globalAlpha = 1;
-          return;
-        }
-        var passes = [[2.1, 0.13], [1.0, 0.9]];
-        for (var pi = 0; pi < passes.length; pi++) {
-          ctx.beginPath();
-          s.pts.forEach(function (pt, i) {
-            var px = pt[0] * W, py = pt[1] * H;
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-          });
-          ctx.strokeStyle = s.color;
-          ctx.lineWidth = Math.max(2, s.w * W * passes[pi][0]);
-          ctx.globalAlpha = passes[pi][1];
-          ctx.lineJoin = "round"; ctx.lineCap = "round";
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 1;
+      var CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+      function coverMap(nx, ny, W, H) {
+        var vw = video.videoWidth || 4, vh = video.videoHeight || 3;
+        var scale = Math.max(W / vw, H / vh);
+        var dw = vw * scale, dh = vh * scale;
+        return [nx * dw + (W - dw) / 2, ny * dh + (H - dh) / 2];
       }
       function render() {
         var W = canvas.clientWidth, H = canvas.clientHeight;
@@ -280,206 +200,123 @@
         }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
-        var show = mode === "draw" ? strokes : (viewTarget ? viewTarget.strokes : []);
-        show.forEach(function (s) { drawStroke(s, W, H); });
-        if (smooth && handReady) {
-          ctx.beginPath();
-          ctx.arc(smooth.x * W, smooth.y * H, pinch ? 13 : 9, 0, Math.PI * 2);
-          ctx.strokeStyle = pinch ? "#ff2e88" : "rgba(255,255,255,.9)";
-          ctx.lineWidth = 3; ctx.stroke();
-          if (pinch) {
+
+        /* faces: box + keypoints */
+        latest.faces.forEach(function (f) {
+          var tl = coverMap(f.bbox[0], f.bbox[1], W, H);
+          var br = coverMap(f.bbox[0] + f.bbox[2], f.bbox[1] + f.bbox[3], W, H);
+          ctx.strokeStyle = "#ffd400"; ctx.lineWidth = 3;
+          ctx.strokeRect(tl[0], tl[1], br[0] - tl[0], br[1] - tl[1]);
+          ctx.fillStyle = "#ffd400";
+          f.keypoints.forEach(function (kp) {
+            var p = coverMap(kp[0], kp[1], W, H);
+            ctx.beginPath(); ctx.arc(p[0], p[1], 3.5, 0, Math.PI * 2); ctx.fill();
+          });
+          ctx.font = "bold 13px sans-serif";
+          ctx.fillText("顔", tl[0], Math.max(14, tl[1] - 6));
+        });
+
+        /* hands: skeleton */
+        latest.hands.forEach(function (h) {
+          var pts = h.pts.map(function (p) { return coverMap(p[0], p[1], W, H); });
+          ctx.strokeStyle = h.pinch ? "#ff2e88" : "#2ee66b";
+          ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
+          CONN.forEach(function (c) {
             ctx.beginPath();
-            ctx.arc(smooth.x * W, smooth.y * H, 3.5, 0, Math.PI * 2);
-            ctx.fillStyle = "#ff2e88"; ctx.fill();
-          }
-        }
+            ctx.moveTo(pts[c[0]][0], pts[c[0]][1]);
+            ctx.lineTo(pts[c[1]][0], pts[c[1]][1]);
+            ctx.stroke();
+          });
+          pts.forEach(function (p, i) {
+            ctx.beginPath();
+            ctx.arc(p[0], p[1], i === 8 || i === 4 ? 6 : 4, 0, Math.PI * 2);
+            ctx.fillStyle = i === 8 ? "#ff2e88" : "#ffffff";
+            ctx.fill();
+          });
+        });
       }
       (function anim() { requestAnimationFrame(anim); render(); })();
-      window.addEventListener("resize", render);
 
-      /* ================= draw actions ================= */
-      $("undoBtn").addEventListener("click", function () { strokes.pop(); curStroke = null; });
-      $("clearBtn").addEventListener("click", function () { strokes = []; curStroke = null; });
-      $("saveBtn").addEventListener("click", function () {
-        if (!strokes.length) { status("まだ何も描いてないよ"); return; }
-        if (!("geolocation" in navigator)) { status("このブラウザはGPSに未対応です"); return; }
-        status("位置を取っています…");
-        navigator.geolocation.getCurrentPosition(function (pos) {
-          var g = {
-            id: Date.now(),
-            lat: pos.coords.latitude, lng: pos.coords.longitude, acc: Math.round(pos.coords.accuracy),
-            date: new Date().toISOString(),
-            strokes: strokes.map(function (s) {
-              return {
-                color: s.color, w: s.w,
-                pts: s.pts.map(function (pt) { return [Math.round(pt[0] * 1000) / 1000, Math.round(pt[1] * 1000) / 1000]; })
-              };
-            })
-          };
-          graffiti.unshift(g);
-          if (graffiti.length > 50) graffiti.length = 50;
-          saveStore();
-          strokes = []; curStroke = null;
-          myPos = { lat: g.lat, lng: g.lng, acc: g.acc };
-          status("貼りました！（精度 ±" + g.acc + "m）「見る」で近づくと浮かびます");
-          renderList();
-        }, function () {
-          status("位置を取れませんでした。空が見える場所でもう一回試してね");
-        }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
-      });
-
-      /* ================= view mode ================= */
-      function setMode(m) {
-        mode = m;
-        $("modeDraw").classList.toggle("on", m === "draw");
-        $("modeView").classList.toggle("on", m === "view");
-        $("drawPanel").classList.toggle("hidden", m !== "draw");
-        $("viewPanel").classList.toggle("hidden", m !== "view");
-        curStroke = null;
-        if (m === "view") {
-          startWatch();
-          renderList();
-          status("見るモード。落書きのある場所に近づくと、カメラに浮かびます");
-        } else {
-          stopWatch();
-          viewTarget = null; viewIsPreview = false;
-          $("banner").classList.remove("on");
-          status("描くモード。カメラに手をかざして、つまんで描いてみて");
-        }
-      }
-      $("modeDraw").addEventListener("click", function () { setMode("draw"); });
-      $("modeView").addEventListener("click", function () { setMode("view"); });
-
-      function startWatch() {
-        if (watchId !== null || !("geolocation" in navigator)) return;
-        watchId = navigator.geolocation.watchPosition(function (pos) {
-          myPos = { lat: pos.coords.latitude, lng: pos.coords.longitude, acc: pos.coords.accuracy };
-          updateNearby();
-        }, function () {
-          $("viewInfo").textContent = "位置を取れていません。許可と電波を確認してね";
-        }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
-      }
-      function stopWatch() {
-        if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-      }
-      function nearest() {
-        if (!myPos) return null;
-        var best = null, bestD = Infinity;
-        graffiti.forEach(function (g) {
-          var d = haversineM(myPos, g);
-          if (d < bestD) { bestD = d; best = g; }
-        });
-        return best ? { g: best, d: bestD } : null;
-      }
-      function updateNearby() {
-        var n = nearest();
-        if (!viewIsPreview) {
-          if (n && n.d <= 25) {
-            viewTarget = n.g;
-            $("banner").textContent = "落書きが浮かんでる！（" + fmtDate(n.g.date) + "）";
-            $("banner").classList.add("on");
-          } else {
-            viewTarget = null;
-            $("banner").classList.remove("on");
-          }
-        }
-        $("viewInfo").textContent = !graffiti.length
-          ? "まだ落書きがありません。「描く」で描いて貼ってね"
-          : n
-            ? "一番近い落書きまで約 " + Math.round(n.d) + " m（25m以内で浮かびます）・精度 ±" + Math.round(myPos.acc) + "m"
-            : "位置を取り中…";
-        renderList();
-      }
-      function renderList() {
-        var box = $("gList");
-        if (!box) return;
-        box.innerHTML = "";
-        if (!graffiti.length) {
-          box.innerHTML = '<p class="small">まだありません。</p>';
-          return;
-        }
-        var sorted = graffiti.slice().sort(function (a, b) {
-          if (!myPos) return b.id - a.id;
-          return haversineM(myPos, a) - haversineM(myPos, b);
-        });
-        sorted.forEach(function (g) {
-          var d = myPos ? Math.round(haversineM(myPos, g)) : null;
-          var div = document.createElement("div");
-          div.className = "g-item";
-          div.innerHTML = "<b>落書き " + fmtDate(g.date) + "</b>" +
-            (d !== null ? " <span class=\"small\">約" + d + "m先</span>" : "") +
-            "<div class=\"btn-row\" style=\"margin-top:6px\">" +
-            "<button type=\"button\" data-act=\"show\">カメラで見る</button>" +
-            "<button type=\"button\" data-act=\"del\">消す</button></div>";
-          Array.prototype.forEach.call(div.querySelectorAll("button"), function (btn) {
-            btn.addEventListener("click", function () {
-              var act = btn.getAttribute("data-act");
-              if (act === "show") {
-                if (mode !== "view") setMode("view");
-                viewTarget = g; viewIsPreview = true;
-                $("banner").textContent = "プレビュー中（" + fmtDate(g.date) + " の落書き）";
-                $("banner").classList.add("on");
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              } else if (act === "del") {
-                if (window.confirm("この落書きを消しますか？")) {
-                  graffiti = graffiti.filter(function (x) { return x.id !== g.id; });
-                  saveStore();
-                  if (viewTarget && viewTarget.id === g.id) {
-                    viewTarget = null; viewIsPreview = false;
-                    $("banner").classList.remove("on");
-                  }
-                  renderList();
-                }
-              }
-            });
-          });
-          box.appendChild(div);
-        });
-      }
-
-      renderList();
-      status("「カメラ開始」を押してね。描くモードでは手をかざして描けます");
+      status("「カメラ開始」を押してね");
     </script>
 
     <script type="module">
-      import { FilesetResolver, HandLandmarker } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/dist/vision_bundle.mjs";
+      import { FilesetResolver, HandLandmarker, FaceDetector } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/dist/vision_bundle.mjs";
 
-      let landmarker = null;
-      let videoEl = null;
-      let lastVideoTime = -1;
+      let handLm = null, faceDet = null, videoEl = null, lastVideoTime = -1;
 
-      window.__handStart = async function (video) {
+      window.__mpStart = async function (video) {
         videoEl = video;
+        let handOk = false, faceOk = false;
         try {
           const fileset = await FilesetResolver.forVisionTasks(
             "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm"
           );
-          const opts = (delegate) => ({
+          const mkHand = (delegate) => HandLandmarker.createFromOptions(fileset, {
             baseOptions: {
               modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
               delegate
             },
-            runningMode: "VIDEO", numHands: 1
+            runningMode: "VIDEO", numHands: 2
           });
-          try { landmarker = await HandLandmarker.createFromOptions(fileset, opts("GPU")); }
-          catch (e) { landmarker = await HandLandmarker.createFromOptions(fileset, opts("CPU")); }
-          if (window.__handReadyCb) window.__handReadyCb();
-          requestAnimationFrame(loop);
+          try { handLm = await mkHand("GPU"); handOk = true; }
+          catch (e) { try { handLm = await mkHand("CPU"); handOk = true; } catch (e2) { /* hand unavailable */ } }
+
+          const mkFace = (delegate) => FaceDetector.createFromOptions(fileset, {
+            baseOptions: {
+              modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.task",
+              delegate
+            },
+            runningMode: "VIDEO", minDetectionConfidence: 0.5
+          });
+          try { faceDet = await mkFace("GPU"); faceOk = true; }
+          catch (e) { try { faceDet = await mkFace("CPU"); faceOk = true; } catch (e2) { /* face unavailable */ } }
+
+          if (handOk || faceOk) {
+            if (window.__mpReadyCb) window.__mpReadyCb(handOk, faceOk);
+            requestAnimationFrame(loop);
+          } else if (window.__mpErrorCb) {
+            window.__mpErrorCb();
+          }
         } catch (e) {
-          if (window.__handErrorCb) window.__handErrorCb();
+          if (window.__mpErrorCb) window.__mpErrorCb();
         }
       };
 
       function loop() {
         requestAnimationFrame(loop);
-        if (!landmarker || !videoEl || videoEl.readyState < 2) return;
+        if (!videoEl || videoEl.readyState < 2) return;
         if (videoEl.currentTime === lastVideoTime) return;
         lastVideoTime = videoEl.currentTime;
-        try {
-          const res = landmarker.detectForVideo(videoEl, performance.now());
-          const lms = res && res.landmarks && res.landmarks[0] ? res.landmarks[0] : null;
-          if (window.onHandFrame) window.onHandFrame(lms);
-        } catch (e) { /* transient */ }
+        const want = window.__mpWant || { hand: true, face: true };
+        const out = { hands: [], faces: [] };
+        const now = performance.now();
+        if (want.hand && handLm) {
+          try {
+            const r = handLm.detectForVideo(videoEl, now);
+            (r.landmarks || []).forEach((lms, i) => {
+              const handed = r.handedness && r.handedness[i] && r.handedness[i][0]
+                ? r.handedness[i][0].categoryName : "";
+              const pinch = Math.hypot(lms[8].x - lms[4].x, lms[8].y - lms[4].y) < 0.055;
+              out.hands.push({ pts: lms.map(p => [p.x, p.y]), handed, pinch });
+            });
+          } catch (e) { /* transient */ }
+        }
+        if (want.face && faceDet) {
+          try {
+            const r = faceDet.detectForVideo(videoEl, now);
+            const vw = videoEl.videoWidth || 1, vh = videoEl.videoHeight || 1;
+            (r.detections || []).forEach((d) => {
+              const bb = d.boundingBox;
+              if (!bb) return;
+              out.faces.push({
+                bbox: [bb.originX / vw, bb.originY / vh, bb.width / vw, bb.height / vh],
+                keypoints: (d.keypoints || []).map(k => [k.x, k.y])
+              });
+            });
+          } catch (e) { /* transient */ }
+        }
+        if (window.onMpFrame) window.onMpFrame(out);
       }
     </script>
   </body>
