@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="color-scheme" content="light dark" />
     <link rel="icon" href="data:," />
-    <title>MediaPipeテスト（手＋顔）</title>
+    <title>顔バランス測定</title>
     <style>
       :root {
         --bg: #101014; --panel: #1b1b21; --ink: #f2f2f5; --ink-dim: #a7a7b3;
@@ -20,10 +20,8 @@
       #app { display: flex; flex-direction: column; min-height: 100dvh; max-width: 640px; margin: 0 auto; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); gap: 10px; }
       h1 { font-size: 18px; margin: 2px 0 0; }
       .status { font-size: 13px; color: var(--ink-dim); line-height: 1.6; min-height: 1.6em; margin: 0; }
-      .status b { color: var(--ink); }
       #stageWrap { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #000; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
-      #cam { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-      #draw { position: absolute; inset: 0; width: 100%; height: 100%; }
+      #cam, #draw { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
       .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
       button {
         font: inherit; font-size: 15px; font-weight: 600; min-height: 2.8rem;
@@ -36,30 +34,25 @@
       button:active { transform: translateY(1px); }
       .small { font-size: 11.5px; color: var(--ink-dim); line-height: 1.7; }
       #readout { font-size: 14px; line-height: 1.7; margin: 0; }
-      #stage3d { position: relative; width: 100%; aspect-ratio: 4 / 3; background: #050508; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); }
-      #stage3d canvas { display: block; }
-      input[type="range"] { flex: 1; min-width: 120px; accent-color: var(--accent); }
-      select {
-        font: inherit; font-size: 14px; font-weight: 600; min-height: 2.6rem;
-        border: 1px solid var(--line); background: var(--panel); color: var(--ink);
-        border-radius: 10px; padding: 6px 10px; flex: 1;
-      }
-      .item { border-top: 1px solid var(--line); padding: 9px 2px; font-size: 13.5px; line-height: 1.65; }
-      .item button { min-height: 2.1rem; padding: 4px 10px; font-size: 12.5px; }
-      h2 { font-size: 14px; margin: 6px 0 0; }
+      #scoreBig { font-size: 52px; font-weight: 800; line-height: 1.1; }
+      #scoreBig span { font-size: 18px; color: var(--ink-dim); font-weight: 600; }
+      .bar-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin-top: 7px; }
+      .bar-row .lab { width: 7.5em; color: var(--ink-dim); }
+      .bar-track { flex: 1; height: 10px; background: #26262e; border-radius: 999px; overflow: hidden; }
+      .bar-fill { height: 100%; background: var(--accent); border-radius: 999px; }
+      .bar-row .val { width: 2.6em; text-align: right; font-weight: 700; }
+      .kv { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding: 7px 2px; font-size: 13.5px; }
+      .kv .k { color: var(--ink-dim); }
+      .kv .v { font-weight: 600; text-align: right; }
+      h2 { font-size: 14px; margin: 10px 0 2px; }
       .hidden { display: none !important; }
-      .rec-on { background: #5c1226 !important; border-color: #ff2e4d !important; color: #ff8296 !important; }
+      ul.notes { margin: 4px 0; padding-left: 1.2em; font-size: 13px; line-height: 1.8; }
     </style>
   </head>
   <body>
     <div id="app">
-      <h1>MediaPipeテスト（手＋顔）</h1>
+      <h1>顔バランス測定</h1>
       <p class="status" id="status">読み込み中…</p>
-      <div class="btn-row">
-        <button id="tabCam" class="on" type="button">認識</button>
-        <button id="tab3d" type="button">3D再生</button>
-      </div>
-      <div id="camPanel">
 
       <div id="stageWrap">
         <video id="cam" playsinline muted autoplay></video>
@@ -69,75 +62,158 @@
       <div class="btn-row">
         <button id="camBtn" class="primary" type="button">カメラ開始</button>
         <button id="flipBtn" type="button">カメラ切替（内/外）</button>
+        <button id="measureBtn" class="primary" type="button">測る</button>
       </div>
-      <div class="btn-row">
-        <button id="handBtn" class="on" type="button">手：ON</button>
-        <button id="faceBtn" class="on" type="button">顔：ON</button>
+      <p id="readout">顔：—</p>
+
+      <div id="result" class="hidden">
+        <div class="btn-row">
+          <button id="tabRough" class="on" type="button">ざっくり</button>
+          <button id="tabDetail" type="button">細かく</button>
+        </div>
+        <div id="roughView"></div>
+        <div id="detailView" class="hidden"></div>
       </div>
 
-      <p id="readout">手：— ／ 顔：—</p>
-      <p class="small">手は21点の骨格、顔は478点の点群（顔全体のランドマーク）を表示します。つまむ（親指と人差し指をくっつけ）ると「つまんでる！」と出ます。顔検知は自分の顔で試すなら「カメラ切替」で内カメラに。</p>
-
-        <h2>手の動きを録画</h2>
-        <div class="btn-row">
-          <button id="recBtn" type="button">● 録画開始</button>
-          <span class="small" id="recInfo">片手の21点（3D座標）を記録します</span>
-        </div>
-        <div id="recList"></div>
-      </div>
-
-      <div id="panel3d" class="hidden">
-        <div class="btn-row">
-          <span class="small">再生する動き</span>
-          <select id="playSel"></select>
-        </div>
-        <div id="stage3d"></div>
-        <div class="btn-row" style="margin-top:8px">
-          <button id="playBtn" class="primary" type="button">⏸ 一時停止</button>
-          <button id="sampleBtn" type="button">サンプル再生</button>
-          <button id="mirrorBtn" type="button">左右反転：OFF</button>
-        </div>
-        <div class="btn-row">
-          <span class="small">速度</span>
-          <button type="button" class="spdBtn" data-v="0.5">0.5x</button>
-          <button type="button" class="spdBtn on" data-v="1">1x</button>
-          <button type="button" class="spdBtn" data-v="2">2x</button>
-        </div>
-        <div class="btn-row">
-          <input type="range" id="scrub" min="0" max="1000" value="0" />
-        </div>
-        <p class="small" id="playInfo">3Dの手を再生します。ドラッグで回転、ピンチで拡大縮小。</p>
-      </div>
+      <p class="small">測り方：腕を伸ばして（近づけすぎない）、顔をまっすぐ向けて「測る」。スコアは理想値との比較ではなく、自分の顔の中の左右対称と均等さから出しています。額の上端は顔の輪郭の一番上で近似しています。</p>
     </div>
 
     <script>
       "use strict";
       var $ = function (id) { return document.getElementById(id); };
       function status(t) { $("status").innerHTML = t; }
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
 
-      var want = { hand: true, face: true };
-      window.__mpWant = want;
-      $("handBtn").addEventListener("click", function () {
-        want.hand = !want.hand;
-        $("handBtn").textContent = want.hand ? "手：ON" : "手：OFF";
-        $("handBtn").classList.toggle("on", want.hand);
-        if (!want.hand) latest.hands = [];
-      });
-      $("faceBtn").addEventListener("click", function () {
-        want.face = !want.face;
-        $("faceBtn").textContent = want.face ? "顔：ON" : "顔：OFF";
-        $("faceBtn").classList.toggle("on", want.face);
-        if (!want.face) latest.faces = [];
-      });
+      /*MEASURE_START*/
+      function measureFace(lms) {
+        function P(i) { return [lms[i].x, lms[i].y]; }
+        function avg(pts) {
+          var x = 0, y = 0;
+          pts.forEach(function (p) { x += p[0]; y += p[1]; });
+          return [x / pts.length, y / pts.length];
+        }
+        function dst(a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); }
+        /* eye centres (iris centres when available) */
+        var cA = lms.length > 473 ? P(468) : avg([P(33), P(133)]);
+        var cB = lms.length > 473 ? P(473) : avg([P(362), P(263)]);
+        var mid = avg([cA, cB]);
+        var ax = [cB[0] - cA[0], cB[1] - cA[1]];
+        var axLen = Math.hypot(ax[0], ax[1]) || 1;
+        ax = [ax[0] / axLen, ax[1] / axLen];
+        var ay = [-ax[1], ax[0]];
+        var chinRaw = P(152);
+        if ((chinRaw[0] - mid[0]) * ay[0] + (chinRaw[1] - mid[1]) * ay[1] < 0) ay = [-ay[0], -ay[1]];
+        var rollDeg = Math.atan2(cB[1] - cA[1], cB[0] - cA[0]) * 180 / Math.PI;
+        function Q(i) {
+          var p = P(i);
+          var dx = p[0] - mid[0], dy = p[1] - mid[1];
+          return [dx * ax[0] + dy * ax[1], dx * ay[0] + dy * ay[1]];
+        }
+        function distQ(i, j) { var a = Q(i), b = Q(j); return Math.hypot(a[0] - b[0], a[1] - b[1]); }
+        var W = Math.abs(Q(234)[0] - Q(454)[0]);
+        var H = Q(152)[1] - Q(10)[1];
+        if (W < 0.01 || H < 0.01) return null;
+        var pc = function (v) { return v / W * 100; };
+
+        /* --- santei (three sections, in v) --- */
+        var top = Q(10)[1];
+        var browY = (Q(105)[1] + Q(334)[1]) / 2;
+        var noseBaseY = Q(2)[1];
+        var chinY = Q(152)[1];
+        var s1 = browY - top, s2 = noseBaseY - browY, s3 = chinY - noseBaseY;
+        var sTot = s1 + s2 + s3;
+
+        /* --- gogan (five segments along u at eye level) --- */
+        var us = [Q(234)[0], Q(454)[0], Q(33)[0], Q(133)[0], Q(362)[0], Q(263)[0]].sort(function (a, b) { return a - b; });
+        var seg = [];
+        for (var i = 0; i < 5; i++) seg.push(us[i + 1] - us[i]);
+        var eyeW1 = seg[1], eyeGap = seg[2], eyeW2 = seg[3];
+
+        /* --- symmetry: mirror pairs across u=0 --- */
+        var PAIRS = [[33, 263], [133, 362], [61, 291], [234, 454], [98, 327], [105, 334], [70, 300], [50, 280], [172, 397], [129, 358]];
+        var PAIR_NAMES = { "33": "目の外側", "133": "目の内側", "61": "口角", "234": "頬の幅", "98": "鼻の翼", "105": "眉", "70": "眉の外側", "50": "頬", "172": "あごの付け根", "129": "鼻の横" };
+        var pairDevs = PAIRS.map(function (pr) {
+          var a = Q(pr[0]), b = Q(pr[1]);
+          var dev = Math.hypot(b[0] + a[0], b[1] - a[1]);
+          return { name: PAIR_NAMES[String(pr[0])] || "", devPct: pc(dev) };
+        });
+        var devAvg = pairDevs.reduce(function (s, d) { return s + d.devPct; }, 0) / pairDevs.length;
+
+        /* --- centre deviations --- */
+        var noseTipU = Q(1)[0];
+        var mouthC = [(Q(61)[0] + Q(291)[0]) / 2, (Q(61)[1] + Q(291)[1]) / 2];
+        var chinU = Q(152)[0];
+        var centreDevs = [Math.abs(pc(noseTipU)), Math.abs(pc(mouthC[0])), Math.abs(pc(chinU))];
+        var centreAvg = (centreDevs[0] + centreDevs[1] + centreDevs[2]) / 3;
+
+        /* --- left/right differences --- */
+        var eyeWidths = [distQ(33, 133), distQ(362, 263)];
+        var eyeDiffPct = Math.abs(eyeWidths[0] - eyeWidths[1]) / ((eyeWidths[0] + eyeWidths[1]) / 2) * 100;
+        var browDiffPct = Math.abs(Q(105)[1] - Q(334)[1]) / H * 100;
+        var mouthTiltPct = Math.abs(Q(61)[1] - Q(291)[1]) / H * 100;
+        var cheekL = Math.abs(Q(234)[0]), cheekR = Math.abs(Q(454)[0]);
+        var cheekDiffPct = Math.abs(cheekL - cheekR) / W * 100;
+        var jawL = Math.abs(Q(172)[0]), jawR = Math.abs(Q(397)[0]);
+        var jawDiffPct = Math.abs(jawL - jawR) / W * 100;
+
+        /* --- part ratios --- */
+        var noseW = distQ(98, 327);
+        var mouthW = distQ(61, 291);
+
+        /* --- subscores (within-face balance only; no external ideal) --- */
+        function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+        function cvScore(vals, scale) {
+          var m = vals.reduce(function (a, b) { return a + b; }, 0) / vals.length;
+          if (!m) return 0;
+          var sd = Math.sqrt(vals.reduce(function (a, b) { return a + (b - m) * (b - m); }, 0) / vals.length);
+          return clamp01(1 - (sd / m) / scale) * 100;
+        }
+        var scSym = clamp01(1 - devAvg / 6) * 100;
+        var scSantei = cvScore([s1, s2, s3], 0.32);
+        var scGogan = cvScore([eyeW1, eyeGap, eyeW2], 0.38) * 0.7 + clamp01(1 - Math.abs(seg[0] - seg[4]) / W / 0.10) * 100 * 0.3;
+        var scCentre = clamp01(1 - centreAvg / 5) * 100;
+        var scOutline = clamp01(1 - ((cheekDiffPct + jawDiffPct) / 2) / 8) * 100;
+        var total = Math.round(scSym * 0.40 + scSantei * 0.20 + scGogan * 0.15 + scCentre * 0.15 + scOutline * 0.10);
+
+        var concerns = [];
+        pairDevs.slice().sort(function (a, b) { return b.devPct - a.devPct; }).slice(0, 2).forEach(function (d) {
+          if (d.devPct >= 1.2) concerns.push(d.name + "の位置に左右差（" + d.devPct.toFixed(1) + "%）");
+        });
+        if (mouthTiltPct >= 1.0) concerns.push("口角の高さに左右差（" + mouthTiltPct.toFixed(1) + "%）");
+        if (eyeDiffPct >= 6) concerns.push("目の大きさに左右差（" + eyeDiffPct.toFixed(1) + "%）");
+        if (Math.abs(pc(noseTipU)) >= 1.5) concerns.push("鼻が中心から少し" + (noseTipU > 0 ? "右" : "左") + "寄り（画面基準）");
+        if (!concerns.length) concerns.push("目立つ左右差はありませんでした");
+
+        return {
+          total: total,
+          sub: { sym: scSym, santei: scSantei, gogan: scGogan, centre: scCentre, outline: scOutline },
+          aspect: H / W,
+          santei: { s1: s1, s2: s2, s3: s3, pct: [s1 / sTot * 100, s2 / sTot * 100, s3 / sTot * 100], ratio: [s1 / s2, 1, s3 / s2] },
+          gogan: { segPct: seg.map(function (v) { return v / W * 100; }), eyeW: eyeWidths, gap: eyeGap },
+          sym: { devAvg: devAvg, pairs: pairDevs },
+          centre: { nose: pc(noseTipU), mouth: pc(mouthC[0]), chin: pc(chinU) },
+          diffs: { eye: eyeDiffPct, brow: browDiffPct, mouthTilt: mouthTiltPct, cheek: cheekDiffPct, jaw: jawDiffPct },
+          noseMouth: noseW / mouthW,
+          noseWPct: pc(noseW), mouthWPct: pc(mouthW),
+          rollDeg: rollDeg,
+          concerns: concerns.slice(0, 3)
+        };
+      }
+      /*MEASURE_END*/
 
       /* ================= camera ================= */
       var video = $("cam");
       var canvas = $("draw");
       var ctx = canvas.getContext("2d");
       var camStarted = false;
-      var facing = "environment";
+      var facing = "user";
       var stream = null;
       var mpReady = false;
+      var latestFace = null;
 
       function startCam() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -157,11 +233,7 @@
           camStarted = true;
           $("camBtn").disabled = true;
           $("camBtn").textContent = "カメラ動作中";
-          if (mpReady) {
-            status("認識中。手をかざす／顔を映してみて");
-          } else {
-            status("カメラOK。認識モデルを読み込み中…");
-          }
+          status(mpReady ? "認識中。顔を映して「測る」を押してね" : "カメラOK。顔のモデルを読み込み中…");
         }).catch(function (err) {
           var name = err && err.name ? err.name : "";
           var msg;
@@ -175,93 +247,62 @@
       }
       $("camBtn").addEventListener("click", startCam);
       $("flipBtn").addEventListener("click", function () {
-        facing = facing === "environment" ? "user" : "environment";
-        if (camStarted) {
-          $("camBtn").disabled = false;
-          startCam();
-        } else {
-          status(facing === "user" ? "内カメラに設定。カメラ開始を押してね" : "外カメラに設定。カメラ開始を押してね");
-        }
+        facing = facing === "user" ? "environment" : "user";
+        if (camStarted) { $("camBtn").disabled = false; startCam(); }
+        else status(facing === "user" ? "内カメラに設定。カメラ開始を押してね" : "外カメラに設定。カメラ開始を押してね");
       });
 
-      function hookModule() {
-        if (typeof window.__mpStart === "function") {
-          window.__mpStart(video);
-          return;
+      var loadStep = "", loadStart = null, loadTimer = null;
+      function stopLoadTimer() { loadStep = ""; if (loadTimer) { clearInterval(loadTimer); loadTimer = null; } }
+      window.__mpProgressCb = function (step) {
+        loadStep = step;
+        if (!loadStart) loadStart = Date.now();
+        if (!loadTimer) {
+          loadTimer = setInterval(function () {
+            if (loadStep && !mpReady) status(loadStep + "…（" + Math.round((Date.now() - loadStart) / 1000) + "秒経過）");
+          }, 1000);
         }
+        status(step + "…");
+      };
+      window.__mpReadyCb = function () {
+        mpReady = true;
+        stopLoadTimer();
+        status(camStarted ? "認識中。顔を映して「測る」を押してね" : "モデルの準備OK。「カメラ開始」を押してね");
+      };
+      window.__mpErrorCb = function (err) {
+        stopLoadTimer();
+        if (!mpReady) {
+          var detail = err && err.message ? err.message : (err ? String(err) : "");
+          status("顔のモデルを読み込めませんでした" + (detail ? "：" + detail : "") + "（再読み込みで直ることもあります）");
+        }
+      };
+      function hookModule() {
+        if (typeof window.__mpStart === "function") { window.__mpStart(video); return; }
         var tries = 0;
         var iv = setInterval(function () {
           tries++;
-          if (typeof window.__mpStart === "function") {
-            clearInterval(iv);
-            window.__mpStart(video);
-          } else if (tries > 24) {
+          if (typeof window.__mpStart === "function") { clearInterval(iv); window.__mpStart(video); }
+          else if (tries > 24) {
             clearInterval(iv);
             if (!mpReady) status("認識ライブラリを読み込めませんでした。通信状態を確認して、再読み込みしてね");
           }
         }, 500);
       }
 
-      var loadStep = "";
-      var loadStart = null;
-      var loadTimer = null;
-      function stopLoadTimer() {
-        loadStep = "";
-        if (loadTimer) { clearInterval(loadTimer); loadTimer = null; }
-      }
-      window.__mpProgressCb = function (step) {
-        loadStep = step;
-        if (!loadStart) loadStart = Date.now();
-        if (!loadTimer) {
-          loadTimer = setInterval(function () {
-            if (loadStep && !mpReady) {
-              var s = Math.round((Date.now() - loadStart) / 1000);
-              status(loadStep + "…（" + s + "秒経過）");
-            }
-          }, 1000);
-        }
-        status(step + "…");
-      };
-      window.__mpReadyCb = function (handOk, faceOk) {
-        mpReady = true;
-        stopLoadTimer();
-        var parts = [];
-        parts.push(handOk ? "手の認識OK" : "手の認識は読み込み失敗");
-        parts.push(faceOk ? "顔検知OK" : "顔検知は読み込み失敗");
-        if (camStarted) {
-          status("認識中（" + parts.join("・") + "）。手をかざす／顔を映してみて");
+      /* ================= live overlay ================= */
+      var KEY_PTS = [10, 152, 234, 454, 33, 133, 362, 263, 1, 2, 61, 291, 98, 327, 105, 334];
+      window.onFaceFrame = function (pts) {
+        latestFace = pts;
+        if (!pts) { $("readout").textContent = "顔：なし"; return; }
+        var m = measureFace(pts.map(function (p) { return { x: p[0], y: p[1] }; }));
+        if (m) {
+          var tilt = Math.abs(m.rollDeg);
+          $("readout").textContent = "顔：検出中（傾き " + tilt.toFixed(0) + "°" +
+            (tilt <= 3 ? "・ほぼまっすぐ" : "・少し傾いてます") + "）";
         } else {
-          status("モデルの準備OK（" + parts.join("・") + "）。「カメラ開始」を押してね");
+          $("readout").textContent = "顔：検出中";
         }
       };
-      window.__mpErrorCb = function (err) {
-        stopLoadTimer();
-        if (!mpReady) {
-          var detail = err && err.message ? err.message : (err ? String(err) : "");
-          status("認識ライブラリを読み込めませんでした" + (detail ? "：" + detail : "") + "（再読み込みで直ることもあります）");
-        }
-      };
-
-      /* ================= results + rendering ================= */
-      var latest = { hands: [], faces: [] };
-      var lastReadout = "";
-      window.onMpFrame = function (r) {
-        latest = r;
-        var ht = "手：なし";
-        if (r.hands.length) {
-          var h0 = r.hands[0];
-          ht = "手：" + (h0.handed === "Left" ? "左手" : h0.handed === "Right" ? "右手" : "検出") + (h0.pinch ? "（つまんでる！）" : "");
-          if (r.hands.length > 1) ht += " ほか" + (r.hands.length - 1) + "つ";
-        }
-        var ft = r.faces.length ? "顔：" + r.faces.length + "つ検出（" + (r.faces[0].pts ? r.faces[0].pts.length : 0) + "点）" : "顔：なし";
-        var txt = ht + " ／ " + ft;
-        if (txt !== lastReadout) {
-          lastReadout = txt;
-          $("readout").textContent = txt;
-        }
-      };
-
-      var CONN = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
       function coverMap(nx, ny, W, H) {
         var vw = video.videoWidth || 4, vh = video.videoHeight || 3;
         var scale = Math.max(W / vw, H / vh);
@@ -277,416 +318,88 @@
         }
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, W, H);
-
-        /* faces: full landmark point cloud (478 pts with refineLandmarks) */
-        latest.faces.forEach(function (f) {
-          ctx.fillStyle = "#ffd400";
-          f.pts.forEach(function (p0) {
-            var p = coverMap(p0[0], p0[1], W, H);
-            ctx.fillRect(p[0] - 1.3, p[1] - 1.3, 2.6, 2.6);
-          });
+        if (!latestFace) return;
+        ctx.fillStyle = "#ffd400";
+        latestFace.forEach(function (p) {
+          var q = coverMap(p[0], p[1], W, H);
+          ctx.fillRect(q[0] - 1.1, q[1] - 1.1, 2.2, 2.2);
         });
-
-        /* hands: skeleton */
-        latest.hands.forEach(function (h) {
-          var pts = h.pts.map(function (p) { return coverMap(p[0], p[1], W, H); });
-          ctx.strokeStyle = h.pinch ? "#ff2e88" : "#2ee66b";
-          ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
-          CONN.forEach(function (c) {
-            ctx.beginPath();
-            ctx.moveTo(pts[c[0]][0], pts[c[0]][1]);
-            ctx.lineTo(pts[c[1]][0], pts[c[1]][1]);
-            ctx.stroke();
-          });
-          pts.forEach(function (p, i) {
-            ctx.beginPath();
-            ctx.arc(p[0], p[1], i === 8 || i === 4 ? 6 : 4, 0, Math.PI * 2);
-            ctx.fillStyle = i === 8 ? "#ff2e88" : "#ffffff";
-            ctx.fill();
-          });
+        ctx.fillStyle = "#ffffff";
+        KEY_PTS.forEach(function (i) {
+          var p = latestFace[i];
+          if (!p) return;
+          var q = coverMap(p[0], p[1], W, H);
+          ctx.beginPath(); ctx.arc(q[0], q[1], 3, 0, Math.PI * 2); ctx.fill();
         });
       }
       (function anim() { requestAnimationFrame(anim); render(); })();
 
-
-      /* ================= tabs ================= */
-      var appMode = "cam";
-      function setAppMode(m) {
-        appMode = m;
-        $("tabCam").classList.toggle("on", m === "cam");
-        $("tab3d").classList.toggle("on", m === "3d");
-        $("camPanel").classList.toggle("hidden", m !== "cam");
-        $("panel3d").classList.toggle("hidden", m !== "3d");
-        if (m === "3d") initPlayer();
+      /* ================= measure + results ================= */
+      function fmt(n, d) { return n.toFixed(d === undefined ? 1 : d); }
+      function barRow(label, v) {
+        return '<div class="bar-row"><span class="lab">' + label + '</span>' +
+          '<span class="bar-track"><span class="bar-fill" style="display:block;width:' + Math.round(v) + '%"></span></span>' +
+          '<span class="val">' + Math.round(v) + '</span></div>';
       }
-      $("tabCam").addEventListener("click", function () { setAppMode("cam"); });
-      $("tab3d").addEventListener("click", function () { setAppMode("3d"); });
-
-      /* ================= recording ================= */
-      var REC_KEY = "hand-records-v1";
-      var records = [];
-      try {
-        var rs = JSON.parse(localStorage.getItem(REC_KEY) || "[]");
-        if (Array.isArray(rs)) {
-          records = rs.filter(function (r) {
-            return r && Array.isArray(r.frames) && r.frames.length >= 2;
-          }).map(function (r) {
-            var fr = r.frames.filter(function (f) {
-              return f && Array.isArray(f.p) && f.p.length === 21;
-            }).map(function (f) {
-              return { t: +f.t || 0, p: f.p.map(function (pt) {
-                return [+pt[0] || 0, +pt[1] || 0, +pt[2] || 0];
-              }) };
-            });
-            return { id: r.id || 0, date: r.date, dur: +r.dur || (fr.length ? fr[fr.length - 1].t : 0), frames: fr };
-          }).filter(function (r) { return r.frames.length >= 2; });
-        }
-      } catch (e) { records = []; }
-      function saveRecords() {
-        try { localStorage.setItem(REC_KEY, JSON.stringify(records)); }
-        catch (e) { status("保存容量がいっぱいで保存できませんでした"); }
-      }
-      var rec = null;
-      window.onHandRecord = function (h) {
-        if (!rec) return;
-        var t = performance.now() - rec.start;
-        rec.frames.push({ t: Math.round(t), p: h.wpts });
-        $("recInfo").textContent = "録画中… " + (t / 1000).toFixed(1) + "秒・" + rec.frames.length + "フレーム";
-        if (rec.frames.length >= 1800) stopRec();
-      };
-      function startRec() {
+      function kv(k, v) { return '<div class="kv"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'; }
+      var lastResult = null;
+      $("measureBtn").addEventListener("click", function () {
         if (!camStarted) { status("先にカメラ開始を押してね"); return; }
-        if (!mpReady) { status("モデルの準備が終わってから録画してね"); return; }
-        rec = { start: performance.now(), frames: [] };
-        $("recBtn").textContent = "■ 録画停止";
-        $("recBtn").classList.add("rec-on");
-        $("recInfo").textContent = "録画中… 手を動かしてね";
-      }
-      function stopRec() {
-        if (!rec) return;
-        var frames = rec.frames;
-        rec = null;
-        $("recBtn").textContent = "● 録画開始";
-        $("recBtn").classList.remove("rec-on");
-        if (frames.length < 10) {
-          $("recInfo").textContent = "短すぎたので保存しませんでした（手が映ってなかったかも）";
-          return;
-        }
-        var dur = frames[frames.length - 1].t;
-        var rounded = frames.map(function (f) {
-          return { t: f.t, p: f.p.map(function (pt) {
-            return [Math.round(pt[0] * 10000) / 10000, Math.round(pt[1] * 10000) / 10000, Math.round(pt[2] * 10000) / 10000];
-          }) };
-        });
-        records.unshift({ id: Date.now(), date: new Date().toISOString(), dur: dur, frames: rounded });
-        if (records.length > 10) records.length = 10;
-        saveRecords();
-        $("recInfo").textContent = "保存しました（" + (dur / 1000).toFixed(1) + "秒）。「3D再生」で見られます";
-        renderRecList(); renderPlaySel();
-      }
-      $("recBtn").addEventListener("click", function () { if (rec) stopRec(); else startRec(); });
-      function renderRecList() {
-        var box = $("recList");
-        box.innerHTML = "";
-        records.forEach(function (r) {
-          var div = document.createElement("div");
-          div.className = "item";
-          div.innerHTML = "<b>録画 " + fmtDate(r.date) + "</b> <span class=\"small\">" +
-            (r.dur / 1000).toFixed(1) + "秒・" + r.frames.length + "フレーム</span>" +
-            "<div class=\"btn-row\" style=\"margin-top:6px\">" +
-            "<button type=\"button\" data-act=\"play\">3Dで再生</button>" +
-            "<button type=\"button\" data-act=\"del\">消す</button></div>";
-          Array.prototype.forEach.call(div.querySelectorAll("button"), function (btn) {
-            btn.addEventListener("click", function () {
-              var act = btn.getAttribute("data-act");
-              if (act === "play") {
-                setAppMode("3d");
-                initPlayer().then(function () {
-                  try { loadRecording(r); }
-                  catch (e) { loadSample(); $("playInfo").textContent = "この録画は読み込めませんでした。サンプルを表示します"; }
-                });
-              } else if (act === "del") {
-                if (window.confirm("この録画を消しますか？")) {
-                  records = records.filter(function (x) { return x.id !== r.id; });
-                  saveRecords(); renderRecList(); renderPlaySel();
-                }
-              }
-            });
-          });
-          box.appendChild(div);
-        });
-      }
-      renderRecList();
-      function renderPlaySel() {
-        var sel = $("playSel");
-        if (!sel) return;
-        var cur = sel.value;
-        sel.innerHTML = "";
-        var opt = document.createElement("option");
-        opt.value = "sample"; opt.textContent = "サンプル（指ダンス）";
-        sel.appendChild(opt);
-        records.forEach(function (r) {
-          var o = document.createElement("option");
-          o.value = String(r.id);
-          o.textContent = "録画 " + fmtDate(r.date) + "（" + (r.dur / 1000).toFixed(1) + "秒）";
-          sel.appendChild(o);
-        });
-        if (cur && sel.querySelector('option[value="' + cur + '"]')) sel.value = cur;
-      }
+        if (!latestFace) { status("顔が映っていません。顔を画面に入れてから押してね"); return; }
+        var m = measureFace(latestFace.map(function (p) { return { x: p[0], y: p[1] }; }));
+        if (!m) { status("うまく測れませんでした。顔全体を映してもう一回"); return; }
+        lastResult = m;
+        renderResult(m);
+        $("result").classList.remove("hidden");
+        $("result").scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      function renderResult(m) {
+        var rough = '<div id="scoreBig">' + m.total + '<span> / 100</span></div>';
+        rough += '<p class="small" style="margin:0">バランススコア（左右対称と均等さから算出）</p>';
+        rough += barRow("左右対称", m.sub.sym);
+        rough += barRow("三庭の均等さ", m.sub.santei);
+        rough += barRow("五眼の均等さ", m.sub.gogan);
+        rough += barRow("中心の配置", m.sub.centre);
+        rough += barRow("輪郭の左右差", m.sub.outline);
+        rough += "<h2>気になる点</h2><ul class=\"notes\">";
+        m.concerns.forEach(function (c) { rough += "<li>" + escapeHtml(c) + "</li>"; });
+        rough += "</ul>";
+        $("roughView").innerHTML = rough;
 
-      /* ================= 3D player ================= */
-      var T = null, threePromise = null;
-      function loadScriptP(url) {
-        return new Promise(function (resolve, reject) {
-          var s = document.createElement("script");
-          s.src = url;
-          s.onload = function () { resolve(); };
-          s.onerror = function () { reject(new Error("読み込み失敗: " + url)); };
-          document.head.appendChild(s);
+        var d = "";
+        d += "<h2>比率</h2>";
+        d += kv("顔の縦横比（高さ÷幅）", fmt(m.aspect, 2));
+        d += kv("三庭（額：鼻：顎）", fmt(m.santei.ratio[0], 2) + " : 1 : " + fmt(m.santei.ratio[2], 2));
+        d += kv("三庭の割合", fmt(m.santei.pct[0]) + "% / " + fmt(m.santei.pct[1]) + "% / " + fmt(m.santei.pct[2]) + "%");
+        d += kv("五眼（外：目：間：目：外）", m.gogan.segPct.map(function (v) { return fmt(v); }).join(" / ") + " %");
+        d += kv("鼻幅 ÷ 口幅", fmt(m.noseMouth, 2));
+        d += kv("鼻幅（顔幅比）", fmt(m.noseWPct) + "%");
+        d += kv("口幅（顔幅比）", fmt(m.mouthWPct) + "%");
+        d += "<h2>左右差</h2>";
+        d += kv("目の大きさの左右差", fmt(m.diffs.eye) + "%");
+        d += kv("眉の高さの左右差", fmt(m.diffs.brow) + "%");
+        d += kv("口角の高さの左右差", fmt(m.diffs.mouthTilt) + "%");
+        d += kv("頬の幅の左右差", fmt(m.diffs.cheek) + "%");
+        d += kv("あごの幅の左右差", fmt(m.diffs.jaw) + "%");
+        d += kv("対称のズレ平均（顔幅比）", fmt(m.sym.devAvg) + "%");
+        d += "<h2>中心からのズレ（画面基準、＋は右）</h2>";
+        d += kv("鼻先", (m.centre.nose >= 0 ? "+" : "") + fmt(m.centre.nose) + "%");
+        d += kv("口の中心", (m.centre.mouth >= 0 ? "+" : "") + fmt(m.centre.mouth) + "%");
+        d += kv("顎先", (m.centre.chin >= 0 ? "+" : "") + fmt(m.centre.chin) + "%");
+        d += kv("顔の傾き", fmt(Math.abs(m.rollDeg)) + "°");
+        d += "<h2>対称の内訳（部位別のズレ、顔幅比）</h2>";
+        m.sym.pairs.slice().sort(function (a, b) { return b.devPct - a.devPct; }).forEach(function (p) {
+          d += kv(p.name, fmt(p.devPct) + "%");
         });
+        $("detailView").innerHTML = d;
       }
-      async function loadPkgP(pkgPath) {
-        var bases = ["https://cdn.jsdelivr.net/npm/", "https://unpkg.com/"];
-        var err = null;
-        for (var i = 0; i < bases.length; i++) {
-          try { await loadScriptP(bases[i] + pkgPath); return; } catch (e) { err = e; }
-        }
-        throw err || new Error(pkgPath + " を読み込めませんでした");
-      }
-      var scene = null, camera3 = null, renderer3 = null, handGroup = null, mirrorGroup = null;
-      var jointMeshes = [], boneMeshes = [], palmMesh = null;
-      var RAD = [0.115, 0.100, 0.090, 0.082, 0.088, 0.092, 0.082, 0.072, 0.080, 0.095, 0.085, 0.075, 0.082, 0.092, 0.082, 0.072, 0.080, 0.080, 0.070, 0.062, 0.070];
-      var play = { frames: null, dur: 0, t: 0, playing: true, speed: 1, mirror: false, lastTs: 0, label: "" };
-
-      function initPlayer() {
-        if (threePromise) return threePromise;
-        threePromise = (async function () {
-          $("playInfo").textContent = "3Dライブラリを読み込み中…";
-          await loadPkgP("three@0.128.0/build/three.min.js");
-          try { await loadPkgP("three@0.128.0/examples/js/controls/OrbitControls.js"); } catch (e) { /* orbit optional */ }
-          T = window.THREE;
-          if (!scene) {
-            buildScene();
-            renderPlaySel();
-            var loadedRec = false;
-            if (records.length) {
-              try { loadRecording(records[0]); loadedRec = true; }
-              catch (e) { loadedRec = false; }
-            }
-            if (!loadedRec) {
-              loadSample();
-              $("playInfo").textContent = records.length
-                ? "録画を読み込めなかったのでサンプルを表示しています"
-                : "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
-            }
-            requestAnimationFrame(playerLoop);
-          }
-        })().catch(function (e) {
-          $("playInfo").textContent = "3Dライブラリを読み込めませんでした：" + (e && e.message ? e.message : e);
-          threePromise = null;
-        });
-        return threePromise;
-      }
-      function buildScene() {
-        var wrap = $("stage3d");
-        var W = wrap.clientWidth || 320, H = wrap.clientHeight || 240;
-        scene = new T.Scene();
-        scene.background = new T.Color(0x050508);
-        camera3 = new T.PerspectiveCamera(42, W / H, 0.1, 100);
-        camera3.position.set(0.6, 0.35, 3.6);
-        renderer3 = new T.WebGLRenderer({ antialias: true });
-        renderer3.setPixelRatio(window.devicePixelRatio || 1);
-        renderer3.setSize(W, H);
-        wrap.appendChild(renderer3.domElement);
-        if (T.OrbitControls) {
-          var oc = new T.OrbitControls(camera3, renderer3.domElement);
-          oc.enableDamping = true;
-          oc.target.set(0, 0, 0);
-        }
-        scene.add(new T.HemisphereLight(0xfff4e0, 0x223044, 0.95));
-        var key = new T.DirectionalLight(0xffffff, 0.95); key.position.set(2, 3, 4); scene.add(key);
-        var rim = new T.DirectionalLight(0xff9ec4, 0.5); rim.position.set(-3, 1.5, -2.5); scene.add(rim);
-        var grid = new T.PolarGridHelper(1.6, 12, 6, 48, 0x2a2a35, 0x1c1c24);
-        grid.position.y = -1.25; scene.add(grid);
-        mirrorGroup = new T.Group(); scene.add(mirrorGroup);
-        handGroup = new T.Group(); handGroup.position.y = -0.95; mirrorGroup.add(handGroup);
-        var skin = new T.MeshStandardMaterial({ color: 0xe9b48c, roughness: 0.55, metalness: 0.0, side: T.DoubleSide });
-        var sph = new T.SphereGeometry(1, 18, 14);
-        var cyl = new T.CylinderGeometry(1, 1, 1, 12);
-        for (var i = 0; i < 21; i++) {
-          var jm = new T.Mesh(sph, skin); handGroup.add(jm); jointMeshes.push(jm);
-        }
-        CONN.forEach(function () {
-          var bm = new T.Mesh(cyl, skin); handGroup.add(bm); boneMeshes.push(bm);
-        });
-        palmMesh = new T.Mesh(sph, skin); handGroup.add(palmMesh);
-      }
-      var UP = null, tmpA = null, tmpB = null, tmpM = null;
-      function setBone(mesh, a, b, r) {
-        tmpA.subVectors(b, a);
-        var len = tmpA.length() || 0.0001;
-        mesh.position.copy(a).addScaledVector(tmpA, 0.5);
-        mesh.scale.set(r, len, r);
-        mesh.quaternion.setFromUnitVectors(UP, tmpA.normalize());
-      }
-      function updateHand(pts) {
-        if (!UP) { UP = new T.Vector3(0, 1, 0); tmpA = new T.Vector3(); tmpB = new T.Vector3(); tmpM = new T.Matrix4(); }
-        for (var i = 0; i < 21; i++) {
-          jointMeshes[i].position.copy(pts[i]);
-          var r = RAD[i];
-          jointMeshes[i].scale.set(r, r, r);
-        }
-        CONN.forEach(function (c, i) {
-          setBone(boneMeshes[i], pts[c[0]], pts[c[1]], (RAD[c[0]] + RAD[c[1]]) / 2 * 0.92);
-        });
-        var O = pts[0];
-        var a = pts[9].clone().sub(O); var lenA = a.length() || 1; a.normalize();
-        var b = pts[5].clone().sub(pts[17]); var lenB = b.length() || 1; b.normalize();
-        var n = new T.Vector3().crossVectors(b, a).normalize();
-        var b2 = new T.Vector3().crossVectors(a, n).normalize();
-        tmpM.makeBasis(b2, a, n);
-        palmMesh.quaternion.setFromRotationMatrix(tmpM);
-        palmMesh.position.copy(O).addScaledVector(a, lenA * 0.48);
-        palmMesh.scale.set(lenB * 0.60, lenA * 0.58, lenB * 0.22);
-      }
-      function prepFrames(frames) {
-        return frames.map(function (f) {
-          var pts = [];
-          for (var i = 0; i < 21; i++) {
-            var a = (f.p && f.p[i]) || [0, 0, 0];
-            pts.push(new T.Vector3(+a[0] || 0, -(+a[1] || 0), -(+a[2] || 0)));
-          }
-          var w = pts[0].clone();
-          var s = pts[9].distanceTo(pts[0]) || 1;
-          return { t: +f.t || 0, pts: pts.map(function (v) { return v.sub(w).divideScalar(s); }) };
-        });
-      }
-      function loadRecording(r) {
-        play.frames = prepFrames(r.frames);
-        play.dur = r.dur || (r.frames.length ? r.frames[r.frames.length - 1].t : 0);
-        play.t = 0; play.playing = true;
-        $("playBtn").textContent = "⏸ 一時停止";
-        play.label = "録画 " + fmtDate(r.date);
-        $("playInfo").textContent = play.label + "（" + (play.dur / 1000).toFixed(1) + "秒）を再生中";
-        var selR = $("playSel"); if (selR) selR.value = String(r.id);
-      }
-      /* procedural sample: fingers curl in sequence (finger dance) */
-      function chainPts(start, dir, lens, curls) {
-        var AX = new T.Vector3(1, 0, 0);
-        var pts = [start.clone()];
-        var d = dir.clone();
-        var p = start.clone();
-        for (var i = 0; i < lens.length; i++) {
-          d = d.clone().applyAxisAngle(AX, curls[i]);
-          p = p.clone().addScaledVector(d, lens[i]);
-          pts.push(p.clone());
-        }
-        return pts;
-      }
-      function samplePose(t) {
-        var V = function (x, y, z) { return new T.Vector3(x, y, z); };
-        var pts = new Array(21);
-        pts[0] = V(0, 0, 0);
-        var th = chainPts(V(0.38, 0.28, 0.02), V(0.75, 0.62, 0.2).normalize(), [0.34, 0.30, 0.26],
-          [0.15 + 0.1 * Math.sin(t * 2.2), 0.2, 0.25]);
-        pts[1] = th[0]; pts[2] = th[1]; pts[3] = th[2]; pts[4] = th[3];
-        var fingers = [
-          { s: V(0.40, 0.98, 0), d: V(0.06, 1, 0), l: [0.42, 0.26, 0.20], o: 5 },
-          { s: V(0.14, 1.05, 0), d: V(0, 1, 0), l: [0.46, 0.30, 0.22], o: 9 },
-          { s: V(-0.13, 1.00, 0), d: V(-0.06, 1, 0), l: [0.42, 0.27, 0.20], o: 13 },
-          { s: V(-0.37, 0.88, 0), d: V(-0.12, 1, 0), l: [0.32, 0.20, 0.16], o: 17 }
-        ];
-        fingers.forEach(function (fg, fi) {
-          var c = Math.max(0, Math.sin(t * 2.2 - fi * 0.8)) * 0.9;
-          var cp = chainPts(fg.s, fg.d.clone().normalize(), fg.l, [c * 0.5, c * 0.75, c * 0.6]);
-          for (var i = 0; i < 4; i++) pts[fg.o + i] = cp[i];
-        });
-        var sway = Math.sin(t * 0.9) * 0.05;
-        var cs = Math.cos(sway), sn = Math.sin(sway);
-        return pts.map(function (p) {
-          return V(p.x * cs - p.y * sn, p.x * sn + p.y * cs + Math.sin(t * 1.7) * 0.03, p.z);
-        });
-      }
-      function loadSample() {
-        var frames = [];
-        for (var i = 0; i <= 120; i++) {
-          var t = i / 30;
-          frames.push({ t: Math.round(t * 1000), pts: samplePose(t) });
-        }
-        play.frames = frames;
-        play.dur = 4000; play.t = 0; play.playing = true;
-        play.label = "サンプル";
-        var selS = $("playSel"); if (selS) selS.value = "sample";
-      }
-      var scratch = null;
-      function playerLoop(ts) {
-        requestAnimationFrame(playerLoop);
-        if (!renderer3 || !play.frames || !play.frames.length) return;
-        if (appMode !== "3d") { play.lastTs = ts; return; }
-        if (!scratch) { scratch = []; for (var i = 0; i < 21; i++) scratch.push(new T.Vector3()); }
-        if (play.playing) {
-          var dt = play.lastTs ? (ts - play.lastTs) : 16;
-          play.t += dt * play.speed;
-          if (play.t > play.dur) play.t = play.t % (play.dur || 1);
-        }
-        play.lastTs = ts;
-        var fr = play.frames;
-        var idx = 0;
-        while (idx < fr.length - 2 && fr[idx + 1].t <= play.t) idx++;
-        var f0 = fr[idx], f1 = fr[Math.min(idx + 1, fr.length - 1)];
-        var span = Math.max(1, f1.t - f0.t);
-        var al = Math.min(1, Math.max(0, (play.t - f0.t) / span));
-        for (var j = 0; j < 21; j++) scratch[j].lerpVectors(f0.pts[j], f1.pts[j], al);
-        updateHand(scratch);
-        if (document.activeElement !== $("scrub")) {
-          $("scrub").value = play.dur ? Math.round(play.t / play.dur * 1000) : 0;
-        }
-        renderer3.render(scene, camera3);
-      }
-      $("playSel").addEventListener("change", function () {
-        var v = $("playSel").value;
-        initPlayer().then(function () {
-          if (v === "sample") {
-            loadSample();
-            $("playInfo").textContent = "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
-          } else {
-            var r = records.filter(function (x) { return String(x.id) === v; })[0];
-            if (r) {
-              try { loadRecording(r); }
-              catch (e) { loadSample(); $("playInfo").textContent = "この録画は読み込めませんでした。サンプルを表示します"; }
-            }
-          }
-          play.playing = true;
-          $("playBtn").textContent = "⏸ 一時停止";
-        });
+      $("tabRough").addEventListener("click", function () {
+        $("tabRough").classList.add("on"); $("tabDetail").classList.remove("on");
+        $("roughView").classList.remove("hidden"); $("detailView").classList.add("hidden");
       });
-      $("playBtn").addEventListener("click", function () {
-        play.playing = !play.playing;
-        $("playBtn").textContent = play.playing ? "⏸ 一時停止" : "▶ 再生";
-      });
-      $("sampleBtn").addEventListener("click", function () {
-        initPlayer().then(function () {
-          loadSample();
-          play.playing = true;
-          $("playBtn").textContent = "⏸ 一時停止";
-          $("playInfo").textContent = "サンプル再生中。ドラッグで回転、ピンチで拡大縮小。";
-        });
-      });
-      $("mirrorBtn").addEventListener("click", function () {
-        play.mirror = !play.mirror;
-        if (mirrorGroup) mirrorGroup.scale.x = play.mirror ? -1 : 1;
-        $("mirrorBtn").textContent = play.mirror ? "左右反転：ON" : "左右反転：OFF";
-      });
-      Array.prototype.forEach.call(document.querySelectorAll(".spdBtn"), function (b) {
-        b.addEventListener("click", function () {
-          play.speed = parseFloat(b.getAttribute("data-v"));
-          Array.prototype.forEach.call(document.querySelectorAll(".spdBtn"), function (x) {
-            x.classList.toggle("on", x === b);
-          });
-        });
-      });
-      $("scrub").addEventListener("input", function () {
-        if (play.dur) play.t = parseInt($("scrub").value, 10) / 1000 * play.dur;
+      $("tabDetail").addEventListener("click", function () {
+        $("tabDetail").classList.add("on"); $("tabRough").classList.remove("on");
+        $("detailView").classList.remove("hidden"); $("roughView").classList.add("hidden");
       });
 
       hookModule();
@@ -694,18 +407,13 @@
     </script>
 
     <script>
-      /* MediaPipe legacy solutions via classic script tags (no ES modules),
-         per-file CDN fallback: jsdelivr -> unpkg. Errors are surfaced verbatim. */
+      /* MediaPipe FaceMesh via classic script tags (no ES modules),
+         per-file CDN fallback: jsdelivr -> unpkg. Errors surfaced verbatim. */
       (function () {
         "use strict";
         var CDNS = ["https://cdn.jsdelivr.net/npm/", "https://unpkg.com/"];
-        var videoEl = null;
-        var hands = null, faceDet = null;
-        var libsPromise = null;
-        var baseHands = null, baseFace = null;
-        var latestHands = [], latestFaces = [];
+        var videoEl = null, faceMesh = null, libsPromise = null, baseFace = null;
         var sending = false, lastVideoTime = -1, loopStarted = false;
-        var lastErr = null;
 
         function prog(s) { if (window.__mpProgressCb) window.__mpProgressCb(s); }
         function loadScript(url) {
@@ -725,34 +433,11 @@
           }
           throw err || new Error(pkg + " を読み込めませんでした");
         }
-        function pushFrame() {
-          var want = window.__mpWant || { hand: true, face: true };
-          if (window.onMpFrame) {
-            window.onMpFrame({
-              hands: want.hand ? latestHands : [],
-              faces: want.face ? latestFaces : []
-            });
-          }
-        }
-        function onHands(r) {
-          latestHands = (r.multiHandLandmarks || []).map(function (lms, i) {
-            var hd = r.multiHandedness && r.multiHandedness[i] ? (r.multiHandedness[i].label || "") : "";
-            var wl = r.multiHandWorldLandmarks && r.multiHandWorldLandmarks[i] ? r.multiHandWorldLandmarks[i] : lms;
-            return {
-              pts: lms.map(function (p) { return [p.x, p.y]; }),
-              wpts: wl.map(function (p) { return [p.x, p.y, p.z]; }),
-              handed: hd,
-              pinch: Math.hypot(lms[8].x - lms[4].x, lms[8].y - lms[4].y) < 0.055
-            };
-          });
-          if (window.onHandRecord && latestHands.length) window.onHandRecord(latestHands[0]);
-          pushFrame();
-        }
         function onFaces(r) {
-          latestFaces = (r.multiFaceLandmarks || []).map(function (lms) {
-            return { pts: lms.map(function (p) { return [p.x, p.y]; }) };
-          });
-          pushFrame();
+          var lms = r.multiFaceLandmarks && r.multiFaceLandmarks[0] ? r.multiFaceLandmarks[0] : null;
+          if (window.onFaceFrame) {
+            window.onFaceFrame(lms ? lms.map(function (p) { return [p.x, p.y]; }) : null);
+          }
         }
         function warmCanvas() {
           var c = document.createElement("canvas");
@@ -761,63 +446,36 @@
           g.fillStyle = "#000"; g.fillRect(0, 0, 256, 256);
           return c;
         }
-
         window.__mpStart = async function (video) {
           videoEl = video;
           try {
             if (!libsPromise) {
               libsPromise = (async function () {
-                prog("ライブラリ読込中（手）");
-                baseHands = await loadPkg("@mediapipe/hands", "hands.js");
                 prog("ライブラリ読込中（顔）");
                 baseFace = await loadPkg("@mediapipe/face_mesh", "face_mesh.js");
               })();
             }
             await libsPromise;
-            var handOk = false, faceOk = false;
-            var warm = warmCanvas();
-            if (!hands) {
-              prog("手のモデル読込中");
-              try {
-                hands = new Hands({ locateFile: function (f) { return baseHands + f; } });
-                hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-                hands.onResults(onHands);
-                await hands.send({ image: warm });
-                handOk = true;
-              } catch (e) { hands = null; lastErr = e; }
-            } else { handOk = true; }
-            if (!faceDet) {
+            if (!faceMesh) {
               prog("顔のモデル読込中");
-              try {
-                faceDet = new FaceMesh({ locateFile: function (f) { return baseFace + f; } });
-                faceDet.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-                faceDet.onResults(onFaces);
-                await faceDet.send({ image: warm });
-                faceOk = true;
-              } catch (e) { faceDet = null; lastErr = lastErr || e; }
-            } else { faceOk = true; }
-            if (handOk || faceOk) {
-              if (window.__mpReadyCb) window.__mpReadyCb(handOk, faceOk);
-              if (!loopStarted) { loopStarted = true; requestAnimationFrame(loop); }
-            } else if (window.__mpErrorCb) {
-              window.__mpErrorCb(lastErr || new Error("両モデルとも初期化に失敗しました"));
+              faceMesh = new FaceMesh({ locateFile: function (f) { return baseFace + f; } });
+              faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+              faceMesh.onResults(onFaces);
+              await faceMesh.send({ image: warmCanvas() });
             }
+            if (window.__mpReadyCb) window.__mpReadyCb();
+            if (!loopStarted) { loopStarted = true; requestAnimationFrame(loop); }
           } catch (e) {
             if (window.__mpErrorCb) window.__mpErrorCb(e);
           }
         };
-
         async function loop() {
           requestAnimationFrame(loop);
           if (!videoEl || videoEl.readyState < 2 || sending) return;
           if (videoEl.currentTime === lastVideoTime) return;
           lastVideoTime = videoEl.currentTime;
-          var want = window.__mpWant || { hand: true, face: true };
           sending = true;
-          try {
-            if (want.hand && hands) await hands.send({ image: videoEl });
-            if (want.face && faceDet) await faceDet.send({ image: videoEl });
-          } catch (e) { /* transient */ }
+          try { if (faceMesh) await faceMesh.send({ image: videoEl }); } catch (e) { /* transient */ }
           sending = false;
         }
       })();
