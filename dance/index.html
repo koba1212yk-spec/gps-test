@@ -1943,12 +1943,12 @@ function gaussSmooth(fr, vis, sigma) {
 }
 function toWorld(raw) {
   const n = raw.frames.length, have = [];
-  raw.frames.forEach((f, i) => { if (f) have.push(i); });
+  raw.frames.forEach((f, i) => { if (f && f.w.length === 99 && f.p.length === 66 && f.w.every(Number.isFinite) && f.p.every(Number.isFinite)) have.push(i); else raw.frames[i] = null; });
   if (have.length < 5) throw new Error('人がほとんど検出できませんでした');
   const W = [], P2 = [], V = [];
   for (let i = 0; i < n; i++) {
     const f = raw.frames[i];
-    if (f) { W.push(Float64Array.from(f.w)); P2.push(Float64Array.from(f.p)); V.push(Float64Array.from(f.v)); continue; }
+    if (f) { W.push(Float64Array.from(f.w)); P2.push(Float64Array.from(f.p)); V.push(Float64Array.from(f.v, x => Number.isFinite(x) ? clampN(x, 0, 1) : .5)); continue; }
     let a = -1, b = -1; for (const h of have) { if (h < i) a = h; else { b = h; break; } }
     if (a < 0) a = b; if (b < 0) b = a; const t = b === a ? 0 : (i - a) / (b - a), A = raw.frames[a], B = raw.frames[b];
     const mix = (x, y) => Float64Array.from(x, (q, k) => q + (y[k] - q) * t);
@@ -1982,6 +1982,7 @@ function toWorld(raw) {
   let O = [0, 0, 0]; for (const f of C) O = add(O, mid3(g3(f, 23), g3(f, 24))); O = scl(O, 1 / n);
   const toW = p => { const q = sub(p, O); return [dot(Xw, q), dot(up, q), dot(Zw, q)]; }, R = v => [dot(Xw, v), dot(up, v), dot(Zw, v)];
   const Wd = C.map(f => { const o = new Float64Array(99); for (let j = 0; j < 33; j++) s3(o, j, toW(g3(f, j))); return o; });
+  for (const f of Wd) for (let k = 0; k < 99; k++) if (!Number.isFinite(f[k])) throw new Error('骨格の座標に異常な値がありました');
   return { n, fps: raw.fps, Wd, V, img: P2, crop: raw.crop, vw: raw.vw, vh: raw.vh,
     cam: { pos: toW([0, 0, 0]), fwd: R([0, 0, 1]), up: R([0, -1, 0]), fovY: 2 * Math.atan(raw.crop.h / 2 / fpx), aspect: raw.crop.w / raw.crop.h } };
 }
@@ -2110,7 +2111,10 @@ async function fitAll(wd, prog) {
   const body = fitBody(wd.Wd), Ps = [], Ts = [], errs = [];
   const st = { P: zeroPose(), T: [0, 0, 0] }; let prev = null;
   for (let i = 0; i < wd.n; i++) {
+    const keep = { P: copyPose(st.P), T: st.T.slice() };
     fitFrame(st, wd.Wd[i], wd.V[i], prev);
+    const bad = !st.T.every(Number.isFinite) || DOFS.some(([j, k]) => !Number.isFinite(st.P[j][k]));
+    if (bad) { st.P = i ? keep.P : zeroPose(); st.T = keep.T.every(Number.isFinite) ? keep.T : [0, 0, 0]; }
     Ps.push(copyPose(st.P)); Ts.push(st.T.slice()); prev = Ps[i];
     errs.push(limbErr(st, ALLPTS, wd.Wd[i]));
     if (i % 6 === 5) { prog && prog(i + 1, wd.n); await tick0(); }
@@ -2171,7 +2175,7 @@ const stage = $id('stage'), glc = $id('gl'), video = $id('vid'), pip = $id('pip'
 let R = null, body = null, glErr = '';
 try { R = makeRenderer(glc); if (!R) throw new Error('webgl2'); body = makeBody(R); }
 catch (e) { R = null; glErr = e.message; }
-let raw = null, wd = null, fit = null, anim = null, analyzing = false, cancelReq = false, fileKey = '', vidReady = false, forceTime = null, previewPts = null, actsBusy = false;
+let busy = false, raw = null, wd = null, fit = null, anim = null, analyzing = false, cancelReq = false, fileKey = '', vidReady = false, forceTime = null, previewPts = null, actsBusy = false;
 const status = t => { $id('status').textContent = t; };
 const fmt = s => { s = Math.max(0, s || 0); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); };
 const view = { mode: 'free', az: .35, el: .16, dist: 3.6, target: [0, .9, 0] };
@@ -2197,9 +2201,12 @@ $id('showAct').onchange = e => { if (e.target.checked) { if (anim && !anim.acts)
 
 async function buildAnim() {
   status('体の寸法と関節の角度を合わせています…');
-  wd = toWorld(raw);
-  fit = await fitAll(wd, (i, n) => { status(`人体モデルに合わせています ${i} / ${n} コマ`); $id('barfill').style.width = (i / n * 100).toFixed(1) + '%'; });
-  anim = finish(fit, wd, +$id('smooth').value);
+  busy = true; anim = null;
+  try {
+    wd = toWorld(raw);
+    fit = await fitAll(wd, (i, n) => { status(`人体モデルに合わせています ${i} / ${n} コマ`); $id('barfill').style.width = (i / n * 100).toFixed(1) + '%'; });
+    anim = finish(fit, wd, +$id('smooth').value);
+  } finally { busy = false; }
   $id('badge').hidden = true;
   const e = pct(fit.errs, .5) * 100;
   if ($id('showAct').checked) recomputeActs();
@@ -2223,7 +2230,7 @@ $id('file').onchange = async e => {
     raw = unpack(cached); $id('run').textContent = '解析し直す';
     try { const e = await buildAnim(); setView('orig'); status(`前回の解析結果から作りました（関節のずれ 中央値 ${e.toFixed(1)}cm）。▶で再生できます。`); }
     catch (err) { status(err.message); }
-  } else { $id('run').textContent = '解析する'; status('「解析する」を押すと、1コマずつ骨格を読み取ります。'); }
+  } else { $id('run').textContent = '解析する'; status('解析を始めます…'); $id('run').click(); }
 };
 const pack = r => ({ fps: r.fps, crop: r.crop, vw: r.vw, vh: r.vh, focalK: r.focalK, frames: r.frames.map(f => f && [f.w.map(x => +x.toFixed(4)), f.p.map(x => +x.toFixed(5)), f.v.map(x => +x.toFixed(2))]) });
 const unpack = c => ({ ...c, frames: c.frames.map(f => f && { w: f[0], p: f[1], v: f[2] }) });
@@ -2251,7 +2258,7 @@ async function getLandmarker(kind, delegate) {
 $id('run').onclick = async () => {
   if (analyzing) { cancelReq = true; return; }
   if (!vidReady) return;
-  analyzing = true; cancelReq = false; const btn = $id('run'); btn.textContent = '中止'; $id('badge').hidden = false; $id('badge').textContent = '解析中…';
+  analyzing = true; cancelReq = false; const btn = $id('run'); btn.textContent = '中止'; $id('play').disabled = true; $id('badge').hidden = false; $id('badge').textContent = '解析中…';
   try {
     video.pause(); video.muted = true; await video.play().catch(() => {}); video.pause();
     const kind = $id('model').value; let delegate = 'GPU';
@@ -2282,11 +2289,25 @@ $id('run').onclick = async () => {
     previewPts = null;
     const e = await buildAnim();
     setView('orig'); status(`完了：${found} / ${n} コマで人を検出、関節のずれ 中央値 ${e.toFixed(1)}cm。▶で元動画と一緒に再生します。`);
-    video.currentTime = 0; video.muted = false; video.play().catch(() => {});
+    video.pause(); video.currentTime = 0; video.muted = false;
   } catch (e) { status((e && e.message) || '解析に失敗しました'); if (!anim) $id('badge').textContent = '見本の動き'; }
-  finally { analyzing = false; previewPts = null; btn.textContent = raw ? '解析し直す' : '解析する'; }
+  finally { analyzing = false; previewPts = null; btn.textContent = raw ? '解析し直す' : '解析する'; $id('play').disabled = !vidReady; }
 };
-$id('play').onclick = () => { if (!vidReady) return; if (video.paused) { video.muted = false; video.play().catch(() => status('再生できませんでした。もう一度▶を押してください。')); } else video.pause(); };
+// 再生: 音ありで始め、ブラウザに止められたら音なしで再生して案内する
+// 再生は▶を押したときだけ（自動再生はブラウザに止められやすいため）。音が許されなければ音なしで続ける
+let playReq = 0;
+function startPlay() {
+  if (!vidReady) return;
+  const id = ++playReq;
+  video.muted = false;
+  video.play().then(() => { if (id === playReq && !anim && !analyzing && !busy) status('動画を再生中。人形が踊るのは解析が終わってからです。'); })
+    .catch(err => {
+      if (id !== playReq || !err || err.name !== 'NotAllowedError') return;
+      video.muted = true;
+      video.play().then(() => { if (id === playReq) status('音を出せなかったので音なしで再生しています。'); }).catch(e => { if (id === playReq) status('再生できませんでした: ' + (e && e.message || '')); });
+    });
+}
+$id('play').onclick = () => { if (!vidReady) return; if (video.paused) startPlay(); else { playReq++; video.pause(); } };
 let seeking = false;
 $id('seek').addEventListener('input', e => { if (!vidReady || analyzing) return; seeking = true; video.currentTime = e.target.value / 1000 * (video.duration || 0); });
 $id('seek').addEventListener('change', () => { seeking = false; });
@@ -2353,31 +2374,36 @@ function frameAt(fi) {
   if ($id('showPts').checked) { const a = anim.wd.Wd[ia], sh = anim.shift[ia]; tgt = Float64Array.from(a, (v, k) => k % 3 === 1 ? v + sh : v); }
   return { pl: placeAt(P, off), acts, tgt, ia };
 }
+let lastDraw = 0, lastFi = -1, loopErr = '', noRender = false;
+function showErr(msg) { if (msg && msg !== loopErr) { loopErr = msg; status('エラー: ' + msg); } }
+window.addEventListener('error', e => showErr(e.message));
+window.addEventListener('unhandledrejection', e => showErr(e.reason && e.reason.message || String(e.reason)));
 function loop(now) {
   requestAnimationFrame(loop);
   try {
     resize();
-    const tm = forceTime != null ? forceTime : video.currentTime;
-    if (anim && !analyzing && (vidReady || forceTime != null)) {
-      const fi = clampN(tm * anim.fps - .5, 0, anim.n - 1), f = frameAt(fi);
-      renderPose(f.pl, f.acts, f.tgt);
-      drawOverlay(anim.wd.img[f.ia], anim.wd.crop);
-    } else {
+    const tm = forceTime != null ? forceTime : video.currentTime, playing = anim && !analyzing && !busy && (vidReady || forceTime != null);
+    // 解析・計算中は描画を1秒に4回に減らして、計算を早く終わらせる
+    const draw = !noRender && (playing || !(analyzing || busy) || now - lastDraw > 250);
+    if (playing) {
+      const fi = clampN(tm * anim.fps - .5, 0, anim.n - 1); lastFi = fi;
+      if (draw) { const f = frameAt(fi); renderPose(f.pl, f.acts, f.tgt); drawOverlay(anim.wd.img[f.ia], anim.wd.crop); lastDraw = now; }
+    } else if (draw) {
       renderPose(place(idlePose(now / 1000), 'both'), null, null);
-      drawOverlay(previewPts && previewPts.p, previewPts && previewPts.crop);
+      drawOverlay(previewPts && previewPts.p, previewPts && previewPts.crop); lastDraw = now;
     }
     const d = video.duration || 0;
     if (!seeking && d && !analyzing) $id('seek').value = Math.round(video.currentTime / d * 1000);
     $id('time').textContent = fmt(analyzing ? 0 : video.currentTime) + ' / ' + fmt(d);
     $id('playIcon').setAttribute('d', video.paused ? 'M7 4.5v15l12.5-7.5z' : 'M6 4.5h4.5v15H6zM13.5 4.5H18v15h-4.5z');
     $id('play').setAttribute('aria-label', video.paused ? '再生' : '一時停止');
-  } catch (e) { console.error(e); }
+  } catch (e) { console.error(e); showErr('描画 ' + e.message); }
 }
 if (!R) status('この端末では3D表示（WebGL2）が使えません。' + glErr);
 requestAnimationFrame(loop);
 
 // 自己テスト用
-window.DC = { get MPC() { return MPC; }, fitFrame, toWorld, fitAll, finish, fitBody, mpts, zeroPose, clampPose, fk, place, setBody, BODY, anchorOf, computeActs, physics, staticOpt, placeAt, idlePose, JOINTS, limits,
+window.DC = { get MPC() { return MPC; }, get lastFi() { return lastFi; }, set noRender(v) { noRender = v; }, fitFrame, toWorld, fitAll, finish, fitBody, mpts, zeroPose, clampPose, fk, place, setBody, BODY, anchorOf, computeActs, physics, staticOpt, placeAt, idlePose, JOINTS, limits,
   async load(r) { raw = r; await buildAnim(); setView('orig'); return anim; }, setTime(t) { forceTime = t; }, view: setView, mode: m => { bodyMode = m; },
   get anim() { return anim; }, get fit() { return fit; } };
 
