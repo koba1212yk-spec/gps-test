@@ -377,25 +377,36 @@ function solve3(M, r) {
   const d2 = a[0] * (b[1] * r[2] - r[1] * c[1]) - a[1] * (b[0] * r[2] - r[1] * c[0]) + r[0] * (b[0] * c[1] - b[1] * c[0]);
   return [d0 / det, d1 / det, d2 / det];
 }
-// 画像上の21点と、実寸の手の形（world landmarks）から、手がカメラのどこにあるかを解く
+// 画像上の21点（x,y と相対的な奥行き z）で手の形を作り、実寸の手の大きさ（world landmarks の広がり）で距離を決める。
+// 軸の向きに頼らない（大きさだけ使う）ので、どの端末でも符号のずれが起きない。
 function solveHand(lm, wl, vw, vh, f) {
-  const cx = vw / 2, cy = vh / 2;
-  let n = 0, Sa = 0, Sb = 0, Sq = 0, R1 = 0, R2 = 0, AR = 0;
-  for (let i = 0; i < 21; i++) {
-    const a = lm[i].x * vw - cx, b = lm[i].y * vh - cy, W = wl[i];
-    const r1 = a * W.z - f * W.x, r2 = b * W.z - f * W.y;
-    n++; Sa += a; Sb += b; Sq += a * a + b * b; R1 += r1; R2 += r2; AR += a * r1 + b * r2;
+  const cx = vw / 2, cy = vh / 2, px = [];
+  let mx = 0, my = 0, mz = 0;
+  for (let i = 0; i < 21; i++) { const p = lm[i], q = [p.x * vw, p.y * vh, (p.z || 0) * vw]; px.push(q); mx += q[0]; my += q[1]; mz += q[2]; }
+  mx /= 21; my /= 21; mz /= 21;
+  let rp = 0; for (const q of px) rp += (q[0] - mx) ** 2 + (q[1] - my) ** 2 + (q[2] - mz) ** 2;
+  rp = Math.sqrt(rp / 21);
+  let rw = 0.052;                                   // 平均的な手の広がり(m)
+  if (wl && wl.length === 21) {
+    let ax = 0, ay = 0, az = 0; for (const w of wl) { ax += w.x; ay += w.y; az += w.z; } ax /= 21; ay /= 21; az /= 21;
+    let r = 0; for (const w of wl) r += (w.x - ax) ** 2 + (w.y - ay) ** 2 + (w.z - az) ** 2;
+    r = Math.sqrt(r / 21); if (r > 0.02 && r < 0.12) rw = r;
   }
-  const t = solve3([[n * f * f, 0, -f * Sa], [0, n * f * f, -f * Sb], [-f * Sa, -f * Sb, Sq]], [f * R1, f * R2, -AR]);
-  if (!t || t[2] < 0.08 || t[2] > 1.5) return null;
-  return t;   // メートル、x右・y下・z奥
+  if (rp < 3) return null;
+  const k = rw / rp;                                // 手のあたりで 1px が何m か
+  return { Zc: f * k, k, px, mz, cx, cy };
 }
 const TR = {
-  running: false, lm: null, video: $('cam'), vw: 720, vh: 1280, lastTs: 0, lastVT: -1, detMs: 0,
-  fT: [new OneEuro(0.8, 0.05), new OneEuro(0.8, 0.05), new OneEuro(0.6, 0.03)],
-  fW: Array.from({ length: 63 }, () => new OneEuro(1.6, 0.12)),
+  running: false, lm: null, video: $('cam'), vw: 720, vh: 1280, lastTs: 0, detMs: 0, delegate: 'GPU', vision: null, fs: null,
+  can: document.createElement('canvas'), frames: 0, hits: 0, errs: 0, err: '', runT: 0, switched: false,
+  fZ: new OneEuro(0.7, 0.03),
+  fP: Array.from({ length: 63 }, () => new OneEuro(1.6, 0.12)),
   P: Array.from({ length: 21 }, () => new THREE.Vector3()),
   seen: false, seenT: 0, lostT: 99, stableT: 0, chi: 0, speed: 0, fist: 0, prevWrist: null,
+  async create(d) {
+    return this.vision.HandLandmarker.createFromOptions(this.fs, { baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 2,
+      minHandDetectionConfidence: 0.4, minHandPresenceConfidence: 0.4, minTrackingConfidence: 0.4 });
+  },
   async start(progress) {
     if (MOCK) { this.running = true; this.mock = true; return true; }
     progress('カメラの許可を待っています…');
@@ -403,32 +414,46 @@ const TR = {
     const v = this.video; v.srcObject = stream; v.muted = true; v.playsInline = true; v.style.display = 'block';
     await v.play();
     progress('手の検知を読みこみ中…');
-    const vision = await import(MP_BASE + '/vision_bundle.mjs');
-    const fs = await vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm');
-    const opt = d => ({ baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 2,
-      minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
-    try { this.lm = await vision.HandLandmarker.createFromOptions(fs, opt('GPU')); }
-    catch (e) { this.lm = await vision.HandLandmarker.createFromOptions(fs, opt('CPU')); }
+    this.vision = await import(MP_BASE + '/vision_bundle.mjs');
+    this.fs = await this.vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm');
+    try { this.lm = await this.create('GPU'); this.delegate = 'GPU'; }
+    catch (e) { this.lm = await this.create('CPU'); this.delegate = 'CPU'; }
+    this.ctx = this.can.getContext('2d', { willReadFrequently: false });
     this.running = true;
     if ('requestVideoFrameCallback' in v) { const cb = now => { if (!this.running) return; this.detect(now); v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
     else this.poll = true;
     return true;
   },
+  async toCPU(reason) {                              // GPUでうまくいかない端末はCPUに切り替える
+    if (this.switched || this.delegate === 'CPU') return;
+    this.switched = true; const old = this.lm; this.lm = null;
+    try { old && old.close(); } catch (e) {}
+    try { this.lm = await this.create('CPU'); this.delegate = 'CPU'; status('検知方式を切り替えました（' + reason + '）', ''); }
+    catch (e) { this.err = String((e && e.message) || e); }
+  },
   detect(now) {
     const v = this.video;
-    if (!this.lm || v.readyState < 2 || !v.videoWidth || v.currentTime === this.lastVT) return;
-    this.lastVT = v.currentTime;
-    const ts = Math.max(now, this.lastTs + 1); this.lastTs = ts;
+    if (!this.lm || v.readyState < 2 || !v.videoWidth) return;
+    // dance ページと同じく、いったんキャンバスに描いてから渡す（iPhoneのGPU検知で安定する）
+    const vw = v.videoWidth, vh = v.videoHeight, sc = Math.min(1, 720 / Math.max(vw, vh));
+    const cw = Math.round(vw * sc), ch = Math.round(vh * sc);
+    if (this.can.width !== cw || this.can.height !== ch) { this.can.width = cw; this.can.height = ch; }
+    this.ctx.drawImage(v, 0, 0, cw, ch);
+    const ts = Math.max(Math.round(now), this.lastTs + 1); this.lastTs = ts;
     const t0 = performance.now(); let res;
-    try { res = this.lm.detectForVideo(v, ts); } catch (e) { return; }
+    try { res = this.lm.detectForVideo(this.can, ts); }
+    catch (e) { this.errs++; this.err = String((e && e.message) || e); if (this.delegate === 'GPU') this.toCPU('GPUエラー'); return; }
     this.detMs = this.detMs * 0.9 + (performance.now() - t0) * 0.1;
-    this.process(res, performance.now() / 1000, v.videoWidth, v.videoHeight);
+    this.frames++;
+    if (res && res.landmarks && res.landmarks.length) this.hits++;
+    // GPUで5秒以上なにも見つからないときも、念のためCPUを試す
+    if (this.delegate === 'GPU' && this.frames > 150 && this.hits === 0) this.toCPU('GPUで検知ゼロ');
+    this.process(res, performance.now() / 1000, vw, vh);
   },
   process(res, t, vw, vh) {
     this.vw = vw; this.vh = vh;
     const L = res && res.landmarks, WL = res && res.worldLandmarks, HN = res && (res.handedness || res.handednesses);
-    if (!L || !L.length || !WL || !WL.length) { this.seen = false; return; }
-    // 一番大きく映っている手（追跡中なら近い方）を選ぶ
+    if (!L || !L.length) { this.seen = false; return; }
     let best = -1, bs = -1e9;
     for (let i = 0; i < L.length; i++) {
       const l = L[i]; let x0 = 1, x1 = 0, y0 = 1, y1 = 0;
@@ -437,23 +462,22 @@ const TR = {
       if (this.prevWrist) s -= Math.hypot(l[0].x - this.prevWrist.x, l[0].y - this.prevWrist.y) * 0.5;
       if (s > bs) { bs = s; best = i; }
     }
-    const lm = L[best], wl = WL[best];
+    const lm = L[best], wl = WL && WL[best];
     this.prevWrist = { x: lm[0].x, y: lm[0].y };
     const f = SET.fov * Math.max(vw, vh);
-    const T = solveHand(lm, wl, vw, vh, f);
-    if (!T) { this.seen = false; return; }
+    const sol = solveHand(lm, wl, vw, vh, f);
+    if (!sol) { this.seen = false; return; }
     // 右手か左手か（MediaPipeは自撮りの鏡像を前提にしているので、背面カメラでは逆）
     const cat = HN && HN[best] && HN[best][0];
     if (cat) { const r = cat.categoryName === 'Left' ? 1 : -1; this.chi = clamp(this.chi * 0.9 + r * cat.score, -3, 3); }
-    const tx = this.fT[0].filter(T[0] * 100, t), ty = this.fT[1].filter(T[1] * 100, t), tz = this.fT[2].filter(T[2] * 100, t);
-    this.speed = Math.hypot(this.fT[0].dx, this.fT[1].dx, this.fT[2].dx * 0.5);
+    const Zc = this.fZ.filter(sol.Zc, t), k = Zc / f;
     for (let i = 0; i < 21; i++) {
-      const wx = this.fW[i * 3].filter(wl[i].x * 100, t), wy = this.fW[i * 3 + 1].filter(wl[i].y * 100, t), wz = this.fW[i * 3 + 2].filter(wl[i].z * 100, t);
-      this.P[i].set(tx + wx, -(ty + wy), -(tz + wz));      // カメラ空間（x右・y上・z手前）cm
+      const q = sol.px[i], Z = Zc + (q[2] - sol.mz) * k, X = (q[0] - sol.cx) * Z / f, Y = (q[1] - sol.cy) * Z / f;
+      this.P[i].set(this.fP[i * 3].filter(X * 100, t), this.fP[i * 3 + 1].filter(-Y * 100, t), this.fP[i * 3 + 2].filter(-Z * 100, t));
     }
-    this.seen = true; this.seenT = t; this.vw = vw; this.vh = vh;
+    this.seen = true; this.seenT = t;
   },
-  reset() { this.fT.forEach(f => f.reset()); this.fW.forEach(f => f.reset()); this.chi = 0; this.prevWrist = null; },
+  reset() { this.fZ.reset(); this.fP.forEach(f => f.reset()); this.chi = 0; this.prevWrist = null; },
 };
 
 /* 手の座標系 */
@@ -668,14 +692,18 @@ function estimateLight(dt) {
 function status(text, kind) { $('sTxt').textContent = text; $('sDot').className = 'd' + (kind ? ' ' + kind : ''); }
 function updateStatus() {
   const m = S.mode;
-  if (m === 'wait') status(TR.seen ? 'そのまま手をかざしていて…' : 'スマホを持っていない方の手を映してね', TR.seen ? 'on' : '');
+  if (m === 'wait') {
+    if (TR.seen) status('そのまま手をかざしていて…', 'on');
+    else if (TR.running && !MOCK && TR.runT > 6 && TR.hits === 0) status(TR.errs ? '検知エラー：' + TR.err.slice(0, 40) : '手が見つかりません。明るい所で、指を広げて映してね', '');
+    else status('スマホを持っていない方の手を映してね', '');
+  }
   else if (m === 'enter') status('モルフォ蝶が近づいてきた…', 'fly');
   else if (m === 'land') status('そっと…', 'fly');
   else if (m === 'perch') status(S.side > 0 ? '手のひらにとまった' : '手の甲にとまった', 'on');
   else if (m === 'leave') status('飛んでいった…', '');
 }
 let stT = 0;
-function uiTick(dt) { if ((stT -= dt) <= 0) { stT = 0.5; if (S.mode === 'wait') updateStatus(); } }
+function uiTick(dt) { if (TR.running) TR.runT += dt; if ((stT -= dt) <= 0) { stT = 0.5; if (S.mode === 'wait') updateStatus(); } }
 
 $('go').onclick = async () => {
   $('go').disabled = true; $('go').textContent = '準備中…';
@@ -746,7 +774,8 @@ function mockFeed(dt) {
   });
   const c = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / 21);
   const f = SET.fov * Math.max(vw, vh);
-  const lm = pts.map(p => ({ x: (vw / 2 + f * p.x / -p.z) / vw, y: (vh / 2 - f * p.y / -p.z) / vh, z: 0 }));
+  const zw = -pts[0].z;
+  const lm = pts.map(p => ({ x: (vw / 2 + f * p.x / -p.z) / vw, y: (vh / 2 - f * p.y / -p.z) / vh, z: ((-p.z) - zw) * f / zw / vw }));
   const wl = pts.map(p => ({ x: (p.x - c.x) / 100, y: -(p.y - c.y) / 100, z: -(p.z - c.z) / 100 }));
   TR.process({ landmarks: [lm], worldLandmarks: [wl], handedness: [[{ categoryName: 'Left', score: 0.95 }]] }, performance.now() / 1000, vw, vh);
 }
@@ -761,7 +790,7 @@ function frame(now) {
   render();
 }
 function step(dt, now) {
-  if (TR.poll && TR.running) TR.detect(now);
+  if (TR.poll && TR.running && now - (TR.lastPoll || 0) > 30) { TR.lastPoll = now; TR.detect(now); }
   if (MOCK && TR.running) mockFeed(dt);
   if (TR.running && (Math.abs(camera.aspect - TR.vw / TR.vh) > 0.01)) updateProjection();
   estimateLight(dt);
@@ -769,7 +798,7 @@ function step(dt, now) {
   uiTick(dt);
   if (SET.debug && (dbgT += dt) > 0.25) {
     dbgT = 0;
-    $('dbg').textContent = `mode ${S.mode}  side ${S.side}\nhand ${TR.seen ? 'yes' : 'no'}  det ${TR.detMs.toFixed(1)}ms\nO ${HF.O.x.toFixed(1)} ${HF.O.y.toFixed(1)} ${HF.O.z.toFixed(1)}cm\nfacing ${HF.facing}  chi ${TR.chi.toFixed(2)}\nfist ${TR.fist.toFixed(2)}  speed ${HF.speed.toFixed(0)}\nvideo ${TR.vw}x${TR.vh}`;
+    $('dbg').textContent = `mode ${S.mode}  side ${S.side}\n${TR.delegate} frames ${TR.frames} hits ${TR.hits} errs ${TR.errs}\n${TR.err.slice(0, 50)}\nhand ${TR.seen ? 'yes' : 'no'}  det ${TR.detMs.toFixed(1)}ms\nO ${HF.O.x.toFixed(1)} ${HF.O.y.toFixed(1)} ${HF.O.z.toFixed(1)}cm\nfacing ${HF.facing}  chi ${TR.chi.toFixed(2)}\nfist ${TR.fist.toFixed(2)}  speed ${HF.speed.toFixed(0)}\nvideo ${TR.vw}x${TR.vh}`;
   }
 }
 requestAnimationFrame(frame);
