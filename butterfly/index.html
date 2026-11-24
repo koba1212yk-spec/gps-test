@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#eef4ff">
+<title>てのり蝶</title>
+<style>
+:root{--ink:#2f3550;--sub:#7b819c;--blue:#2b86ee}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  background:radial-gradient(110% 70% at 50% 0%,#dff0ff 0%,rgba(223,240,255,0) 60%),linear-gradient(170deg,#eef6ff 0%,#f4f0ff 55%,#fff4f8 100%);
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;color:inherit}
+#cam{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#000;display:none}
+#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+.glass{background:rgba(255,255,255,.72);-webkit-backdrop-filter:blur(16px) saturate(1.5);backdrop-filter:blur(16px) saturate(1.5);
+  border:1px solid rgba(255,255,255,.8);box-shadow:0 6px 22px rgba(30,40,80,.16)}
+
+#status{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 12px);transform:translateX(-50%);z-index:5;display:none;align-items:center;gap:8px;
+  max-width:calc(100% - 24px);padding:8px 16px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap;transition:opacity .3s}
+#status .d{width:8px;height:8px;border-radius:50%;background:#c9c6d6;flex:none}
+#status .d.on{background:#35c47a;box-shadow:0 0 0 3px rgba(53,196,122,.2)}
+#status .d.fly{background:var(--blue);box-shadow:0 0 0 3px rgba(43,134,238,.2)}
+
+#bar{position:fixed;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 20px);z-index:5;display:none;align-items:center;justify-content:center;gap:46px}
+.rb{width:50px;height:50px;border-radius:50%;border:none;display:grid;place-items:center;cursor:pointer}
+.rb svg{width:22px;height:22px}
+#shot{width:76px;height:76px;border-radius:50%;border:4px solid #fff;background:rgba(255,255,255,.25);box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer;padding:5px}
+#shot i{display:block;width:100%;height:100%;border-radius:50%;background:#fff;transition:transform .1s}
+#shot:active i{transform:scale(.9)}
+#flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:20;transition:opacity .35s}
+
+/* スタート */
+#start{position:fixed;left:0;right:0;bottom:0;z-index:10;display:flex;justify-content:center;padding:0 16px calc(env(safe-area-inset-bottom) + 18px)}
+#start .box{width:min(420px,100%);border-radius:30px;padding:22px 20px 16px;text-align:center}
+#start h1{margin:0;font-size:30px;letter-spacing:.12em;font-weight:800;background:linear-gradient(90deg,#1f7ae0,#6a5cf0 60%,#b04fd8);-webkit-background-clip:text;background-clip:text;color:transparent}
+#start .lead{margin:6px 0 14px;color:var(--sub);font-weight:700;font-size:14px}
+.how{list-style:none;padding:0;margin:0 0 12px;text-align:left;display:grid;gap:7px}
+.how li{display:flex;gap:10px;align-items:center;background:rgba(240,245,255,.9);border-radius:14px;padding:9px 12px;font-size:13px;font-weight:600;line-height:1.45}
+.how b{flex:none;display:grid;place-items:center;width:24px;height:24px;border-radius:50%;color:#fff;font-size:12px;background:linear-gradient(135deg,#3b96f5,#7b5cf0)}
+.cta{display:block;width:100%;border:none;border-radius:18px;padding:15px;font-size:16px;font-weight:800;cursor:pointer;color:#fff;
+  background:linear-gradient(135deg,#2b86ee,#7a5cf2);box-shadow:0 10px 24px rgba(70,100,240,.35)}
+#start .fine{font-size:11px;color:var(--sub);margin-top:10px;line-height:1.55}
+#start .err{color:#d6455d;font-weight:700;font-size:12px;margin-top:8px;display:none}
+@media (max-height:600px){.how{display:none}#start .box{padding:14px 18px 12px}#start h1{font-size:24px}#start .lead{margin-bottom:8px}.cta{padding:12px}}
+
+/* シート */
+.sheet{position:fixed;left:0;right:0;bottom:0;z-index:30;max-height:80%;overflow:auto;padding:16px 18px calc(env(safe-area-inset-bottom) + 18px);border-radius:26px 26px 0 0;
+  background:rgba(255,255,255,.9);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:0 -10px 40px rgba(30,40,80,.2);
+  transform:translateY(105%);transition:transform .32s cubic-bezier(.2,.9,.25,1);touch-action:pan-y}
+.sheet.open{transform:none}
+.sheet h3{margin:2px 0 10px;font-size:17px;display:flex;justify-content:space-between;align-items:center}
+.x{border:none;background:#eef0f7;border-radius:999px;width:32px;height:32px;font-size:15px;cursor:pointer}
+.row{margin:14px 0}
+.row label{display:flex;justify-content:space-between;font-weight:800;font-size:13px;margin-bottom:6px}
+.row label span{color:var(--sub);font-weight:600}
+input[type=range]{width:100%;accent-color:var(--blue)}
+.sw{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #eef0f6;font-weight:700;font-size:14px;gap:12px}
+.sw small{display:block;color:var(--sub);font-weight:600;font-size:11px;margin-top:2px}
+.tg{appearance:none;-webkit-appearance:none;flex:none;width:46px;height:28px;border-radius:999px;background:#dfe2ec;position:relative;cursor:pointer;transition:background .2s;margin:0}
+.tg::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 2px 5px rgba(0,0,0,.18);transition:transform .2s}
+.tg:checked{background:var(--blue)}.tg:checked::after{transform:translateX(18px)}
+.note{font-size:11px;color:var(--sub);line-height:1.65;margin-top:10px}
+.info h4{margin:0 0 2px;font-size:20px}
+.info .sci{color:var(--sub);font-style:italic;font-size:13px;margin-bottom:10px}
+.info p{font-size:13px;line-height:1.75;margin:6px 0}
+
+/* 写真プレビュー */
+#photo{position:fixed;inset:0;z-index:40;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:20px;
+  background:rgba(240,244,255,.6);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+#photo img{max-width:100%;max-height:68vh;border-radius:20px;box-shadow:0 16px 40px rgba(20,30,70,.3)}
+#photo .btns{display:flex;gap:10px}
+#photo button{border:none;border-radius:16px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer;background:#fff;box-shadow:0 4px 14px rgba(30,40,80,.15)}
+#photo button.p{color:#fff;background:linear-gradient(135deg,#2b86ee,#7a5cf2)}
+#dbg{position:fixed;left:6px;top:calc(env(safe-area-inset-top) + 52px);z-index:50;font:10px/1.35 ui-monospace,Menlo,monospace;color:#223;
+  background:rgba(255,255,255,.8);padding:4px 6px;border-radius:8px;pointer-events:none;display:none;white-space:pre}
+#fatal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;font-weight:700;background:#f4f2ff}
+</style>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}
+</script>
+</head>
+<body>
+<video id="cam" playsinline muted autoplay></video>
+<canvas id="gl"></canvas>
+<div id="flash"></div>
+
+<div id="status" class="glass"><span class="d" id="sDot"></span><span id="sTxt">手をうつしてね</span></div>
+
+<div id="bar">
+  <button id="bSet" class="rb glass" aria-label="設定"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2.3"/><circle cx="10" cy="17" r="2.3"/></svg></button>
+  <button id="shot" aria-label="撮影"><i></i></button>
+  <button id="bInfo" class="rb glass" aria-label="この蝶について"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+</div>
+
+<div id="start">
+  <div class="box glass">
+    <h1>てのり蝶</h1>
+    <div class="lead">手をかざすと、モルフォ蝶がとまりにくる</div>
+    <ul class="how">
+      <li><b>1</b>スマホを持っていない方の手を、うしろのカメラに映す</li>
+      <li><b>2</b>じっとしていると、画面の外からひらひら飛んでくる</li>
+      <li><b>3</b>そっと手を返すと、とまった蝶は手の向こう側に隠れる</li>
+    </ul>
+    <button id="go" class="cta">カメラをひらく</button>
+    <div class="err" id="err"></div>
+    <div class="fine">カメラの映像は端末の中だけで処理し、保存・送信しません。</div>
+  </div>
+</div>
+
+<div id="setSheet" class="sheet">
+  <h3>設定<button class="x" data-close>✕</button></h3>
+  <div class="row"><label>蝶の大きさ<span id="vSize"></span></label><input id="sSize" type="range" min="0.6" max="1.4" step="0.05"></div>
+  <div class="row"><label>カメラの画角<span id="vFov"></span></label><input id="sFov" type="range" min="0.55" max="1.2" step="0.01"></div>
+  <div class="sw"><div>影<small>手の上に蝶の影を落とす</small></div><input id="sShadow" class="tg" type="checkbox"></div>
+  <div class="sw"><div>手のひら/手の甲を逆に判定<small>止まる面が逆になるときだけ</small></div><input id="sFlip" class="tg" type="checkbox"></div>
+  <div class="sw"><div>手の判定を表示<small>隠れる範囲が見えます</small></div><input id="sDebug" class="tg" type="checkbox"></div>
+  <div class="note">手の検知は MediaPipe の Hand Landmarker を使っています。蝶が手から少しずれて見えるときは「カメラの画角」を動かすと合うことがあります。</div>
+</div>
+
+<div id="infoSheet" class="sheet info">
+  <h3>この蝶について<button class="x" data-close>✕</button></h3>
+  <h4>ディディウスモルフォ</h4>
+  <div class="sci">Morpho didius</div>
+  <p>南米の熱帯林にすむ、翅を広げると15cmほどになる大きな蝶。</p>
+  <p>表の青は色素ではなく、鱗粉の細かいすじが光を干渉させてつくる「構造色」。見る角度で輝きが変わります。</p>
+  <p>とまって翅を閉じると、茶色に目玉もようの裏側だけが見えて、森の中では目立たなくなります。</p>
+</div>
+
+<div id="photo"><img id="pImg" alt=""><div class="btns"><button id="pClose">とじる</button><button id="pSave" class="p">保存・共有</button></div></div>
+<div id="dbg"></div>
+<div id="fatal"></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ==========================================================================
+   てのり蝶
+   ・背面カメラの映像の上に、実寸(cm)のカメラ空間で蝶を描く
+   ・手の21点（MediaPipe）から手の位置・向き・手のひらの向きを出す
+   ・蝶は「止まった面（手のひら/手の甲）」に固定。手の形の見えない板で奥行きを
+     書きこんでおくので、手を返すと蝶は手の向こう側に隠れる
+   座標：x→右, y→上, z→手前（カメラは原点で -z を見る）、単位 cm
+   ========================================================================== */
+const $ = id => document.getElementById(id);
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const smooth = t => t * t * (3 - 2 * t);
+function load(k, d) { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
+function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const MOCK = /[?&]mock\b/.test(location.search);
+const DEF = { size: 1, fov: 0.8, shadow: true, flip: false, debug: false };
+const SET = Object.assign({}, DEF, load('tenori.set', {}));
+const persist = () => store('tenori.set', SET);
+
+/* ---------- 羽の画像（Geminiの写真から背景を抜いたもの） ---------- */
+const IMG = {
+  top:   { url: 'morpho_top.webp',   w: 895, h: 655, xc: 447,   x0: 6, x1: 888, y0: 6, y1: 648, by0: 261, by1: 479 },
+  under: { url: 'morpho_under.webp', w: 896, h: 661, xc: 447.5, x0: 6, x1: 889, y0: 6, y1: 654, by0: 259, by1: 486 },
+};
+const WINGSPAN = 12;               // 実際の大きさ(cm)
+const STRIP_PX = 19;               // 画像から抜いた胴体の帯（片側px）
+const PERCH_H = 0.78;              // とまっているときの胴体の高さ(cm)
+const HAND_HALF = 1.3;             // 手の厚みの半分(cm)
+
+/* ---------- renderer ---------- */
+const canvas = $('gl');
+let renderer;
+try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: false }); }
+catch (e) { const f = $('fatal'); f.textContent = 'この端末では3D表示ができませんでした。'; f.style.display = 'flex'; throw e; }
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.NeutralToneMapping;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.5;
+const camera = new THREE.PerspectiveCamera(55, 1, 1, 800);
+const hemi = new THREE.HemisphereLight('#ffffff', '#d9cfc4', 1.6);
+scene.add(hemi);
+const key = new THREE.DirectionalLight('#fff8ee', 2.2);
+key.castShadow = true;
+key.shadow.mapSize.set(1024, 1024);
+Object.assign(key.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 70 });
+key.shadow.camera.updateProjectionMatrix();
+key.shadow.bias = -0.0006; key.shadow.normalBias = 0.04; key.shadow.radius = 3;
+scene.add(key, key.target);
+const LIGHT_DIR = new THREE.Vector3(-0.35, 1, 0.45).normalize();
+
+/* ---------- 蝶 ---------- */
+const loader = new THREE.TextureLoader();
+function wingTex(m) { const t = loader.load(m.url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
+const TEX_TOP = wingTex(IMG.top), TEX_UNDER = wingTex(IMG.under);
+const MAT_TOP = new THREE.MeshPhysicalMaterial({ map: TEX_TOP, alphaTest: 0.5, alphaToCoverage: true, side: THREE.FrontSide, shadowSide: THREE.DoubleSide,
+  roughness: 0.55, metalness: 0, envMapIntensity: 0.35, specularColor: new THREE.Color('#5fb8ff'), specularIntensity: 0.8 });
+const MAT_UNDER = new THREE.MeshStandardMaterial({ map: TEX_UNDER, alphaTest: 0.5, alphaToCoverage: true, side: THREE.BackSide, roughness: 0.8, envMapIntensity: 0.35 });
+const MAT_BODY = new THREE.MeshPhysicalMaterial({ color: '#1c1713', roughness: 0.85, sheen: 1, sheenColor: new THREE.Color('#6b5a48'), sheenRoughness: 0.5 });
+const MAT_EYE = new THREE.MeshPhysicalMaterial({ color: '#2b241d', roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 });
+const MAT_LEG = new THREE.MeshStandardMaterial({ color: '#211b16', roughness: 0.6 });
+
+function wingGeo(side, which) {     // side: +1 右の羽, -1 左の羽
+  const m = IMG[which], k = (m.x1 - m.x0) / WINGSPAN, yT = m.by0 + 0.3 * (m.by1 - m.by0), hs = STRIP_PX / k;
+  const span = (m.x1 - m.x0) / 2 / k - hs + 0.15;
+  const zF = (yT - m.y0) / k + 0.15, zB = (m.y1 - yT) / k + 0.15;
+  const NX = 18, NZ = 18, pos = [], uv = [], idx = [];
+  const mir = which === 'under' ? -1 : 1;     // 裏は下から見るので左右が入れかわる
+  for (let j = 0; j <= NZ; j++) {
+    const z = -zB + (zF + zB) * j / NZ;
+    for (let i = 0; i <= NX; i++) {
+      const x = span * i / NX;
+      pos.push(side * x, 0, z);
+      const px = m.xc + mir * side * (hs + x) * k, row = yT - z * k;
+      uv.push(px / m.w, 1 - row / m.h);
+    }
+  }
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+    const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1;
+    if (side > 0) idx.push(a, c, b, b, c, d); else idx.push(a, b, c, b, d, c);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  return g;
+}
+const STRIP_CM = STRIP_PX / ((IMG.top.x1 - IMG.top.x0) / WINGSPAN);
+
+function tube(points, r, mat, parent) {
+  const c = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
+  const m = new THREE.Mesh(new THREE.TubeGeometry(c, 20, r, 6, false), mat); m.castShadow = true; parent.add(m); return m;
+}
+function buildButterfly() {
+  const root = new THREE.Group();          // 位置・向き（とまっている面に合わせる）
+  const bob = new THREE.Group(); root.add(bob);
+  const B = { root, bob, wings: [], antL: null, antR: null };
+  // 胴体
+  const th = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), MAT_BODY); th.scale.set(0.32, 0.3, 0.6); th.position.set(0, 0, 0.05); th.castShadow = true; bob.add(th);
+  const hd = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 12), MAT_BODY); hd.position.set(0, 0.03, 0.72); hd.castShadow = true; bob.add(hd);
+  for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), MAT_EYE); e.position.set(s * 0.15, 0.07, 0.78); bob.add(e); }
+  const prof = [[0.001, 0], [0.17, 0.08], [0.23, 0.45], [0.22, 1.0], [0.17, 1.5], [0.09, 1.82], [0.001, 1.92]].map(([x, y]) => new THREE.Vector2(x, y));
+  const abG = new THREE.LatheGeometry(new THREE.SplineCurve(prof).getPoints(24), 16); abG.rotateX(-Math.PI / 2);
+  const ab = new THREE.Mesh(abG, MAT_BODY); ab.position.set(0, -0.03, -0.32); ab.castShadow = true; bob.add(ab);
+  // 触角（先がふくらむ）
+  for (const s of [-1, 1]) {
+    const g = new THREE.Group(); g.position.set(s * 0.07, 0.17, 0.86); bob.add(g);
+    tube([[0, 0, 0], [s * 0.25, 0.42, 1.0], [s * 0.48, 0.75, 2.0], [s * 0.56, 0.86, 2.45]], 0.022, MAT_LEG, g);
+    const club = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), MAT_LEG); club.scale.set(0.045, 0.045, 0.13); club.position.set(s * 0.55, 0.85, 2.42); club.lookAt(s * 0.6, 0.9, 2.6); g.add(club);
+    if (s < 0) B.antL = g; else B.antR = g;
+  }
+  // 脚（モルフォは前脚が小さいので4本）
+  for (const s of [-1, 1]) for (const z0 of [0.12, -0.18]) {
+    const zf = z0 > 0 ? 0.55 : -0.5;
+    tube([[s * 0.15, -0.22, z0], [s * 0.5, -0.32, z0 + zf * 0.4], [s * 0.72, -0.58, z0 + zf * 0.75], [s * 0.82, -PERCH_H + 0.03, z0 + zf]], 0.026, MAT_LEG, bob);
+  }
+  // 羽（表と裏を別々に貼った板）
+  for (const s of [1, -1]) {
+    const pivot = new THREE.Group(); pivot.position.set(s * STRIP_CM, 0.12, 0); bob.add(pivot);
+    const hinge = new THREE.Group(); pivot.add(hinge);
+    const top = new THREE.Mesh(wingGeo(s, 'top'), MAT_TOP); top.castShadow = true;
+    const und = new THREE.Mesh(wingGeo(s, 'under'), MAT_UNDER);
+    hinge.add(top, und);
+    B.wings.push({ s, pivot, hinge });
+  }
+  root.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
+  scene.add(root);
+  return B;
+}
+const BF = buildButterfly();
+function setWings(theta, sweep) {
+  for (const w of BF.wings) { w.hinge.rotation.z = w.s * theta; w.pivot.rotation.y = -w.s * sweep; }
+}
+
+/* ---------- 手の見えない板（奥行きだけ書く）と影受け ---------- */
+const HAND = { valid: false };
+const MAT_DEPTH = new THREE.MeshBasicMaterial({ colorWrite: false });
+const MAT_SKIN = new THREE.MeshStandardMaterial({ color: '#e9b99c', roughness: 0.7 });
+const MAT_DEBUG = new THREE.MeshBasicMaterial({ color: '#46a0ff', transparent: true, opacity: 0.28, depthWrite: true });
+const MAT_SHADOW = new THREE.ShadowMaterial({ opacity: 0.34, transparent: true, depthWrite: false });
+const RING = [0, 1, 2, 5, 9, 13, 17];
+const palmGeo = new THREE.BufferGeometry();
+{
+  const n = RING.length, pos = new Float32Array((n * 2 + 2) * 3), idx = [];
+  const T0 = 0, B0 = n, CT = 2 * n, CB = 2 * n + 1;
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    idx.push(CT, T0 + i, T0 + j);          // 表
+    idx.push(CB, B0 + j, B0 + i);          // 裏
+    idx.push(T0 + i, B0 + i, B0 + j, T0 + i, B0 + j, T0 + j);   // 側面
+  }
+  palmGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  palmGeo.setIndex(idx);
+}
+const SEGS = [[1, 2], [2, 3], [3, 4], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12], [13, 14], [14, 15], [15, 16], [17, 18], [18, 19], [19, 20], [0, -1]];
+const JOINTS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+const FINGER_R = i => i <= 4 ? 1.05 : i <= 8 ? 0.92 : i <= 12 ? 0.95 : i <= 16 ? 0.88 : 0.76;
+const cylG = new THREE.CylinderGeometry(1, 1, 1, 14, 1, true), sphG = new THREE.SphereGeometry(1, 14, 10);
+function handMeshes(mat, order) {
+  const palm = new THREE.Mesh(palmGeo, mat), cyl = new THREE.InstancedMesh(cylG, mat, SEGS.length), sph = new THREE.InstancedMesh(sphG, mat, JOINTS.length + 1);
+  for (const m of [palm, cyl, sph]) { m.frustumCulled = false; m.renderOrder = order; scene.add(m); }
+  return { palm, cyl, sph, list: [palm, cyl, sph] };
+}
+const HD = handMeshes(MAT_DEPTH, -5);          // 奥行き専用
+const HS = handMeshes(MAT_SHADOW, 5);          // 影だけ見せる
+HS.cyl.instanceMatrix = HD.cyl.instanceMatrix; HS.sph.instanceMatrix = HD.sph.instanceMatrix;
+for (const m of HS.list) m.receiveShadow = true;
+function setHandVisible(v) { for (const m of [...HD.list, ...HS.list]) m.visible = v; }
+function applyHandMaterial() {
+  const mat = MOCK ? MAT_SKIN : SET.debug ? MAT_DEBUG : MAT_DEPTH;
+  for (const m of HD.list) m.material = mat;
+  for (const m of HS.list) m.visible = HAND.valid && SET.shadow;
+}
+
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _s = new THREE.Vector3(), YUP = new THREE.Vector3(0, 1, 0);
+function updateHandMeshes(P, N, O) {
+  // 手のひらの板：輪郭を少し外に広げ、法線方向に厚みをつける
+  const pos = palmGeo.attributes.position, n = RING.length;
+  let cx = 0, cy = 0, cz = 0;
+  for (const i of RING) { cx += P[i].x; cy += P[i].y; cz += P[i].z; }
+  cx /= n; cy /= n; cz /= n;
+  for (let k = 0; k < n; k++) {
+    const p = P[RING[k]];
+    let dx = p.x - cx, dy = p.y - cy, dz = p.z - cz;
+    const dn = dx * N.x + dy * N.y + dz * N.z; dx -= N.x * dn; dy -= N.y * dn; dz -= N.z * dn;   // 平面に落とす
+    const len = Math.hypot(dx, dy, dz) || 1, grow = 0.9 / len + 1.0;
+    const x = cx + dx * grow, y = cy + dy * grow, z = cz + dz * grow;
+    pos.setXYZ(k, x + N.x * HAND_HALF, y + N.y * HAND_HALF, z + N.z * HAND_HALF);
+    pos.setXYZ(n + k, x - N.x * HAND_HALF, y - N.y * HAND_HALF, z - N.z * HAND_HALF);
+  }
+  pos.setXYZ(2 * n, cx + N.x * HAND_HALF, cy + N.y * HAND_HALF, cz + N.z * HAND_HALF);
+  pos.setXYZ(2 * n + 1, cx - N.x * HAND_HALF, cy - N.y * HAND_HALF, cz - N.z * HAND_HALF);
+  pos.needsUpdate = true; palmGeo.computeVertexNormals();
+  // 指（円柱）と関節（球）
+  SEGS.forEach(([i, j], k) => {
+    const a = P[i];
+    let b, r;
+    if (j < 0) { b = _b.copy(P[0]).sub(P[9]).multiplyScalar(1.4).add(P[0]); r = 2.6; }   // 手首から先の腕
+    else { b = P[j]; r = FINGER_R(j); }
+    _a.subVectors(b, a); const len = _a.length() || 0.01;
+    _q.setFromUnitVectors(YUP, _a.normalize());
+    _v.addVectors(a, b).multiplyScalar(0.5);
+    HD.cyl.setMatrixAt(k, _m.compose(_v, _q, _s.set(r, len, r)));
+  });
+  JOINTS.forEach((i, k) => { const r = FINGER_R(i); HD.sph.setMatrixAt(k, _m.compose(P[i], _q.identity(), _s.set(r, r, r))); });
+  HD.sph.setMatrixAt(JOINTS.length, _m.compose(P[0], _q.identity(), _s.set(2.2, 2.2, 2.2)));
+  HD.cyl.instanceMatrix.needsUpdate = true; HD.sph.instanceMatrix.needsUpdate = true;
+}
+
+/* ---------- 手のトラッキング ---------- */
+class OneEuro {
+  constructor(minCut, beta, dCut = 1.2) { this.minCut = minCut; this.beta = beta; this.dCut = dCut; this.x = null; this.dx = 0; this.t = 0; }
+  a(cut, dt) { const tau = 1 / (2 * Math.PI * cut); return 1 / (1 + tau / dt); }
+  filter(x, t) {
+    if (this.x === null) { this.x = x; this.t = t; this.dx = 0; return x; }
+    const dt = Math.max(1e-3, t - this.t); this.t = t;
+    this.dx += this.a(this.dCut, dt) * ((x - this.x) / dt - this.dx);
+    this.x += this.a(this.minCut + this.beta * Math.abs(this.dx), dt) * (x - this.x);
+    return this.x;
+  }
+  reset() { this.x = null; this.dx = 0; }
+}
+function solve3(M, r) {
+  const [a, b, c] = M, det = a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * c[1] - b[1] * c[0]);
+  if (Math.abs(det) < 1e-9) return null;
+  const d0 = r[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (r[1] * c[2] - b[2] * r[2]) + a[2] * (r[1] * c[1] - b[1] * r[2]);
+  const d1 = a[0] * (r[1] * c[2] - b[2] * r[2]) - r[0] * (b[0] * c[2] - b[2] * c[0]) + a[2] * (b[0] * r[2] - r[1] * c[0]);
+  const d2 = a[0] * (b[1] * r[2] - r[1] * c[1]) - a[1] * (b[0] * r[2] - r[1] * c[0]) + r[0] * (b[0] * c[1] - b[1] * c[0]);
+  return [d0 / det, d1 / det, d2 / det];
+}
+// 画像上の21点と、実寸の手の形（world landmarks）から、手がカメラのどこにあるかを解く
+function solveHand(lm, wl, vw, vh, f) {
+  const cx = vw / 2, cy = vh / 2;
+  let n = 0, Sa = 0, Sb = 0, Sq = 0, R1 = 0, R2 = 0, AR = 0;
+  for (let i = 0; i < 21; i++) {
+    const a = lm[i].x * vw - cx, b = lm[i].y * vh - cy, W = wl[i];
+    const r1 = a * W.z - f * W.x, r2 = b * W.z - f * W.y;
+    n++; Sa += a; Sb += b; Sq += a * a + b * b; R1 += r1; R2 += r2; AR += a * r1 + b * r2;
+  }
+  const t = solve3([[n * f * f, 0, -f * Sa], [0, n * f * f, -f * Sb], [-f * Sa, -f * Sb, Sq]], [f * R1, f * R2, -AR]);
+  if (!t || t[2] < 0.08 || t[2] > 1.5) return null;
+  return t;   // メートル、x右・y下・z奥
+}
+const TR = {
+  running: false, lm: null, video: $('cam'), vw: 720, vh: 1280, lastTs: 0, lastVT: -1, detMs: 0,
+  fT: [new OneEuro(0.8, 0.05), new OneEuro(0.8, 0.05), new OneEuro(0.6, 0.03)],
+  fW: Array.from({ length: 63 }, () => new OneEuro(1.6, 0.12)),
+  P: Array.from({ length: 21 }, () => new THREE.Vector3()),
+  seen: false, seenT: 0, lostT: 99, stableT: 0, chi: 0, speed: 0, fist: 0, prevWrist: null,
+  async start(progress) {
+    if (MOCK) { this.running = true; this.mock = true; return true; }
+    progress('カメラの許可を待っています…');
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+    const v = this.video; v.srcObject = stream; v.muted = true; v.playsInline = true; v.style.display = 'block';
+    await v.play();
+    progress('手の検知を読みこみ中…');
+    const vision = await import(MP_BASE + '/vision_bundle.mjs');
+    const fs = await vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm');
+    const opt = d => ({ baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 2,
+      minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 });
+    try { this.lm = await vision.HandLandmarker.createFromOptions(fs, opt('GPU')); }
+    catch (e) { this.lm = await vision.HandLandmarker.createFromOptions(fs, opt('CPU')); }
+    this.running = true;
+    if ('requestVideoFrameCallback' in v) { const cb = now => { if (!this.running) return; this.detect(now); v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+    else this.poll = true;
+    return true;
+  },
+  detect(now) {
+    const v = this.video;
+    if (!this.lm || v.readyState < 2 || !v.videoWidth || v.currentTime === this.lastVT) return;
+    this.lastVT = v.currentTime;
+    const ts = Math.max(now, this.lastTs + 1); this.lastTs = ts;
+    const t0 = performance.now(); let res;
+    try { res = this.lm.detectForVideo(v, ts); } catch (e) { return; }
+    this.detMs = this.detMs * 0.9 + (performance.now() - t0) * 0.1;
+    this.process(res, performance.now() / 1000, v.videoWidth, v.videoHeight);
+  },
+  process(res, t, vw, vh) {
+    this.vw = vw; this.vh = vh;
+    const L = res && res.landmarks, WL = res && res.worldLandmarks, HN = res && (res.handedness || res.handednesses);
+    if (!L || !L.length || !WL || !WL.length) { this.seen = false; return; }
+    // 一番大きく映っている手（追跡中なら近い方）を選ぶ
+    let best = -1, bs = -1e9;
+    for (let i = 0; i < L.length; i++) {
+      const l = L[i]; let x0 = 1, x1 = 0, y0 = 1, y1 = 0;
+      for (const p of l) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+      let s = (x1 - x0) * (y1 - y0);
+      if (this.prevWrist) s -= Math.hypot(l[0].x - this.prevWrist.x, l[0].y - this.prevWrist.y) * 0.5;
+      if (s > bs) { bs = s; best = i; }
+    }
+    const lm = L[best], wl = WL[best];
+    this.prevWrist = { x: lm[0].x, y: lm[0].y };
+    const f = SET.fov * Math.max(vw, vh);
+    const T = solveHand(lm, wl, vw, vh, f);
+    if (!T) { this.seen = false; return; }
+    // 右手か左手か（MediaPipeは自撮りの鏡像を前提にしているので、背面カメラでは逆）
+    const cat = HN && HN[best] && HN[best][0];
+    if (cat) { const r = cat.categoryName === 'Left' ? 1 : -1; this.chi = clamp(this.chi * 0.9 + r * cat.score, -3, 3); }
+    const tx = this.fT[0].filter(T[0] * 100, t), ty = this.fT[1].filter(T[1] * 100, t), tz = this.fT[2].filter(T[2] * 100, t);
+    this.speed = Math.hypot(this.fT[0].dx, this.fT[1].dx, this.fT[2].dx * 0.5);
+    for (let i = 0; i < 21; i++) {
+      const wx = this.fW[i * 3].filter(wl[i].x * 100, t), wy = this.fW[i * 3 + 1].filter(wl[i].y * 100, t), wz = this.fW[i * 3 + 2].filter(wl[i].z * 100, t);
+      this.P[i].set(tx + wx, -(ty + wy), -(tz + wz));      // カメラ空間（x右・y上・z手前）cm
+    }
+    this.seen = true; this.seenT = t; this.vw = vw; this.vh = vh;
+  },
+  reset() { this.fT.forEach(f => f.reset()); this.fW.forEach(f => f.reset()); this.chi = 0; this.prevWrist = null; },
+};
+
+/* 手の座標系 */
+const HF = { O: new THREE.Vector3(), X: new THREE.Vector3(), Y: new THREE.Vector3(), N: new THREE.Vector3(), M: new THREE.Matrix4(), palmLen: 9, facing: 1, prevO: null, speed: 0, fastT: 0 };
+function computeHandFrame(dt) {
+  const P = TR.P;
+  HF.O.copy(P[5]).add(P[9]).add(P[13]).add(P[17]).multiplyScalar(0.125).addScaledVector(P[0], 0.5);
+  // 手のひらの中心がどれだけ速く動いたか（手を返す回転では小さい）
+  if (HF.prevO && dt > 0) { const sp = HF.prevO.distanceTo(HF.O) / dt; HF.speed = lerp(HF.speed, sp, 1 - Math.exp(-10 * dt)); }
+  HF.prevO = (HF.prevO || new THREE.Vector3()).copy(HF.O);
+  HF.Y.subVectors(P[9], P[0]); HF.palmLen = HF.Y.length(); HF.Y.normalize();
+  _a.subVectors(P[5], P[0]); _b.subVectors(P[17], P[0]);
+  HF.N.crossVectors(_a, _b).normalize();
+  const isRight = (TR.chi >= 0) !== SET.flip;
+  if (!isRight) HF.N.negate();                          // N = 手のひらから外へ向く向き
+  HF.X.crossVectors(HF.Y, HF.N).normalize();
+  HF.N.crossVectors(HF.X, HF.Y).normalize();
+  HF.M.makeBasis(HF.X, HF.Y, HF.N).setPosition(HF.O);
+  HF.facing = HF.N.dot(_a.copy(HF.O).negate()) > 0 ? 1 : -1;   // +1: 手のひらがカメラ側
+  let tip = 0; for (const i of [8, 12, 16, 20]) tip += P[i].distanceTo(HF.O);
+  TR.fist = tip / 4 / HF.palmLen;                       // 開いた手 ≈1.2、グー ≈0.5
+}
+
+/* ---------- 蝶のふるまい ---------- */
+const S = { mode: 'intro', t: 0, phase: 0, glide: 0, side: 1, pos: new THREE.Vector3(0, 5, -40), vel: new THREE.Vector3(), q: new THREE.Quaternion(),
+  perchPos: new THREE.Vector3(), perchQ: new THREE.Quaternion(), from: { p: new THREE.Vector3(), q: new THREE.Quaternion() },
+  theta: 1.2, open: 0, openT: 4, respawn: 1.2, hinted: false, target: new THREE.Vector3(), exit: new THREE.Vector3(), fistT: 0, seed: Math.random() * 100 };
+function wander(t, s) {
+  return _v.set(Math.sin(t * 1.3 + s) + 0.5 * Math.sin(t * 2.9 + s * 2), 0.7 * Math.sin(t * 1.7 + s * 3) + 0.4 * Math.sin(t * 3.7 + s), Math.sin(t * 1.1 + s * 5) * 0.6);
+}
+function lookQuat(fwd, up, out) {
+  const z = _a.copy(fwd).normalize(), x = _b.crossVectors(up, z);
+  if (x.lengthSq() < 1e-6) x.set(1, 0, 0); x.normalize();
+  const y = _s.crossVectors(z, x).normalize();
+  return out.setFromRotationMatrix(_m.makeBasis(x, y, z));
+}
+function choosePerch() {
+  S.side = HF.facing;                                         // 今カメラを向いている面にとまる
+  S.perchPos.set(rand(-0.6, 0.6), rand(-0.4, 0.9), S.side * (HAND_HALF + PERCH_H));
+  const a = rand(-0.9, 0.9) + (Math.random() < 0.25 ? Math.PI : 0);
+  const up = new THREE.Vector3(0, 0, S.side), fwd = new THREE.Vector3(Math.sin(a), Math.cos(a), 0);
+  lookQuat(fwd, up, S.perchQ);
+}
+const _pw = new THREE.Vector3(), _qw = new THREE.Quaternion(), _hq = new THREE.Quaternion();
+function perchWorld(outP, outQ) {
+  outP.copy(S.perchPos).applyMatrix4(HF.M);
+  _hq.setFromRotationMatrix(HF.M);
+  outQ.copy(_hq).multiply(S.perchQ);
+}
+function spawnPoint() {
+  const z = HF.O.z + rand(-6, 6), d = -z, halfH = d * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2), halfW = halfH * camera.aspect;
+  const e = (Math.random() * 4) | 0, k = 1.35;
+  if (e === 0) return new THREE.Vector3(-halfW * k, rand(-halfH, halfH) * 0.6, z);
+  if (e === 1) return new THREE.Vector3(halfW * k, rand(-halfH, halfH) * 0.6, z);
+  if (e === 2) return new THREE.Vector3(rand(-halfW, halfW) * 0.7, halfH * k, z);
+  return new THREE.Vector3(rand(-halfW, halfW) * 0.7, rand(0.2, 0.6) * halfH, z + 25);
+}
+function setMode(m) { S.mode = m; S.t = 0; updateStatus(); }
+
+function flyToward(target, speed, dt, wanderAmp) {
+  const d = _a.subVectors(target, S.pos), dist = d.length();
+  const want = d.normalize().multiplyScalar(Math.min(speed, dist * 2.2 + 4));
+  want.add(wander(S.t * 1.4, S.seed).multiplyScalar(wanderAmp));
+  S.vel.lerp(want, 1 - Math.exp(-2.6 * dt));
+  S.pos.addScaledVector(S.vel, dt);
+  // 向き：進む方向へ。横にゆれるとロール
+  const fwd = _b.copy(S.vel); if (fwd.lengthSq() < 1) fwd.set(0, 0, -1);
+  fwd.y *= 0.5;
+  lookQuat(fwd, YUP, _qw);
+  S.q.slerp(_qw, 1 - Math.exp(-5 * dt));
+  return dist;
+}
+function flap(dt, freq) {
+  S.phase += dt * Math.PI * 2 * freq;
+  if (S.glide > 0) { S.glide -= dt; S.theta = lerp(S.theta, 0.12, 1 - Math.exp(-10 * dt)); return; }
+  if (Math.random() < dt * 0.35) S.glide = rand(0.2, 0.45);
+  const s = Math.sin(S.phase);
+  S.theta = 0.38 + 1.0 * Math.sign(s) * Math.pow(Math.abs(s), 0.75);
+}
+
+function update(dt, now) {
+  S.t += dt;
+  const hand = TR.seen;
+  if (hand) { TR.lostT = 0; computeHandFrame(dt); } else { TR.lostT += dt; HF.prevO = null; HF.speed = 0; }
+  TR.stableT = hand && HF.speed < 25 && TR.fist > 0.75 ? TR.stableT + dt : 0;
+  HAND.valid = hand;
+  if (hand) updateHandMeshes(TR.P, HF.N, HF.O);
+  setHandVisible(hand);
+  applyHandMaterial();
+  let visible = true, sweep = 0;
+  switch (S.mode) {
+    case 'intro': {                                   // スタート画面：その場でひらひら
+      const tgt = _pw.set(Math.sin(S.t * 0.6) * 2.5, 5.5 + Math.sin(S.t * 0.9) * 1.2, -42);
+      flyToward(tgt, 12, dt, 4);
+      lookQuat(_b.set(Math.sin(S.t * 0.35), 0.15, Math.cos(S.t * 0.35)), YUP, _qw); S.q.slerp(_qw, 1 - Math.exp(-2 * dt));
+      flap(dt, 4.6); sweep = Math.sin(S.phase) * 0.12;
+      break;
+    }
+    case 'wait':                                      // 手が落ち着くのを待つ
+      visible = false;
+      S.respawn -= dt;
+      if (S.respawn <= 0 && TR.stableT > 0.9) { S.pos.copy(spawnPoint()); S.vel.set(0, 0, 0); S.q.identity(); choosePerch(); setMode('enter'); }
+      break;
+    case 'enter': {                                   // 画面の外から近づく
+      if (TR.lostT > 1.5) { startLeave(); break; }
+      if (hand) { S.side = HF.facing; S.perchPos.z = S.side * (HAND_HALF + PERCH_H); const up = _s.set(0, 0, S.side); const f0 = _b.set(0, 1, 0).applyQuaternion(S.perchQ); lookQuat(_a.set(f0.x, f0.y, 0), up, S.perchQ); }
+      perchWorld(_pw, _qw);
+      // 手の上でくるっと回ってから降りる（回る半径はだんだん小さく）
+      const rr = 6 * clamp(1 - (S.t - 1.2) / 3, 0, 1), ang = S.t * 2.1;
+      const hover = S.target.copy(_pw).addScaledVector(HF.N, S.side * 6).add(_a.set(0, 2.5, 0))
+        .addScaledVector(HF.X, Math.cos(ang) * rr).addScaledVector(HF.Y, Math.sin(ang) * rr * 0.6);
+      const dist = flyToward(hover, 26, dt, dist0(hover) > 12 ? 12 : 4);
+      flap(dt, 5.2); sweep = Math.sin(S.phase + 1) * 0.15;
+      if (dist < 2.2 && rr < 0.5 && hand && HF.speed < 20 && TR.fist > 0.75 && S.t > 2.5) {
+        S.from.p.copy(S.pos); S.from.q.copy(S.q); setMode('land');
+      }
+      break;
+    }
+    case 'land': {                                    // ふわっと降りる
+      if (!hand && TR.lostT > 0.4) { startLeave(); break; }
+      perchWorld(_pw, _qw);
+      const k = smooth(clamp(S.t / 1.1, 0, 1));
+      S.pos.lerpVectors(S.from.p, _pw, k).addScaledVector(HF.N, S.side * Math.sin(k * Math.PI) * 1.2);
+      S.q.slerpQuaternions(S.from.q, _qw, k);
+      if (k < 0.75) { flap(dt, lerp(5, 2.5, k)); sweep = Math.sin(S.phase) * 0.1; } else S.theta = lerp(S.theta, 1.35, 1 - Math.exp(-6 * dt));
+      if (k >= 1) { S.open = 0; S.openT = rand(1.2, 2); setMode('perch'); }
+      break;
+    }
+    case 'perch': {                                   // とまっている：手の面に固定
+      if (hand) { perchWorld(S.pos, S.q); }
+      visible = TR.lostT < 0.25;
+      if (TR.lostT > 3) { setMode('wait'); S.respawn = 1; break; }
+      if (hand) {
+        S.fistT = TR.fist < 0.72 ? S.fistT + dt : 0;
+        HF.fastT = HF.speed > 110 ? HF.fastT + dt : 0;
+        if (S.fistT > 0.12 || HF.fastT > 0.08) { startLeave(true); break; }
+      }
+      // 翅：ふだんは半開きでゆっくり開け閉め。ときどきぴったり閉じて裏の目玉もようを見せる
+      S.openT -= dt;
+      if (S.openT <= 0) { S.open = S.open === 1 ? 0 : 1; S.openT = S.open === 1 ? rand(6, 11) : rand(1.6, 3); }
+      const breathe = 0.55 + 0.42 * Math.sin(S.t * 1.25) * Math.sin(S.t * 0.37 + 1);
+      const targetTheta = S.open === 1 ? breathe : 1.42 + Math.sin(S.t * 1.7) * 0.03;
+      S.theta = lerp(S.theta, targetTheta, 1 - Math.exp(-2.4 * dt));
+      if (!S.hinted && S.t > 3) { S.hinted = true; status('そっと手を返すと、向こう側に隠れるよ', 'on'); }
+      break;
+    }
+    case 'leave': {                                   // 飛び去る
+      flyToward(S.exit, 48, dt, 8);
+      flap(dt, 6); sweep = Math.sin(S.phase + 1) * 0.15;
+      if (S.t > 3.5) { setMode('wait'); S.respawn = rand(3.5, 6); }
+      break;
+    }
+  }
+  setWings(S.theta, sweep);
+  BF.root.position.copy(S.pos); BF.root.quaternion.copy(S.q);
+  BF.root.scale.setScalar(SET.size);
+  const flying = S.mode === 'enter' || S.mode === 'leave' || S.mode === 'intro' || (S.mode === 'land' && S.t < 0.8);
+  BF.bob.position.y = flying ? -Math.sin(S.phase) * 0.35 : 0;
+  const tw = Math.sin(S.t * 2.3) * 0.05;
+  BF.antL.rotation.x = tw; BF.antR.rotation.x = -tw * 0.8;
+  BF.root.visible = visible;
+  // 影のライトを蝶に合わせて動かす
+  key.target.position.copy(S.pos); key.position.copy(S.pos).addScaledVector(LIGHT_DIR, 30);
+  key.target.updateMatrixWorld();
+  key.castShadow = SET.shadow;
+}
+function dist0(p) { return S.pos.distanceTo(p); }
+function startLeave(scared) {
+  const up = _a.set(0, 0, S.side).applyQuaternion(_hq.setFromRotationMatrix(HF.M));
+  S.vel.copy(up).multiplyScalar(scared ? 30 : 15).add(_b.set(rand(-8, 8), 12, 0));
+  S.exit.set(rand(-1, 1) > 0 ? 60 : -60, rand(20, 50), S.pos.z - 10);
+  setMode('leave');
+}
+
+/* ---------- 画面の大きさとカメラ ---------- */
+let W = innerWidth, H = innerHeight;
+function updateProjection() {
+  W = innerWidth; H = innerHeight;
+  renderer.setSize(W, H, false);
+  if (S.mode === 'intro' || !TR.running) {
+    camera.clearViewOffset(); camera.fov = 55; camera.aspect = W / H; camera.updateProjectionMatrix(); return;
+  }
+  const vw = TR.vw, vh = TR.vh, f = SET.fov * Math.max(vw, vh);
+  camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(vh / 2 / f));
+  camera.aspect = vw / vh;
+  const s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s;      // object-fit: cover と同じ切り取り
+  camera.setViewOffset(dw, dh, (dw - W) / 2, (dh - H) / 2, W, H);
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', () => setTimeout(updateProjection, 60));
+updateProjection();
+
+/* ---------- 明るさを映像に合わせる ---------- */
+const probe = document.createElement('canvas'); probe.width = probe.height = 16;
+const pctx = probe.getContext('2d', { willReadFrequently: true });
+let lightT = 0;
+function estimateLight(dt) {
+  if ((lightT -= dt) > 0) return; lightT = 0.4;
+  const v = TR.video; if (MOCK || !TR.running || v.readyState < 2) return;
+  try {
+    pctx.drawImage(v, 0, 0, 16, 16);
+    const d = pctx.getImageData(0, 0, 16, 16).data; let r = 0, g = 0, b = 0;
+    for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
+    const n = d.length / 4; r /= n * 255; g /= n * 255; b /= n * 255;
+    const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b, k = clamp(lum / 0.42, 0.35, 1.35);
+    hemi.intensity = 1.6 * k; key.intensity = 2.2 * k;
+    const m = Math.max(r, g, b, 0.01); hemi.color.setRGB(lerp(1, r / m, 0.35), lerp(1, g / m, 0.35), lerp(1, b / m, 0.35));
+  } catch (e) {}
+}
+
+/* ---------- UI ---------- */
+function status(text, kind) { $('sTxt').textContent = text; $('sDot').className = 'd' + (kind ? ' ' + kind : ''); }
+function updateStatus() {
+  const m = S.mode;
+  if (m === 'wait') status(TR.seen ? 'そのまま手をかざしていて…' : 'スマホを持っていない方の手を映してね', TR.seen ? 'on' : '');
+  else if (m === 'enter') status('モルフォ蝶が近づいてきた…', 'fly');
+  else if (m === 'land') status('そっと…', 'fly');
+  else if (m === 'perch') status(S.side > 0 ? '手のひらにとまった' : '手の甲にとまった', 'on');
+  else if (m === 'leave') status('飛んでいった…', '');
+}
+let stT = 0;
+function uiTick(dt) { if ((stT -= dt) <= 0) { stT = 0.5; if (S.mode === 'wait') updateStatus(); } }
+
+$('go').onclick = async () => {
+  $('go').disabled = true; $('go').textContent = '準備中…';
+  try {
+    const ok = await TR.start(msg => { $('go').textContent = msg; });
+    if (!ok) throw new Error('start failed');
+    $('start').style.display = 'none'; $('status').style.display = 'flex'; $('bar').style.display = 'flex';
+    S.respawn = 1.2; setMode('wait'); updateProjection();
+  } catch (e) {
+    console.error(e);
+    $('go').disabled = false; $('go').textContent = 'もう一度ためす';
+    const er = $('err'); er.style.display = 'block';
+    er.textContent = 'カメラか手の検知を使えませんでした。ブラウザのカメラ許可を確認してください。';
+  }
+};
+function openSheet(id) { document.querySelectorAll('.sheet').forEach(s => s.classList.toggle('open', s.id === id)); }
+document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.sheet').classList.remove('open'));
+$('bSet').onclick = () => openSheet('setSheet');
+$('bInfo').onclick = () => openSheet('infoSheet');
+canvas.addEventListener('pointerdown', () => openSheet(''));
+(function bindSettings() {
+  const sz = $('sSize'), fv = $('sFov');
+  const show = () => { $('vSize').textContent = '×' + SET.size.toFixed(2); $('vFov').textContent = SET.fov.toFixed(2); };
+  sz.value = SET.size; fv.value = SET.fov; show();
+  sz.oninput = () => { SET.size = +sz.value; show(); persist(); };
+  fv.oninput = () => { SET.fov = +fv.value; show(); persist(); TR.reset(); updateProjection(); };
+  const tg = (id, k, fn) => { const el = $(id); el.checked = !!SET[k]; el.onchange = () => { SET[k] = el.checked; persist(); fn && fn(); }; };
+  tg('sShadow', 'shadow'); tg('sFlip', 'flip'); tg('sDebug', 'debug', () => { $('dbg').style.display = SET.debug ? 'block' : 'none'; });
+  $('dbg').style.display = SET.debug ? 'block' : 'none';
+})();
+
+/* 撮影：カメラ映像＋蝶を1枚に */
+let lastBlob = null;
+$('shot').onclick = () => {
+  render();
+  const dpr = Math.min(devicePixelRatio || 1, 2), c = document.createElement('canvas');
+  c.width = Math.round(W * dpr); c.height = Math.round(H * dpr);
+  const g = c.getContext('2d'), v = TR.video;
+  if (!MOCK && v.videoWidth) { const s = Math.max(c.width / v.videoWidth, c.height / v.videoHeight), dw = v.videoWidth * s, dh = v.videoHeight * s; g.drawImage(v, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh); }
+  else { const gr = g.createLinearGradient(0, 0, 0, c.height); gr.addColorStop(0, '#dfeeff'); gr.addColorStop(1, '#fff2f8'); g.fillStyle = gr; g.fillRect(0, 0, c.width, c.height); }
+  g.drawImage(renderer.domElement, 0, 0, c.width, c.height);
+  const fl = $('flash'); fl.style.transition = 'none'; fl.style.opacity = 0.85; requestAnimationFrame(() => { fl.style.transition = 'opacity .4s'; fl.style.opacity = 0; });
+  c.toBlob(b => { lastBlob = b; $('pImg').src = URL.createObjectURL(b); $('photo').style.display = 'flex'; }, 'image/jpeg', 0.92);
+};
+$('pClose').onclick = () => { $('photo').style.display = 'none'; };
+$('pSave').onclick = async () => {
+  if (!lastBlob) return;
+  const file = new File([lastBlob], 'tenori-cho.jpg', { type: 'image/jpeg' });
+  try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'てのり蝶' }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(lastBlob); a.download = 'tenori-cho.jpg'; document.body.appendChild(a); a.click(); a.remove();
+};
+
+/* ---------- テスト用の疑似の手（?mock） ---------- */
+const MOCK_HAND = [[0, 0, 0], [2.2, 1.5, 0.8], [3.6, 3.0, 1.4], [4.6, 4.3, 1.8], [5.4, 5.4, 2.0], [2.2, 8.5, 0], [2.5, 11.2, 0.2], [2.6, 13.0, 0.2], [2.7, 14.6, 0.1],
+  [0.3, 8.8, 0], [0.3, 11.8, 0.2], [0.3, 13.8, 0.2], [0.3, 15.5, 0.1], [-1.6, 8.4, 0], [-1.8, 11.0, 0.2], [-1.9, 12.9, 0.2], [-2.0, 14.4, 0.1],
+  [-3.3, 7.6, 0], [-3.7, 9.6, 0.2], [-3.9, 11.0, 0.2], [-4.1, 12.3, 0.1]];
+let mockAcc = 0;
+function mockFeed(dt) {
+  if ((mockAcc += dt) < 1 / 30) return; mockAcc = 0;
+  const M = Object.assign({ x: 0, y: -6, z: -34, rx: -0.35, ry: 0, rz: 0, fist: false, show: true }, window.__mockHand || {});
+  const vw = innerWidth > innerHeight ? 1280 : 720, vh = innerWidth > innerHeight ? 720 : 1280;
+  if (!M.show) { TR.process({ landmarks: [], worldLandmarks: [] }, performance.now() / 1000, vw, vh); return; }
+  const R = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(M.rx, M.ry, M.rz, 'YXZ'));
+  const pts = MOCK_HAND.map((p, i) => {
+    const v = new THREE.Vector3(...p);
+    if (M.fist && i > 5 && i % 4 !== 1) { const base = new THREE.Vector3(...MOCK_HAND[i - ((i - 1) % 4)]); v.lerp(base, 0.85); v.y -= 2.5; v.z += 3; }
+    return v.applyMatrix4(R).add(new THREE.Vector3(M.x, M.y, M.z));
+  });
+  const c = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / 21);
+  const f = SET.fov * Math.max(vw, vh);
+  const lm = pts.map(p => ({ x: (vw / 2 + f * p.x / -p.z) / vw, y: (vh / 2 - f * p.y / -p.z) / vh, z: 0 }));
+  const wl = pts.map(p => ({ x: (p.x - c.x) / 100, y: -(p.y - c.y) / 100, z: -(p.z - c.z) / 100 }));
+  TR.process({ landmarks: [lm], worldLandmarks: [wl], handedness: [[{ categoryName: 'Left', score: 0.95 }]] }, performance.now() / 1000, vw, vh);
+}
+
+/* ---------- ループ ---------- */
+function render() { renderer.render(scene, camera); }
+let last = performance.now(), dbgT = 0;
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  step(dt, now);
+  render();
+}
+function step(dt, now) {
+  if (TR.poll && TR.running) TR.detect(now);
+  if (MOCK && TR.running) mockFeed(dt);
+  if (TR.running && (Math.abs(camera.aspect - TR.vw / TR.vh) > 0.01)) updateProjection();
+  estimateLight(dt);
+  update(dt, now);
+  uiTick(dt);
+  if (SET.debug && (dbgT += dt) > 0.25) {
+    dbgT = 0;
+    $('dbg').textContent = `mode ${S.mode}  side ${S.side}\nhand ${TR.seen ? 'yes' : 'no'}  det ${TR.detMs.toFixed(1)}ms\nO ${HF.O.x.toFixed(1)} ${HF.O.y.toFixed(1)} ${HF.O.z.toFixed(1)}cm\nfacing ${HF.facing}  chi ${TR.chi.toFixed(2)}\nfist ${TR.fist.toFixed(2)}  speed ${HF.speed.toFixed(0)}\nvideo ${TR.vw}x${TR.vh}`;
+  }
+}
+requestAnimationFrame(frame);
+window.__tenori = { S, TR, HF, SET, step: (sec) => { const n = Math.round(sec / 0.02); for (let i = 0; i < n; i++) step(0.02, performance.now()); }, render, startMock: () => $('go').click() };
+</script>
+</body>
+</html>
