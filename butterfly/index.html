@@ -160,15 +160,16 @@ const DEF = { size: 1, fov: 0.8, shadow: true, flip: false, debug: false };
 const SET = Object.assign({}, DEF, load('tenori.set', {}));
 const persist = () => store('tenori.set', SET);
 
-/* ---------- 羽の画像（Geminiの写真から背景を抜いたもの） ---------- */
-const IMG = {
-  top:   { url: 'morpho_top.webp',   w: 895, h: 655, xc: 447,   x0: 6, x1: 888, y0: 6, y1: 648, by0: 261, by1: 479 },
-  under: { url: 'morpho_under.webp', w: 896, h: 661, xc: 447.5, x0: 6, x1: 889, y0: 6, y1: 654, by0: 259, by1: 486 },
-};
+/* ---------- 羽の画像（Geminiの写真から背景を抜き、4枚に分けたもの） ---------- */
+// 表と裏は同じ配置。裏は表の羽の形に合わせて引きのばしてある。rx,ry は羽の根元
+const ATLAS = { top: 'morpho4_top.webp', under: 'morpho4_under.webp', w: 886, h: 746, wings: {
+  LF: { x0: 9, x1: 432, y0: 9, y1: 376, rx: 425, ry: 368, span: 416 },
+  RF: { x0: 454, x1: 877, y0: 9, y1: 376, rx: 462, ry: 368, span: 414 },
+  LH: { x0: 88, x1: 433, y0: 415, y1: 736, rx: 415, ry: 427, span: 327 },
+  RH: { x0: 455, x1: 799, y0: 415, y1: 736, rx: 469, ry: 429, span: 329 } } };
 const WINGSPAN = 12;               // 実際の大きさ(cm)
-const STRIP_PX = 19;               // 画像から抜いた胴体の帯（片側px）
-const PERCH_H = 0.78;              // とまっているときの胴体の高さ(cm)
 const HAND_HALF = 1.3;             // 手の厚みの半分(cm)
+let PERCH_H = 0.96;                // とまっているときの胴体の高さ(cm)（脚の形から計算しなおす）
 
 /* ---------- renderer ---------- */
 const canvas = $('gl');
@@ -200,86 +201,190 @@ const LIGHT_DIR = new THREE.Vector3(-0.35, 1, 0.45).normalize();
 
 /* ---------- 蝶 ---------- */
 const loader = new THREE.TextureLoader();
-function wingTex(m) { const t = loader.load(m.url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
-const TEX_TOP = wingTex(IMG.top), TEX_UNDER = wingTex(IMG.under);
-const MAT_TOP = new THREE.MeshPhysicalMaterial({ map: TEX_TOP, alphaTest: 0.5, alphaToCoverage: true, side: THREE.FrontSide, shadowSide: THREE.DoubleSide,
-  roughness: 0.55, metalness: 0, envMapIntensity: 0.35, specularColor: new THREE.Color('#5fb8ff'), specularIntensity: 0.8 });
-const MAT_UNDER = new THREE.MeshStandardMaterial({ map: TEX_UNDER, alphaTest: 0.5, alphaToCoverage: true, side: THREE.BackSide, roughness: 0.8, envMapIntensity: 0.35 });
-const MAT_BODY = new THREE.MeshPhysicalMaterial({ color: '#1c1713', roughness: 0.85, sheen: 1, sheenColor: new THREE.Color('#6b5a48'), sheenRoughness: 0.5 });
-const MAT_EYE = new THREE.MeshPhysicalMaterial({ color: '#2b241d', roughness: 0.2, clearcoat: 1, clearcoatRoughness: 0.1 });
-const MAT_LEG = new THREE.MeshStandardMaterial({ color: '#211b16', roughness: 0.6 });
+function atlasTex(url) { const t = loader.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
+const TEX_TOP = atlasTex(ATLAS.top), TEX_UNDER = atlasTex(ATLAS.under);
+const UNI = { grain: { value: 0.018 }, seed: { value: 0 }, lightDir: { value: new THREE.Vector3(0, 1, 0) } };   // 蝶の材質で共有
 
-function wingGeo(side, which) {     // side: +1 右の羽, -1 左の羽
-  const m = IMG[which], k = (m.x1 - m.x0) / WINGSPAN, yT = m.by0 + 0.3 * (m.by1 - m.by0), hs = STRIP_PX / k;
-  const span = (m.x1 - m.x0) / 2 / k - hs + 0.15;
-  const zF = (yT - m.y0) / k + 0.15, zB = (m.y1 - yT) / k + 0.15;
-  const NX = 18, NZ = 18, pos = [], uv = [], idx = [];
-  const mir = which === 'under' ? -1 : 1;     // 裏は下から見るので左右が入れかわる
-  for (let j = 0; j <= NZ; j++) {
-    const z = -zB + (zF + zB) * j / NZ;
-    for (let i = 0; i <= NX; i++) {
-      const x = span * i / NX;
-      pos.push(side * x, 0, z);
-      const px = m.xc + mir * side * (hs + x) * k, row = yT - z * k;
-      uv.push(px / m.w, 1 - row / m.h);
-    }
-  }
-  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
-    const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1;
-    if (side > 0) idx.push(a, c, b, b, c, d); else idx.push(a, b, c, b, d, c);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(idx); g.computeVertexNormals();
-  return g;
+// カメラ映像のざらつきに合わせる粒子
+function withGrain(mat, extra) {
+  mat.onBeforeCompile = sh => {
+    sh.uniforms.uGrain = UNI.grain; sh.uniforms.uSeed = UNI.seed;
+    sh.fragmentShader = 'uniform float uGrain;\nuniform float uSeed;\nfloat tnHash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }\n' +
+      sh.fragmentShader.replace('#include <dithering_fragment>', 'gl_FragColor.rgb += (tnHash(gl_FragCoord.xy + uSeed) - 0.5) * uGrain;\n#include <dithering_fragment>');
+    if (extra) extra(sh);
+  };
+  mat.customProgramCacheKey = () => 'tn-' + (extra ? extra.name : 'grain');
+  return mat;
 }
-const STRIP_CM = STRIP_PX / ((IMG.top.x1 - IMG.top.x0) / WINGSPAN);
+// モルフォの構造色：正面からは明るい青、斜めになるほど紫がかって暗く、光の反射方向でギラッと光る
+function morphoBlue(sh) {
+  sh.uniforms.uLightDir = UNI.lightDir;
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform vec3 uLightDir;')
+    .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+      float tnBlue = clamp((diffuseColor.b - max(diffuseColor.r, diffuseColor.g)) * 2.4, 0.0, 1.0);
+      vec3 tnV = normalize(vViewPosition);
+      float tnNV = clamp(dot(normal, tnV), 0.0, 1.0);
+      vec3 tnShift = mix(vec3(0.45, 0.32, 1.0), vec3(1.0), smoothstep(0.05, 0.65, tnNV));
+      float tnBright = mix(0.42, 1.1, smoothstep(0.02, 0.7, tnNV));
+      diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * tnShift * tnBright, tnBlue);`)
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      {
+        vec3 tnR = reflect(-tnV, normal);
+        float tnG = pow(clamp(dot(tnR, uLightDir), 0.0, 1.0), 5.0);
+        totalEmissiveRadiance += tnBlue * tnG * vec3(0.08, 0.38, 1.0) * 0.9;
+        float tnBack = clamp(dot(-normal, uLightDir), 0.0, 1.0) * (0.35 + 0.65 * (1.0 - tnNV));
+        totalEmissiveRadiance += diffuseColor.rgb * tnBack * 0.35;
+      }`);
+}
+// 裏側：逆光でうっすら透ける
+function wingUnder(sh) {
+  sh.uniforms.uLightDir = UNI.lightDir;
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform vec3 uLightDir;')
+    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+      {
+        vec3 tnV = normalize(vViewPosition);
+        float tnNV = clamp(dot(normal, tnV), 0.0, 1.0);
+        float tnBack = clamp(dot(-normal, uLightDir), 0.0, 1.0) * (0.35 + 0.65 * (1.0 - tnNV));
+        totalEmissiveRadiance += diffuseColor.rgb * tnBack * 0.3;
+      }`);
+}
+const MAT_TOP = withGrain(new THREE.MeshPhysicalMaterial({ map: TEX_TOP, alphaTest: 0.5, alphaToCoverage: true, side: THREE.FrontSide, shadowSide: THREE.DoubleSide,
+  roughness: 0.5, metalness: 0, envMapIntensity: 0.35, specularColor: new THREE.Color('#5fb8ff'), specularIntensity: 0.7 }), morphoBlue);
+const MAT_UNDER = withGrain(new THREE.MeshStandardMaterial({ map: TEX_UNDER, alphaTest: 0.5, alphaToCoverage: true, side: THREE.BackSide, roughness: 0.8, envMapIntensity: 0.35 }), wingUnder);
+const MAT_GHOST_T = new THREE.MeshBasicMaterial({ map: TEX_TOP, color: '#c8d6e8', transparent: true, opacity: 0.2, depthWrite: false, alphaTest: 0.4, side: THREE.FrontSide });
+const MAT_GHOST_U = new THREE.MeshBasicMaterial({ map: TEX_UNDER, color: '#c8c0b8', transparent: true, opacity: 0.2, depthWrite: false, alphaTest: 0.4, side: THREE.BackSide });
+const MAT_BODY = withGrain(new THREE.MeshPhysicalMaterial({ color: '#2a2019', roughness: 0.85, sheen: 1, sheenColor: new THREE.Color('#8a7560'), sheenRoughness: 0.5 }));
+const MAT_PALP = withGrain(new THREE.MeshPhysicalMaterial({ color: '#4a3a2c', roughness: 0.9, sheen: 1, sheenColor: new THREE.Color('#b39a7c'), sheenRoughness: 0.45 }));
+const MAT_LEG = withGrain(new THREE.MeshStandardMaterial({ color: '#241c16', roughness: 0.6 }));
+// 毛：点のまばらなテクスチャを殻にして重ねる
+const FUR_TEX = (() => {
+  const N = 64, d = new Uint8Array(N * N * 4);
+  for (let i = 0; i < N * N; i++) { const v = Math.random() ** 1.6 * 255; d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = v; d[i * 4 + 3] = 255; }
+  const t = new THREE.DataTexture(d, N, N, THREE.RGBAFormat); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(7, 5); t.needsUpdate = true; return t;
+})();
+const FUR_MATS = [0.22, 0.34, 0.46, 0.58, 0.7].map((th, i) => withGrain(new THREE.MeshStandardMaterial({ color: new THREE.Color('#2e231b').lerp(new THREE.Color('#5c4a3a'), i / 5), roughness: 1, alphaMap: FUR_TEX, alphaTest: th })));
+// 複眼：つぶつぶの光る目
+const EYE_TEX = (() => {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#2a2017'; g.fillRect(0, 0, 256, 128);
+  for (let y = 0; y < 128; y += 5) for (let x = (y / 5 % 2) * 2.5; x < 256; x += 5) { g.fillStyle = `rgba(120,96,70,${0.25 + Math.random() * 0.3})`; g.beginPath(); g.arc(x, y, 1.6, 0, 7); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+})();
+const MAT_EYE = withGrain(new THREE.MeshPhysicalMaterial({ map: EYE_TEX, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08 }));
+const BLOB_TEX = (() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const rg = g.createRadialGradient(64, 64, 0, 64, 64, 64); rg.addColorStop(0, 'rgba(255,255,255,1)'); rg.addColorStop(0.5, 'rgba(255,255,255,.45)'); rg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = rg; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+})();
 
-function tube(points, r, mat, parent) {
+const K_PX = (ATLAS.wings.LF.span + ATLAS.wings.RF.span) / 2 / (WINGSPAN / 2 - 0.22);   // 画像のpx / cm
+function makeWing(name) {
+  const m = ATLAS.wings[name], side = name[0] === 'R' ? 1 : -1, NX = 20, NZ = 18;
+  const pos = [], uv = [], base = [], idx = [];
+  let zMin = 1e9, zMax = -1e9, span = 0;
+  for (let j = 0; j <= NZ; j++) for (let i = 0; i <= NX; i++) {
+    const px = m.x0 + (m.x1 - m.x0) * i / NX, py = m.y0 + (m.y1 - m.y0) * j / NZ;
+    const x = side * (px - m.rx) / K_PX, z = (m.ry - py) / K_PX;     // x：根元から外へ、z：頭の方向
+    base.push(x, z); pos.push(side * x, 0, z); uv.push(px / ATLAS.w, 1 - py / ATLAS.h);
+    zMin = Math.min(zMin, z); zMax = Math.max(zMax, z); span = Math.max(span, x);
+  }
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = j * (NX + 1) + i, b = a + 1, c = a + NX + 1, d = c + 1; idx.push(a, b, c, b, d, c); }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx); geo.computeVertexNormals();
+  return { name, side, fore: name[1] === 'F', geo, base: new Float32Array(base), span, zMin, zMax, zMid: (zMin + zMax) / 2, bend: 9, twist: 9, camber: name[1] === 'F' ? 0.07 : 0.1 };
+}
+// 羽のしなり：先ほど大きく曲がる＋前後のねじれ＋ゆるいふくらみ
+function bendWing(w, bend, twist) {
+  if (Math.abs(bend - w.bend) < 0.004 && Math.abs(twist - w.twist) < 0.004) return;
+  w.bend = bend; w.twist = twist;
+  const p = w.geo.attributes.position, b = w.base, S = w.span, zr = w.zMax - w.zMin;
+  for (let i = 0, n = p.count; i < n; i++) {
+    const x = b[i * 2], z = b[i * 2 + 1], u = Math.max(0, x) / S;
+    const cam = w.camber * Math.sin(clamp((z - w.zMin) / zr, 0, 1) * Math.PI) * Math.min(1, u * 3);
+    p.setY(i, bend * u * u * S * 0.3 + twist * u * (z - w.zMid) * 0.35 + cam);
+  }
+  p.needsUpdate = true; w.geo.computeVertexNormals();
+}
+function tube(points, r, mat, parent, cast = true) {
   const c = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
-  const m = new THREE.Mesh(new THREE.TubeGeometry(c, 20, r, 6, false), mat); m.castShadow = true; parent.add(m); return m;
+  const m = new THREE.Mesh(new THREE.TubeGeometry(c, 24, r, 6, false), mat); m.castShadow = cast; parent.add(m); return m;
 }
+function segGeo(len, r0, r1) { const g = new THREE.CylinderGeometry(r1, r0, len, 6, 1); g.rotateZ(-Math.PI / 2); g.translate(len / 2, 0, 0); return g; }
+
 function buildButterfly() {
-  const root = new THREE.Group();          // 位置・向き（とまっている面に合わせる）
-  const bob = new THREE.Group(); root.add(bob);
-  const B = { root, bob, wings: [], antL: null, antR: null };
-  // 胴体
-  const th = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), MAT_BODY); th.scale.set(0.32, 0.3, 0.6); th.position.set(0, 0, 0.05); th.castShadow = true; bob.add(th);
-  const hd = new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 12), MAT_BODY); hd.position.set(0, 0.03, 0.72); hd.castShadow = true; bob.add(hd);
-  for (const s of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 12), MAT_EYE); e.position.set(s * 0.15, 0.07, 0.78); bob.add(e); }
-  const prof = [[0.001, 0], [0.17, 0.08], [0.23, 0.45], [0.22, 1.0], [0.17, 1.5], [0.09, 1.82], [0.001, 1.92]].map(([x, y]) => new THREE.Vector2(x, y));
-  const abG = new THREE.LatheGeometry(new THREE.SplineCurve(prof).getPoints(24), 16); abG.rotateX(-Math.PI / 2);
-  const ab = new THREE.Mesh(abG, MAT_BODY); ab.position.set(0, -0.03, -0.32); ab.castShadow = true; bob.add(ab);
-  // 触角（先がふくらむ）
+  const root = new THREE.Group(), bob = new THREE.Group(); root.add(bob);
+  const B = { root, bob, wings: [], legs: [], antL: null, antR: null, prob: null, blob: null };
+  const add = (geo, mat, x, y, z, parent = bob, cast = true) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = cast; parent.add(m); return m; };
+  // 胸：毛の殻を重ねてふわっと
+  add(new THREE.SphereGeometry(1, 28, 18), MAT_BODY, 0, 0, 0.1).scale.set(0.3, 0.29, 0.56);
+  FUR_MATS.forEach((mt, k) => add(new THREE.SphereGeometry(1, 24, 16), mt, 0, 0, 0.1, bob, false).scale.set(0.3 + (k + 1) * 0.028, 0.29 + (k + 1) * 0.028, 0.56 + (k + 1) * 0.022));
+  // 頭と複眼
+  add(new THREE.SphereGeometry(0.22, 20, 14), MAT_BODY, 0, 0.02, 0.72);
+  FUR_MATS.slice(0, 3).forEach((mt, k) => add(new THREE.SphereGeometry(0.22 + (k + 1) * 0.022, 18, 12), mt, 0, 0.03, 0.7, bob, false));
+  for (const s of [-1, 1]) { const e = add(new THREE.SphereGeometry(0.14, 22, 16), MAT_EYE, s * 0.15, 0.06, 0.79); e.rotation.y = s * 0.9; }
+  // 下唇ひげ（顔の前に突き出た毛のふさ）
+  for (const s of [-1, 1]) tube([[s * 0.045, -0.12, 0.8], [s * 0.06, -0.09, 0.98], [s * 0.05, 0.02, 1.12]], 0.042, MAT_PALP, bob);
+  // 腹：節のある細長い形
+  {
+    const L = 1.95, pts = [];
+    for (let i = 0; i <= 64; i++) {
+      const t = i / 64 * L, r0 = 0.225 * Math.pow(Math.sin(Math.PI * Math.min(1, (t + 0.12) / (L + 0.12))), 0.55);
+      const ring = 0.93 + 0.07 * Math.pow(Math.abs(Math.sin(Math.PI * t / 0.27)), 0.5);
+      pts.push(new THREE.Vector2(Math.max(0.001, r0 * ring), t));
+    }
+    const g = new THREE.LatheGeometry(pts, 18); g.rotateX(-Math.PI / 2);
+    add(g, MAT_BODY, 0, -0.04, -0.3);
+  }
+  // 触角（細く、先がふくらむ）
   for (const s of [-1, 1]) {
     const g = new THREE.Group(); g.position.set(s * 0.07, 0.17, 0.86); bob.add(g);
-    tube([[0, 0, 0], [s * 0.25, 0.42, 1.0], [s * 0.48, 0.75, 2.0], [s * 0.56, 0.86, 2.45]], 0.022, MAT_LEG, g);
-    const club = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), MAT_LEG); club.scale.set(0.045, 0.045, 0.13); club.position.set(s * 0.55, 0.85, 2.42); club.lookAt(s * 0.6, 0.9, 2.6); g.add(club);
+    tube([[0, 0, 0], [s * 0.25, 0.42, 1.0], [s * 0.48, 0.75, 2.0], [s * 0.56, 0.86, 2.42]], 0.016, MAT_LEG, g);
+    const club = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), MAT_LEG); club.scale.set(0.036, 0.036, 0.12); club.position.set(s * 0.55, 0.85, 2.38); club.lookAt(s * 0.6, 0.9, 2.6); g.add(club);
     if (s < 0) B.antL = g; else B.antR = g;
   }
-  // 脚（モルフォは前脚が小さいので4本）
-  for (const s of [-1, 1]) for (const z0 of [0.12, -0.18]) {
-    const zf = z0 > 0 ? 0.55 : -0.5;
-    tube([[s * 0.15, -0.22, z0], [s * 0.5, -0.32, z0 + zf * 0.4], [s * 0.72, -0.58, z0 + zf * 0.75], [s * 0.82, -PERCH_H + 0.03, z0 + zf]], 0.026, MAT_LEG, bob);
+  // 脚：関節つきの4本（モルフォは前脚が小さく、歩くのは4本）
+  const LEN = [0.45, 0.62, 0.42], A = [0.35, -0.95, -1.35];
+  PERCH_H = 0.2 - (LEN[0] * Math.sin(A[0]) + LEN[1] * Math.sin(A[1]) + LEN[2] * Math.sin(A[2]));
+  for (const [z0, spread] of [[0.18, 0.5], [-0.12, -0.62]]) for (const side of [-1, 1]) {
+    const g = new THREE.Group(); g.position.set(side * 0.13, -0.2, z0); bob.add(g);
+    const yaw0 = side > 0 ? -spread : Math.PI + spread;
+    g.rotation.y = yaw0;
+    const f = new THREE.Group(); g.add(f); f.add(new THREE.Mesh(segGeo(LEN[0], 0.03, 0.026), MAT_LEG));
+    const t = new THREE.Group(); t.position.x = LEN[0]; f.add(t); t.add(new THREE.Mesh(segGeo(LEN[1], 0.024, 0.02), MAT_LEG));
+    const ta = new THREE.Group(); ta.position.x = LEN[1]; t.add(ta); ta.add(new THREE.Mesh(segGeo(LEN[2], 0.017, 0.012), MAT_LEG));
+    [f, t, ta].forEach(o => o.children.forEach(m => { if (m.isMesh) m.castShadow = true; }));
+    B.legs.push({ g, f, t, ta, side, spread, yaw0, A, gait: (z0 > 0) === (side > 0) ? 1 : 0, fold: 0 });   // 対角の2本ずつ交互に
   }
-  // 羽（表と裏を別々に貼った板）
-  for (const s of [1, -1]) {
-    const pivot = new THREE.Group(); pivot.position.set(s * STRIP_CM, 0.12, 0); bob.add(pivot);
-    const hinge = new THREE.Group(); pivot.add(hinge);
-    const top = new THREE.Mesh(wingGeo(s, 'top'), MAT_TOP); top.castShadow = true;
-    const und = new THREE.Mesh(wingGeo(s, 'under'), MAT_UNDER);
-    hinge.add(top, und);
-    B.wings.push({ s, pivot, hinge });
+  // 口（ゼンマイ）：小さな球を並べた細い管
+  B.prob = new THREE.InstancedMesh(new THREE.SphereGeometry(1, 8, 6), MAT_LEG, 64); B.prob.frustumCulled = false; bob.add(B.prob);
+  // 足もとのやわらかい影
+  B.blob = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 3.4), new THREE.MeshBasicMaterial({ color: '#000', alphaMap: BLOB_TEX, transparent: true, opacity: 0.38, depthWrite: false }));
+  B.blob.rotation.x = -Math.PI / 2; B.blob.position.set(0, -PERCH_H + 0.03, -0.25); B.blob.renderOrder = 2; bob.add(B.blob);
+  // 羽：前翅と後翅を別々に。根元に蝶番、そこで羽ばたく
+  for (const name of ['RF', 'LF', 'RH', 'LH']) {
+    const w = makeWing(name), fore = w.fore;
+    const pivot = new THREE.Group(); pivot.position.set(w.side * 0.22, fore ? 0.17 : 0.12, fore ? 0.24 : -0.04); bob.add(pivot);
+    // 蝶番で羽ばたき（flap）→ 羽の面の中での前後の角度（plane）
+    const flap = new THREE.Group(); pivot.add(flap);
+    const plane = new THREE.Group(); flap.add(plane);
+    const top = new THREE.Mesh(w.geo, MAT_TOP), und = new THREE.Mesh(w.geo, MAT_UNDER);
+    top.castShadow = true; plane.add(top, und);
+    w.ghosts = [0, 1].map(() => {        // 羽ばたきのブレ用の残像
+      const g = new THREE.Group(), gp = new THREE.Group(); g.visible = false; pivot.add(g); g.add(gp);
+      gp.add(new THREE.Mesh(w.geo, MAT_GHOST_T), new THREE.Mesh(w.geo, MAT_GHOST_U)); g.userData.plane = gp; return g;
+    });
+    w.flap = flap; w.plane = plane;
+    B.wings.push(w);
   }
   root.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
   scene.add(root);
   return B;
 }
 const BF = buildButterfly();
-function setWings(theta, sweep) {
-  for (const w of BF.wings) { w.hinge.rotation.z = w.s * theta; w.pivot.rotation.y = -w.s * sweep; }
-}
 
 /* ---------- 手の見えない板（奥行きだけ書く）と影受け ---------- */
 const HAND = { valid: false };
@@ -488,7 +593,7 @@ const TR = {
 };
 
 /* 手の座標系 */
-const HF = { O: new THREE.Vector3(), X: new THREE.Vector3(), Y: new THREE.Vector3(), N: new THREE.Vector3(), M: new THREE.Matrix4(), palmLen: 9, facing: 1, prevO: null, speed: 0, fastT: 0 };
+const HF = { O: new THREE.Vector3(), X: new THREE.Vector3(), Y: new THREE.Vector3(), N: new THREE.Vector3(), M: new THREE.Matrix4(), q: new THREE.Quaternion(), prevQ: null, angVel: 0, palmLen: 9, facing: 1, prevO: null, speed: 0, fastT: 0 };
 function computeHandFrame(dt) {
   const P = TR.P;
   HF.O.copy(P[5]).add(P[9]).add(P[13]).add(P[17]).multiplyScalar(0.125).addScaledVector(P[0], 0.5);
@@ -503,36 +608,62 @@ function computeHandFrame(dt) {
   HF.X.crossVectors(HF.Y, HF.N).normalize();
   HF.N.crossVectors(HF.X, HF.Y).normalize();
   HF.M.makeBasis(HF.X, HF.Y, HF.N).setPosition(HF.O);
+  HF.q.setFromRotationMatrix(HF.M);
+  // 手の回る速さ（rad/s）
+  if (HF.prevQ && dt > 0) { const w = 2 * Math.acos(Math.min(1, Math.abs(HF.prevQ.dot(HF.q)))) / dt; HF.angVel = lerp(HF.angVel, w, 1 - Math.exp(-8 * dt)); }
+  HF.prevQ = (HF.prevQ || new THREE.Quaternion()).copy(HF.q);
   HF.facing = HF.N.dot(_a.copy(HF.O).negate()) > 0 ? 1 : -1;   // +1: 手のひらがカメラ側
   let tip = 0; for (const i of [8, 12, 16, 20]) tip += P[i].distanceTo(HF.O);
   TR.fist = tip / 4 / HF.palmLen;                       // 開いた手 ≈1.2、グー ≈0.5
 }
 
+/* ---------- 重力（スマホの傾きセンサー） ---------- */
+// カメラ空間（x右・y上・z手前）での「上」。センサーがない端末では画面の上を上とみなす
+const GRAV = { up: new THREE.Vector3(0, 1, 0), tgt: new THREE.Vector3(0, 1, 0), has: false };
+function onOrient(e) {
+  if (e.beta == null || e.gamma == null) return;
+  const b = THREE.MathUtils.degToRad(e.beta), g = THREE.MathUtils.degToRad(e.gamma);
+  const ux = -Math.cos(b) * Math.sin(g), uy = Math.sin(b), uz = Math.cos(b) * Math.cos(g);
+  const a = THREE.MathUtils.degToRad((screen.orientation && screen.orientation.angle) || window.orientation || 0);
+  GRAV.tgt.set(ux * Math.cos(a) - uy * Math.sin(a), ux * Math.sin(a) + uy * Math.cos(a), uz).normalize();
+  GRAV.has = true;
+}
+addEventListener('deviceorientation', onOrient);
+
 /* ---------- 蝶のふるまい ---------- */
 const S = { mode: 'intro', t: 0, phase: 0, glide: 0, side: 1, pos: new THREE.Vector3(0, 5, -40), vel: new THREE.Vector3(), q: new THREE.Quaternion(),
-  perchPos: new THREE.Vector3(), perchQ: new THREE.Quaternion(), from: { p: new THREE.Vector3(), q: new THREE.Quaternion() },
-  theta: 1.2, open: 0, openT: 4, respawn: 1.2, hinted: false, occ: true, target: new THREE.Vector3(), exit: new THREE.Vector3(), fistT: 0, seed: Math.random() * 100 };
+  px: 0, py: 0, yaw: 0, from: { p: new THREE.Vector3(), q: new THREE.Quaternion() },
+  theta: 1.2, thetaH: 1.2, omega: 0, open: 0, openT: 4, flutter: 0, bob: 0, pitch: 0,
+  walk: 0, walkDist: 0, walkYaw: 0, nextWalk: 8, legPhase: 0, prob: 0, probT: 0, probNext: 9, probWig: 0, hangT: 0,
+  respawn: 1.2, hinted: false, occ: true, target: new THREE.Vector3(), exit: new THREE.Vector3(), fistT: 0, seed: Math.random() * 100 };
+const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3(), tD = new THREE.Vector3(), tE = new THREE.Vector3(), tW = new THREE.Vector3(), tP = new THREE.Vector3();
+const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), mA = new THREE.Matrix4(), mI = new THREE.Matrix4();
+const angDiff = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 function wander(t, s) {
-  return _v.set(Math.sin(t * 1.3 + s) + 0.5 * Math.sin(t * 2.9 + s * 2), 0.7 * Math.sin(t * 1.7 + s * 3) + 0.4 * Math.sin(t * 3.7 + s), Math.sin(t * 1.1 + s * 5) * 0.6);
+  return tW.set(Math.sin(t * 1.3 + s) + 0.6 * Math.sin(t * 3.1 + s * 2), 0.8 * Math.sin(t * 1.7 + s * 3) + 0.5 * Math.sin(t * 4.3 + s), Math.sin(t * 1.1 + s * 5) * 0.7);
 }
-function lookQuat(fwd, up, out) {
-  const z = _a.copy(fwd).normalize(), x = _b.crossVectors(up, z);
-  if (x.lengthSq() < 1e-6) x.set(1, 0, 0); x.normalize();
-  const y = _s.crossVectors(z, x).normalize();
-  return out.setFromRotationMatrix(_m.makeBasis(x, y, z));
+function basisQuat(fwd, up, out) {          // 前向き・上向きから姿勢を作る
+  const z = tA.copy(fwd).normalize(), x = tB.crossVectors(up, z);
+  if (x.lengthSq() < 1e-8) x.set(1, 0, 0); x.normalize();
+  const y = tC.crossVectors(z, x).normalize();
+  return out.setFromRotationMatrix(mA.makeBasis(x, y, z));
+}
+const _pf = new THREE.Vector3(), _pu = new THREE.Vector3(), _pql = new THREE.Quaternion();
+function perchWorld(outP, outQ) {           // 手の上のとまり位置（手の座標）→ カメラ空間
+  outP.set(S.px, S.py, S.side * (HAND_HALF + PERCH_H)).applyMatrix4(HF.M);
+  basisQuat(_pf.set(Math.sin(S.yaw), Math.cos(S.yaw), 0), _pu.set(0, 0, S.side), _pql);
+  outQ.copy(HF.q).multiply(_pql);
+}
+function uphillYaw() {                      // 手の面に沿った「上」の向き（手の座標の角度）と傾き
+  const nS = tA.copy(HF.N).multiplyScalar(S.side), ud = GRAV.up.dot(nS);
+  const upS = tB.copy(GRAV.up).addScaledVector(nS, -ud);
+  return { yaw: Math.atan2(upS.dot(HF.X), upS.dot(HF.Y)), steep: upS.length(), ud };
 }
 function choosePerch() {
   S.side = HF.facing;                                         // 今カメラを向いている面にとまる
-  S.perchPos.set(rand(-0.6, 0.6), rand(-0.4, 0.9), S.side * (HAND_HALF + PERCH_H));
-  const a = rand(-0.9, 0.9) + (Math.random() < 0.25 ? Math.PI : 0);
-  const up = new THREE.Vector3(0, 0, S.side), fwd = new THREE.Vector3(Math.sin(a), Math.cos(a), 0);
-  lookQuat(fwd, up, S.perchQ);
-}
-const _pw = new THREE.Vector3(), _qw = new THREE.Quaternion(), _hq = new THREE.Quaternion();
-function perchWorld(outP, outQ) {
-  outP.copy(S.perchPos).applyMatrix4(HF.M);
-  _hq.setFromRotationMatrix(HF.M);
-  outQ.copy(_hq).multiply(S.perchQ);
+  S.px = rand(-0.6, 0.6); S.py = rand(-0.5, 0.8);
+  const u = uphillYaw();
+  S.yaw = u.steep > 0.45 ? u.yaw + rand(-0.3, 0.3) : rand(-0.8, 0.8) + (Math.random() < 0.2 ? Math.PI : 0);
 }
 function spawnPoint() {
   const z = HF.O.z + rand(-6, 6), d = -z, halfH = d * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2), halfW = halfH * camera.aspect;
@@ -544,31 +675,32 @@ function spawnPoint() {
 }
 function setMode(m) { S.mode = m; S.t = 0; updateStatus(); }
 
+// ひらひら・カクカクした蝶らしい飛び方（体は水平ぎみ、羽ばたきで上下にはずむ）
 function flyToward(target, speed, dt, wanderAmp) {
-  const d = _a.subVectors(target, S.pos), dist = d.length();
-  const want = d.normalize().multiplyScalar(Math.min(speed, dist * 2.2 + 4));
-  want.add(wander(S.t * 1.4, S.seed).multiplyScalar(wanderAmp));
-  S.vel.lerp(want, 1 - Math.exp(-2.6 * dt));
+  const d = tP.subVectors(target, S.pos), dist = d.length();
+  const want = d.normalize().multiplyScalar(Math.min(speed, dist * 2.0 + 3));
+  want.add(wander(S.t * 1.6, S.seed).multiplyScalar(wanderAmp));
+  S.vel.lerp(want, 1 - Math.exp(-2.4 * dt));
   S.pos.addScaledVector(S.vel, dt);
-  // 向き：進む方向へ。横にゆれるとロール
-  const fwd = _b.copy(S.vel); if (fwd.lengthSq() < 1) fwd.set(0, 0, -1);
-  fwd.y *= 0.5;
-  lookQuat(fwd, YUP, _qw);
-  S.q.slerp(_qw, 1 - Math.exp(-5 * dt));
+  const fwd = tD.copy(S.vel); if (fwd.lengthSq() < 1) fwd.set(0, 0, -1);
+  fwd.addScaledVector(GRAV.up, -fwd.dot(GRAV.up) * 0.65);
+  basisQuat(fwd, GRAV.up, qB);
+  S.q.slerp(qB, 1 - Math.exp(-5 * dt));
   return dist;
 }
-function flap(dt, freq) {
+// モルフォの羽ばたき：ゆっくり大きく、ときどきすーっと滑空
+function flap(dt, freq, amp = 1) {
   S.phase += dt * Math.PI * 2 * freq;
-  if (S.glide > 0) { S.glide -= dt; S.theta = lerp(S.theta, 0.12, 1 - Math.exp(-10 * dt)); return; }
-  if (Math.random() < dt * 0.35) S.glide = rand(0.2, 0.45);
+  if (S.glide > 0) { S.glide -= dt; S.theta = lerp(S.theta, 0.22, 1 - Math.exp(-9 * dt)); return; }
+  if (Math.random() < dt * 0.5) S.glide = rand(0.25, 0.6);
   const s = Math.sin(S.phase);
-  S.theta = 0.38 + 1.0 * Math.sign(s) * Math.pow(Math.abs(s), 0.75);
+  S.theta = 0.35 + 0.9 * amp * Math.sign(s) * Math.pow(Math.abs(s), 0.7);
 }
 
 function update(dt, now) {
   S.t += dt;
   const hand = TR.seen;
-  if (hand) { TR.lostT = 0; computeHandFrame(dt); } else { TR.lostT += dt; HF.prevO = null; HF.speed = 0; }
+  if (hand) { TR.lostT = 0; computeHandFrame(dt); } else { TR.lostT += dt; HF.prevO = null; HF.speed = 0; HF.angVel = 0; }
   TR.stableT = hand && HF.speed < 25 && TR.fist > 0.75 ? TR.stableT + dt : 0;
   HAND.valid = hand;
   if (hand) updateHandMeshes(TR.P, HF.N, HF.O);
@@ -576,92 +708,184 @@ function update(dt, now) {
   // 止まっている面がこちらを向いている間は「隠す板」を使わない（見えている蝶が欠けないように）。
   // 面が向こうを向いたら隠しはじめる。真横あたりで切りかえ、ちらつかないよう少し幅をもたせる。
   if ((S.mode === 'perch' || S.mode === 'land') && hand) {
-    const d = S.side * HF.N.dot(_v.copy(HF.O).negate().normalize());
+    const d = S.side * HF.N.dot(tP.copy(HF.O).negate().normalize());
     if (S.occ && d > 0.12) S.occ = false; else if (!S.occ && d < 0.04) S.occ = true;
   } else S.occ = true;
   applyHandMaterial(S.occ);
-  let visible = true, sweep = 0;
+  const prevTheta = S.theta;
+  let visible = true, flying = false, walking = false, perched = false;
   switch (S.mode) {
+    case 'pose': perched = !!S.posePerch; break;
     case 'intro': {                                   // スタート画面：その場でひらひら
-      const tgt = _pw.set(Math.sin(S.t * 0.6) * 2.5, 5.5 + Math.sin(S.t * 0.9) * 1.2, -42);
-      flyToward(tgt, 12, dt, 4);
-      lookQuat(_b.set(Math.sin(S.t * 0.35), 0.15, Math.cos(S.t * 0.35)), YUP, _qw); S.q.slerp(_qw, 1 - Math.exp(-2 * dt));
-      flap(dt, 4.6); sweep = Math.sin(S.phase) * 0.12;
+      flyToward(tP.set(Math.sin(S.t * 0.6) * 2.5, 5.5 + Math.sin(S.t * 0.9) * 1.2, -42), 12, dt, 4);
+      basisQuat(tD.set(Math.sin(S.t * 0.35), 0.1, Math.cos(S.t * 0.35)), GRAV.up, qB); S.q.slerp(qB, 1 - Math.exp(-2 * dt));
+      flap(dt, 3.8); flying = true;
       break;
     }
     case 'wait':                                      // 手が落ち着くのを待つ
       visible = false;
       S.respawn -= dt;
-      if (S.respawn <= 0 && TR.stableT > 0.9) { S.pos.copy(spawnPoint()); S.vel.set(0, 0, 0); S.q.identity(); choosePerch(); setMode('enter'); }
+      if (S.respawn <= 0 && TR.stableT > 0.9) { S.pos.copy(spawnPoint()); S.vel.set(0, 0, 0); basisQuat(tD.set(0, 0, -1), GRAV.up, S.q); choosePerch(); setMode('enter'); }
       break;
     case 'enter': {                                   // 画面の外から近づく
       if (TR.lostT > 1.5) { startLeave(); break; }
-      if (hand) { S.side = HF.facing; S.perchPos.z = S.side * (HAND_HALF + PERCH_H); const up = _s.set(0, 0, S.side); const f0 = _b.set(0, 1, 0).applyQuaternion(S.perchQ); lookQuat(_a.set(f0.x, f0.y, 0), up, S.perchQ); }
-      perchWorld(_pw, _qw);
+      if (hand) S.side = HF.facing;
+      perchWorld(tE, qA);
       // 手の上でくるっと回ってから降りる（回る半径はだんだん小さく）
       const rr = 6 * clamp(1 - (S.t - 1.2) / 3, 0, 1), ang = S.t * 2.1;
-      const hover = S.target.copy(_pw).addScaledVector(HF.N, S.side * 6).add(_a.set(0, 2.5, 0))
+      const hover = S.target.copy(tE).addScaledVector(HF.N, S.side * 6).addScaledVector(GRAV.up, 2.5)
         .addScaledVector(HF.X, Math.cos(ang) * rr).addScaledVector(HF.Y, Math.sin(ang) * rr * 0.6);
-      const dist = flyToward(hover, 26, dt, dist0(hover) > 12 ? 12 : 4);
-      flap(dt, 5.2); sweep = Math.sin(S.phase + 1) * 0.15;
+      const dist = flyToward(hover, 26, dt, S.pos.distanceTo(hover) > 12 ? 12 : 4);
+      flap(dt, 4.3); flying = true;
       if (dist < 2.2 && rr < 0.5 && hand && HF.speed < 20 && TR.fist > 0.75 && S.t > 2.5) {
-        S.from.p.copy(S.pos); S.from.q.copy(S.q); setMode('land');
+        S.from.p.copy(S.pos); S.from.q.copy(S.q); S.glide = 0; setMode('land');
       }
       break;
     }
     case 'land': {                                    // ふわっと降りる
       if (!hand && TR.lostT > 0.4) { startLeave(); break; }
-      perchWorld(_pw, _qw);
+      perchWorld(tE, qA);
       const k = smooth(clamp(S.t / 1.1, 0, 1));
-      S.pos.lerpVectors(S.from.p, _pw, k).addScaledVector(HF.N, S.side * Math.sin(k * Math.PI) * 1.2);
-      S.q.slerpQuaternions(S.from.q, _qw, k);
-      if (k < 0.75) { flap(dt, lerp(5, 2.5, k)); sweep = Math.sin(S.phase) * 0.1; } else S.theta = lerp(S.theta, 1.35, 1 - Math.exp(-6 * dt));
-      if (k >= 1) { S.open = 0; S.openT = rand(1.2, 2); setMode('perch'); }
+      S.pos.lerpVectors(S.from.p, tE, k).addScaledVector(HF.N, S.side * Math.sin(k * Math.PI) * 1.2);
+      S.q.slerpQuaternions(S.from.q, qA, k);
+      if (k < 0.75) { flap(dt, lerp(4.3, 2.6, k)); flying = k < 0.55; } else S.theta = lerp(S.theta, 1.3, 1 - Math.exp(-6 * dt));
+      perched = k > 0.6;
+      if (k >= 1) { S.open = 0; S.openT = rand(2, 3.5); S.flutter = 0.5; S.nextWalk = rand(5, 9); S.probNext = rand(5, 10); setMode('perch'); }
       break;
     }
     case 'perch': {                                   // とまっている：手の面に固定
-      if (hand) { perchWorld(S.pos, S.q); }
+      perched = true;
       visible = TR.lostT < 0.25;
       if (TR.lostT > 3) { setMode('wait'); S.respawn = 1; break; }
       if (hand) {
         S.fistT = TR.fist < 0.72 ? S.fistT + dt : 0;
         HF.fastT = HF.speed > 110 ? HF.fastT + dt : 0;
         if (S.fistT > 0.12 || HF.fastT > 0.08) { startLeave(true); break; }
+        const u = uphillYaw();
+        // 手がゆれたり、さかさまになりかけるとバランスをとって羽ばたく
+        if (HF.angVel > 3.2 || HF.speed > 55) S.flutter = Math.max(S.flutter, 0.45);
+        S.hangT = u.ud < -0.45 ? S.hangT + dt : 0;
+        if (S.hangT > 0 && S.hangT < dt * 1.5) S.flutter = Math.max(S.flutter, 0.7);
+        // 傾いた面では頭を上に向けたがる（向きを変えるときは歩く）
+        if (u.steep > 0.45 && u.ud > -0.85 && S.walk <= 0) {
+          const diff = angDiff(u.yaw, S.yaw);
+          if (Math.abs(diff) > 0.55) { S.walk = 0.8 + Math.abs(diff) * 0.7; S.walkYaw = u.yaw; S.walkDist = rand(0.15, 0.45); S.probT = 0; }
+        }
+        // ときどき少し歩く
+        S.nextWalk -= dt;
+        if (S.nextWalk <= 0 && S.walk <= 0 && S.prob < 0.05) { S.nextWalk = rand(7, 14); S.walk = rand(0.8, 1.6); S.walkYaw = S.yaw + rand(-0.6, 0.6); S.walkDist = rand(0.5, 1.1); }
       }
-      // 翅：ふだんは半開きでゆっくり開け閉め。ときどきぴったり閉じて裏の目玉もようを見せる
-      S.openT -= dt;
-      if (S.openT <= 0) { S.open = S.open === 1 ? 0 : 1; S.openT = S.open === 1 ? rand(6, 11) : rand(1.6, 3); }
-      const breathe = 0.55 + 0.42 * Math.sin(S.t * 1.25) * Math.sin(S.t * 0.37 + 1);
-      const targetTheta = S.open === 1 ? breathe : 1.42 + Math.sin(S.t * 1.7) * 0.03;
-      S.theta = lerp(S.theta, targetTheta, 1 - Math.exp(-2.4 * dt));
-      if (!S.hinted && S.t > 3) { S.hinted = true; status('そっと手を返すと、向こう側に隠れるよ', 'on'); }
+      if (S.walk > 0) {
+        S.walk -= dt; walking = true;
+        S.yaw += clamp(angDiff(S.walkYaw, S.yaw), -1.5 * dt, 1.5 * dt);
+        const sp = S.walkDist / 1.2;
+        const nx = S.px + Math.sin(S.yaw) * sp * dt, ny = S.py + Math.cos(S.yaw) * sp * dt;
+        if (Math.abs(nx) > 2.0 || ny < -2.2 || ny > 2.4) S.walk = Math.min(S.walk, 0.3); else { S.px = nx; S.py = ny; }
+      }
+      if (hand) perchWorld(S.pos, S.q);
+      // 口：ときどき伸ばして手の汗を吸う
+      S.probNext -= dt;
+      if (S.probT > 0) {
+        S.probT -= dt; S.prob = lerp(S.prob, 1, 1 - Math.exp(-2.6 * dt));
+        S.probWig = 0.09 * Math.sin(S.t * 3.1) + 0.05 * Math.sin(S.t * 7.7);
+        if (S.probT <= 0 || walking) { S.probT = 0; S.probNext = rand(8, 16); }
+      } else {
+        S.prob = lerp(S.prob, 0, 1 - Math.exp(-4 * dt));
+        if (S.probNext <= 0 && !walking && S.flutter <= 0) S.probT = rand(3, 6);
+      }
+      // 翅
+      if (S.flutter > 0) {
+        S.flutter -= dt; S.phase += dt * Math.PI * 2 * 6.5;
+        S.theta = 0.8 + 0.55 * Math.sin(S.phase);
+      } else {
+        S.openT -= dt;
+        if (S.openT <= 0) { S.open = S.open === 1 ? 0 : 1; S.openT = S.open === 1 ? rand(6, 11) : rand(1.8, 3.2); }
+        const breathe = 0.55 + 0.42 * Math.sin(S.t * 1.25) * Math.sin(S.t * 0.37 + 1);
+        let tt = S.open === 1 ? breathe : 1.42 + Math.sin(S.t * 1.7) * 0.03;
+        if (walking) tt = Math.max(tt, 1.15);
+        if (S.hangT > 0) tt = 1.42;
+        S.theta = lerp(S.theta, tt, 1 - Math.exp(-2.4 * dt));
+      }
+      if (!S.hinted && S.t > 4) { S.hinted = true; status('そっと手を返すと、向こう側に隠れるよ', 'on'); }
       break;
     }
     case 'leave': {                                   // 飛び去る
-      flyToward(S.exit, 48, dt, 8);
-      flap(dt, 6); sweep = Math.sin(S.phase + 1) * 0.15;
+      flyToward(S.exit, 46, dt, 9);
+      flap(dt, 4.8); flying = true;
       if (S.t > 3.5) { setMode('wait'); S.respawn = rand(3.5, 6); }
       break;
     }
   }
-  setWings(S.theta, sweep);
+  if (S.mode !== 'perch' && S.mode !== 'pose') { S.prob = lerp(S.prob, 0, 1 - Math.exp(-6 * dt)); S.walk = 0; }
+  // 羽の角速度（しなりとブレに使う）、後翅は少し遅れて動く
+  if (dt > 0) S.omega = lerp(S.omega, (S.theta - prevTheta) / dt, 1 - Math.exp(-20 * dt));
+  S.thetaH = lerp(S.thetaH, S.theta, 1 - Math.exp(-dt / 0.035));
+  poseWings(flying);
+  poseLegs(dt, walking, flying);
+  poseProboscis();
+  // 触角：ゆっくりゆれる。手が動くと少し立てる
+  const alert = clamp((HF.angVel || 0) / 4 + (HF.speed || 0) / 80, 0, 1);
+  BF.antL.rotation.x = Math.sin(S.t * 2.3) * 0.05 - alert * 0.2; BF.antR.rotation.x = -Math.sin(S.t * 2.1 + 1) * 0.05 - alert * 0.2;
+  BF.antL.rotation.y = Math.sin(S.t * 0.9) * 0.06; BF.antR.rotation.y = -Math.sin(S.t * 1.1) * 0.06;
+  // 体：羽ばたきに合わせて上下にはずみ、頭を上げ下げする
+  const fly = flying ? 1 : 0, gl = S.glide > 0 ? 0.3 : 1;
+  S.bob = lerp(S.bob, fly * -0.5 * Math.sin(S.phase) * gl, 1 - Math.exp(-20 * dt));
+  S.pitch = lerp(S.pitch, fly * 0.16 * Math.cos(S.phase) * gl, 1 - Math.exp(-20 * dt));
+  BF.bob.position.y = S.bob; BF.bob.rotation.x = -S.pitch;
   BF.root.position.copy(S.pos); BF.root.quaternion.copy(S.q);
   BF.root.scale.setScalar(SET.size);
-  const flying = S.mode === 'enter' || S.mode === 'leave' || S.mode === 'intro' || (S.mode === 'land' && S.t < 0.8);
-  BF.bob.position.y = flying ? -Math.sin(S.phase) * 0.35 : 0;
-  const tw = Math.sin(S.t * 2.3) * 0.05;
-  BF.antL.rotation.x = tw; BF.antR.rotation.x = -tw * 0.8;
   BF.root.visible = visible;
+  BF.blob.visible = perched && visible;
   // 影のライトを蝶に合わせて動かす
   key.target.position.copy(S.pos); key.position.copy(S.pos).addScaledVector(LIGHT_DIR, 30);
   key.target.updateMatrixWorld();
   key.castShadow = SET.shadow;
+  UNI.lightDir.value.copy(LIGHT_DIR);
 }
-function dist0(p) { return S.pos.distanceTo(p); }
+function poseWings(flying) {
+  const closed = smooth(clamp((S.theta - 1.0) / 0.4, 0, 1));
+  const sF = lerp(-0.08, -0.24, closed), sH = lerp(0.14, 0.04, closed);    // 閉じると前翅を少し後ろへ引いて後翅に重ねる
+  const bend = clamp(-S.omega * 0.014, -0.45, 0.45), twist = clamp(-S.omega * 0.008, -0.3, 0.3);
+  const blur = flying && Math.abs(S.omega) > 3;
+  for (const w of BF.wings) {
+    const th = w.fore ? S.theta : S.thetaH * 0.96;
+    const sw = -w.side * (w.fore ? sF : sH);
+    w.flap.rotation.z = w.side * th;
+    w.plane.rotation.y = sw;
+    bendWing(w, w.fore ? bend : bend * 1.25, w.fore ? twist : twist * 0.7);
+    w.ghosts.forEach((g, i) => { g.visible = blur; if (blur) { g.rotation.z = w.side * (th - S.omega * 0.011 * (i + 1)); g.userData.plane.rotation.y = sw; } });
+  }
+}
+function poseLegs(dt, walking, flying) {
+  if (walking) S.legPhase += dt * Math.PI * 2 * 2.2;
+  for (const L of BF.legs) {
+    const ph = S.legPhase + L.gait * Math.PI;
+    const sw = walking ? 0.3 * Math.sin(ph) : 0, lift = walking ? Math.max(0, Math.cos(ph)) * 0.4 : 0;
+    L.fold = lerp(L.fold, flying ? 1 : 0, 1 - Math.exp(-6 * dt));    // 飛んでいるときは脚をたたむ
+    L.g.rotation.y = L.side > 0 ? -(L.spread + sw) : Math.PI + (L.spread + sw);
+    L.f.rotation.z = L.A[0] + lift + L.fold * 0.55;
+    L.t.rotation.z = (L.A[1] - L.A[0]) - L.fold * 0.7;
+    L.ta.rotation.z = (L.A[2] - L.A[1]) - L.fold * 0.5;
+  }
+}
+const _pm = new THREE.Matrix4(), _pv = new THREE.Vector3(), _ps = new THREE.Vector3(), _pq = new THREE.Quaternion();
+function poseProboscis() {                    // 0：くるっと巻いている ⇔ 1：のびて手にふれている
+  const a = clamp(S.prob, 0, 1), N = 64, L = 1.45, ds = L / N, r = 0.022;
+  let y = -0.13, z = 0.86, ang = lerp(0.35, 0.95 + S.probWig, a);
+  for (let i = 0; i < N; i++) {
+    const s = i / N;
+    ang += 5.8 * (1 + 2.2 * s) * Math.pow(1 - a, 1.6) * ds;
+    y -= Math.cos(ang) * ds; z += Math.sin(ang) * ds;
+    BF.prob.setMatrixAt(i, _pm.compose(_pv.set(0, y, z), _pq, _ps.set(r, r, r)));
+  }
+  BF.prob.instanceMatrix.needsUpdate = true;
+}
 function startLeave(scared) {
-  const up = _a.set(0, 0, S.side).applyQuaternion(_hq.setFromRotationMatrix(HF.M));
-  S.vel.copy(up).multiplyScalar(scared ? 30 : 15).add(_b.set(rand(-8, 8), 12, 0));
-  S.exit.set(rand(-1, 1) > 0 ? 60 : -60, rand(20, 50), S.pos.z - 10);
+  const off = tP.set(0, 0, S.side).applyQuaternion(HF.q);           // 手の面から離れる向き
+  S.vel.copy(off).multiplyScalar(scared ? 30 : 15).addScaledVector(GRAV.up, 14).add(tD.set(rand(-8, 8), 0, rand(-4, 4)));
+  const lat = tE.set(1, 0, 0).addScaledVector(GRAV.up, -GRAV.up.x).normalize();
+  S.exit.copy(S.pos).addScaledVector(GRAV.up, rand(30, 55)).addScaledVector(lat, (Math.random() < 0.5 ? -1 : 1) * 60); S.exit.z -= 10;
+  S.walk = 0; S.probT = 0; S.flutter = 0; S.glide = 0;
   setMode('leave');
 }
 
@@ -674,6 +898,9 @@ function updateProjection() {
     camera.clearViewOffset(); camera.fov = 55; camera.aspect = W / H; camera.updateProjectionMatrix(); return;
   }
   const vw = TR.vw, vh = TR.vh, f = SET.fov * Math.max(vw, vh);
+  // 描く細かさをカメラ映像の細かさに合わせる（蝶だけくっきりしすぎないように）
+  const sc = Math.max(W / vw, H / vh), pr = clamp(1.15 / sc, 0.75, Math.min(devicePixelRatio || 1, 2));
+  if (Math.abs(renderer.getPixelRatio() - pr) > 0.01) { renderer.setPixelRatio(pr); renderer.setSize(W, H, false); }
   camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(vh / 2 / f));
   camera.aspect = vw / vh;
   const s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s;      // object-fit: cover と同じ切り取り
@@ -696,6 +923,7 @@ function estimateLight(dt) {
     for (let i = 0; i < d.length; i += 4) { r += d[i]; g += d[i + 1]; b += d[i + 2]; }
     const n = d.length / 4; r /= n * 255; g /= n * 255; b /= n * 255;
     const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b, k = clamp(lum / 0.42, 0.35, 1.35);
+    UNI.grain.value = clamp(0.012 + (0.5 - lum) * 0.06, 0.01, 0.045);     // 暗いほど映像はざらつく
     hemi.intensity = 1.6 * k; key.intensity = 2.2 * k;
     const m = Math.max(r, g, b, 0.01); hemi.color.setRGB(lerp(1, r / m, 0.35), lerp(1, g / m, 0.35), lerp(1, b / m, 0.35));
   } catch (e) {}
@@ -723,6 +951,7 @@ let booting = false;
 async function boot() {
   if (booting || TR.running) return;
   booting = true;
+  try { if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') DeviceOrientationEvent.requestPermission().catch(() => {}); } catch (e) {}
   $('start').style.display = 'none'; $('status').style.display = 'flex'; $('bar').style.display = 'flex';
   S.respawn = 1.2; setMode('wait');
   try {
@@ -812,6 +1041,9 @@ function step(dt, now) {
   if (MOCK && TR.running) mockFeed(dt);
   if (TR.running && (Math.abs(camera.aspect - TR.vw / TR.vh) > 0.01)) updateProjection();
   estimateLight(dt);
+  if (window.__mockGrav) GRAV.tgt.set(...window.__mockGrav).normalize();
+  GRAV.up.lerp(GRAV.tgt, 1 - Math.exp(-8 * dt)).normalize();
+  UNI.seed.value = (UNI.seed.value + 17.3) % 1000;
   update(dt, now);
   uiTick(dt);
   if (SET.debug && (dbgT += dt) > 0.25) {
@@ -820,7 +1052,11 @@ function step(dt, now) {
   }
 }
 requestAnimationFrame(frame);
-window.__tenori = { S, TR, HF, SET, step: (sec) => { const n = Math.round(sec / 0.02); for (let i = 0; i < n; i++) step(0.02, performance.now()); }, render, startMock: () => $('go').click() };
+function pose(o) {                         // テスト用：決めた姿勢で止める
+  S.mode = 'pose'; S.pos.set(...o.pos); basisQuat(tD.set(...o.fwd), tE.set(...o.up), S.q);
+  S.theta = S.thetaH = o.theta; S.omega = o.omega || 0; S.prob = o.prob || 0; S.probWig = 0; S.posePerch = !!o.perch; S.glide = 0;
+}
+window.__tenori = { pose, GRAV, BF, S, TR, HF, SET, step: (sec) => { const n = Math.round(sec / 0.02); for (let i = 0; i < n; i++) step(0.02, performance.now()); }, render, startMock: () => $('go').click() };
 </script>
 </body>
 </html>
