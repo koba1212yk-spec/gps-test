@@ -175,7 +175,7 @@ input[type=range]{width:100%;accent-color:var(--pink)}
 #cam{position:fixed;left:calc(env(safe-area-inset-left) + 12px);bottom:calc(env(safe-area-inset-bottom) + 12px);width:2px;height:2px;opacity:0;pointer-events:none;
   transform:scaleX(-1);object-fit:cover;border-radius:12px;z-index:20}
 #cam.show{width:96px;height:72px;opacity:1;border:2px solid #fff;box-shadow:0 4px 14px rgba(80,60,130,.25)}
-#dbg{position:fixed;left:6px;top:calc(env(safe-area-inset-top) + 4px);z-index:50;font:10px/1.35 ui-monospace,Menlo,monospace;color:#4a3f6b;
+#mdDebug{position:fixed;left:6px;top:calc(env(safe-area-inset-top) + 4px);z-index:50;font:10px/1.35 ui-monospace,Menlo,monospace;color:#4a3f6b;
   background:rgba(255,255,255,.8);padding:4px 6px;border-radius:8px;pointer-events:none;display:none;white-space:pre}
 #fatal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;font-weight:700;background:#f6f1ff}
 </style>
@@ -264,7 +264,7 @@ input[type=range]{width:100%;accent-color:var(--pink)}
 
 <div id="get"><div class="bub"><img id="getImg" alt=""><div class="t">GET!</div><div class="nm" id="getNm"></div></div></div>
 <video id="cam" playsinline muted autoplay></video>
-<div id="dbg"></div>
+<div id="mdDebug"></div>
 <div id="fatal"></div>
 
 <script type="module">
@@ -1501,8 +1501,8 @@ function bindSettings() {
   tg('sSound', 'sound', () => { if (!SET.sound) sfx.motor(false); });
   tg('sPrev', 'preview', () => setMode(mode));
   tg('sMirror', 'mirror', () => { Tracker.fx.reset(); calib = null; if (mode === 'camera') beginCalib(); });
-  tg('sDebug', 'debug', () => $('dbg').style.display = SET.debug ? 'block' : 'none');
-  $('dbg').style.display = SET.debug ? 'block' : 'none';
+  tg('sDebug', 'debug', () => $('mdDebug').style.display = SET.debug ? 'block' : 'none');
+  $('mdDebug').style.display = SET.debug ? 'block' : 'none';
   $('bRecal').onclick = () => { openSheet(''); beginCalib(); };
   $('bReset').onclick = () => { SET.motion = DEF_SET.motion; SET.persp = DEF_SET.persp; sm.value = SET.motion; sp.value = SET.persp; show(); persist(); };
 }
@@ -1572,7 +1572,7 @@ function frame(now) {
   if (perfT > 2.5) { perfT = 0; if (frameAvg > 25 && dprCap > 1) { dprCap = Math.max(1, dprCap - 0.25); applySize(); } }
   if (SET.debug && (dbgT += dt) > 0.25) {
     dbgT = 0; const h = Tracker.head, r = Tracker.raw || { x: 0, y: 0, z: 0 };
-    $('dbg').textContent = `fps ${(1000 / frameAvg).toFixed(0)}  dpr ${dprCap}\nsrc ${Tracker.src}  det ${Tracker.detMs.toFixed(1)}ms\nhead x${h.x.toFixed(1)} y${h.y.toFixed(1)} z${h.z.toFixed(1)}cm\nraw  x${r.x.toFixed(1)} y${r.y.toFixed(1)} z${r.z.toFixed(1)}\nblink ${Tracker.blink.toFixed(2)} (${Tracker.blinks})\neye  x${E.x.toFixed(1)} y${E.y.toFixed(1)} z${E.z.toFixed(1)}`;
+    $('mdDebug').textContent = `fps ${(1000 / frameAvg).toFixed(0)}  dpr ${dprCap}\nsrc ${Tracker.src}  det ${Tracker.detMs.toFixed(1)}ms\nhead x${h.x.toFixed(1)} y${h.y.toFixed(1)} z${h.z.toFixed(1)}cm\nraw  x${r.x.toFixed(1)} y${r.y.toFixed(1)} z${r.z.toFixed(1)}\nblink ${Tracker.blink.toFixed(2)} (${Tracker.blinks})\neye  x${E.x.toFixed(1)} y${E.y.toFixed(1)} z${E.z.toFixed(1)}`;
   }
 }
 requestAnimationFrame(frame);
