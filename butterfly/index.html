@@ -397,7 +397,7 @@ function solveHand(lm, wl, vw, vh, f) {
   return { Zc: f * k, k, px, mz, cx, cy };
 }
 const TR = {
-  running: false, lm: null, video: $('cam'), vw: 720, vh: 1280, lastTs: 0, detMs: 0, delegate: 'GPU', vision: null, fs: null,
+  running: false, lm: null, stageMsg: '', video: $('cam'), vw: 720, vh: 1280, lastTs: 0, detMs: 0, delegate: 'GPU', vision: null, fs: null,
   can: document.createElement('canvas'), frames: 0, hits: 0, errs: 0, err: '', runT: 0, switched: false,
   fZ: new OneEuro(0.7, 0.03),
   fP: Array.from({ length: 63 }, () => new OneEuro(1.6, 0.12)),
@@ -409,15 +409,21 @@ const TR = {
   },
   async start(progress) {
     if (MOCK) { this.running = true; this.mock = true; return true; }
-    progress('カメラの許可を待っています…');
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } });
-    const v = this.video; v.srcObject = stream; v.muted = true; v.playsInline = true; v.style.display = 'block';
-    await v.play();
-    progress('手の検知を読みこみ中…');
-    this.vision = await import(MP_BASE + '/vision_bundle.mjs');
-    this.fs = await this.vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm');
-    try { this.lm = await this.create('GPU'); this.delegate = 'GPU'; }
-    catch (e) { this.lm = await this.create('CPU'); this.delegate = 'CPU'; }
+    const limit = (p, sec, what) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(what + 'が' + sec + '秒たっても終わりません')), sec * 1000))]);
+    progress('カメラを起動中…');
+    if (!this.video.srcObject) {
+      const stream = await limit(navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } } }), 20, 'カメラの起動');
+      const v = this.video; v.srcObject = stream; v.muted = true; v.playsInline = true; v.style.display = 'block';
+      v.play().catch(() => {});
+    }
+    const v = this.video;
+    progress('手の検知を読みこみ中…（1/3）');
+    if (!this.vision) this.vision = await limit(import(MP_BASE + '/vision_bundle.mjs'), 30, '検知プログラムの読みこみ');
+    progress('手の検知を読みこみ中…（2/3）');
+    if (!this.fs) this.fs = await limit(this.vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm'), 30, '検知プログラムの準備');
+    progress('手の検知を読みこみ中…（3/3）');
+    try { this.lm = await limit(this.create('GPU'), 40, '検知モデルの読みこみ'); this.delegate = 'GPU'; }
+    catch (e) { progress('手の検知を読みこみ中…（CPU）'); this.lm = await limit(this.create('CPU'), 40, '検知モデルの読みこみ(CPU)'); this.delegate = 'CPU'; }
     this.ctx = this.can.getContext('2d', { willReadFrequently: false });
     this.running = true;
     if ('requestVideoFrameCallback' in v) { const cb = now => { if (!this.running) return; this.detect(now); v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
@@ -693,7 +699,8 @@ function status(text, kind) { $('sTxt').textContent = text; $('sDot').className 
 function updateStatus() {
   const m = S.mode;
   if (m === 'wait') {
-    if (TR.seen) status('そのまま手をかざしていて…', 'on');
+    if (!TR.running) { if (TR.stageMsg) status(TR.stageMsg, TR.stageMsg.startsWith('エラー') ? '' : 'fly'); }
+    else if (TR.seen) status('そのまま手をかざしていて…', 'on');
     else if (TR.running && !MOCK && TR.runT > 6 && TR.hits === 0) status(TR.errs ? '検知エラー：' + TR.err.slice(0, 40) : '手が見つかりません。明るい所で、指を広げて映してね', '');
     else status('スマホを持っていない方の手を映してね', '');
   }
@@ -705,20 +712,24 @@ function updateStatus() {
 let stT = 0;
 function uiTick(dt) { if (TR.running) TR.runT += dt; if ((stT -= dt) <= 0) { stT = 0.5; if (S.mode === 'wait') updateStatus(); } }
 
-$('go').onclick = async () => {
-  $('go').disabled = true; $('go').textContent = '準備中…';
+let booting = false;
+async function boot() {
+  if (booting || TR.running) return;
+  booting = true;
+  $('start').style.display = 'none'; $('status').style.display = 'flex'; $('bar').style.display = 'flex';
+  S.respawn = 1.2; setMode('wait');
   try {
-    const ok = await TR.start(msg => { $('go').textContent = msg; });
-    if (!ok) throw new Error('start failed');
-    $('start').style.display = 'none'; $('status').style.display = 'flex'; $('bar').style.display = 'flex';
-    S.respawn = 1.2; setMode('wait'); updateProjection();
+    await TR.start(msg => { TR.stageMsg = msg; status(msg, 'fly'); });
+    TR.stageMsg = ''; updateProjection(); updateStatus();
   } catch (e) {
     console.error(e);
-    $('go').disabled = false; $('go').textContent = 'もう一度ためす';
-    const er = $('err'); er.style.display = 'block';
-    er.textContent = 'カメラか手の検知を使えませんでした。ブラウザのカメラ許可を確認してください。';
+    TR.stageMsg = 'エラー：' + String((e && e.message) || e).slice(0, 60) + '（ここをタップでやり直す）';
+    status(TR.stageMsg, '');
   }
-};
+  booting = false;
+}
+$('go').onclick = boot;
+$('status').onclick = () => { if (!TR.running) boot(); };
 function openSheet(id) { document.querySelectorAll('.sheet').forEach(s => s.classList.toggle('open', s.id === id)); }
 document.querySelectorAll('[data-close]').forEach(b => b.onclick = () => b.closest('.sheet').classList.remove('open'));
 $('bSet').onclick = () => openSheet('setSheet');
