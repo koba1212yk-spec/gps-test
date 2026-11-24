@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#f4f1fb">
+<title>まどクレーン</title>
+<style>
+:root{--glass:rgba(255,255,255,.62);--line:rgba(255,255,255,.85);--ink:#3d3556;--sub:#7a7193}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:#f4f1fb;color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
+  -webkit-user-select:none;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);
+  border:1px solid var(--line);box-shadow:0 6px 20px rgba(80,60,130,.14)}
+#top{position:fixed;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:flex-start;
+  padding:calc(env(safe-area-inset-top) + 10px) calc(env(safe-area-inset-right) + 12px) 0 calc(env(safe-area-inset-left) + 12px);pointer-events:none}
+.pill{pointer-events:auto;border-radius:999px;padding:7px 13px;font-size:14px;font-weight:700;display:inline-flex;align-items:center;gap:6px;border:none;color:var(--ink);font-family:inherit}
+button.pill{cursor:pointer}
+.row{display:flex;gap:8px}
+#score b{font-size:17px;color:#e2558a}
+.dot{width:8px;height:8px;border-radius:50%;background:#b9b3c9;display:inline-block}
+.dot.on{background:#35c47a;box-shadow:0 0 0 3px rgba(53,196,122,.2)}
+.dot.warn{background:#f0a531}
+#ctrl{position:fixed;right:calc(env(safe-area-inset-right) + 16px);bottom:calc(env(safe-area-inset-bottom) + 16px);display:flex;gap:14px;align-items:flex-end}
+.big{width:76px;height:76px;border-radius:50%;border:none;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:inherit;color:#fff;font-weight:800;cursor:pointer;transition:transform .08s,opacity .2s,filter .2s;touch-action:none}
+.big svg{width:30px;height:30px}
+.big small{font-size:11px;margin-top:1px;opacity:.95}
+#b1{background:linear-gradient(160deg,#ff9cc0,#ee5f95);box-shadow:0 6px 0 #c94477,0 10px 22px rgba(238,95,149,.35)}
+#b2{background:linear-gradient(160deg,#8fd0ff,#4a9cf0);box-shadow:0 6px 0 #2f7acb,0 10px 22px rgba(74,156,240,.35)}
+.big.press{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.15),0 4px 10px rgba(0,0,0,.15)!important}
+.big:disabled{opacity:.35;filter:grayscale(.5)}
+#prev{position:fixed;left:calc(env(safe-area-inset-left) + 12px);bottom:calc(env(safe-area-inset-bottom) + 12px);width:84px;height:63px;border-radius:12px;
+  object-fit:cover;transform:scaleX(-1);pointer-events:none;border:2px solid #fff;box-shadow:0 4px 14px rgba(80,60,130,.2);display:none;background:#ddd}
+#hint{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 58px);transform:translateX(-50%);font-size:13px;font-weight:700;border-radius:999px;padding:6px 14px;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+#toast{position:fixed;left:50%;top:42%;transform:translate(-50%,-50%) scale(.8);font-size:26px;font-weight:900;color:#e2558a;
+  padding:14px 26px;border-radius:22px;opacity:0;transition:opacity .25s,transform .35s cubic-bezier(.2,1.6,.4,1);pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+#panel{position:fixed;right:calc(env(safe-area-inset-right) + 12px);top:calc(env(safe-area-inset-top) + 56px);width:230px;border-radius:18px;padding:14px;display:none;font-size:13px}
+#panel label{display:block;font-weight:700;margin:4px 0 6px}
+#panel input[type=range]{width:100%;accent-color:#ee5f95}
+#panel .sm{color:var(--sub);font-size:11px;line-height:1.5;margin-top:8px}
+#panel .chk{display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:700}
+#start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(244,241,251,.35)}
+#start .card{max-width:380px;width:100%;border-radius:26px;padding:24px 22px 18px;text-align:center}
+#start h1{margin:0 0 6px;font-size:28px;letter-spacing:.04em;background:linear-gradient(90deg,#ee5f95,#8a62bf,#4a9cf0);-webkit-background-clip:text;background-clip:text;color:transparent}
+#start p{margin:0 0 16px;color:var(--sub);font-size:14px;line-height:1.6}
+.cta{display:block;width:100%;border:none;border-radius:16px;padding:14px;font-size:16px;font-weight:800;font-family:inherit;cursor:pointer;margin-top:10px}
+.cta.main{background:linear-gradient(135deg,#ff8db8,#a57cf0);color:#fff;box-shadow:0 8px 20px rgba(165,124,240,.35)}
+.cta.sub{background:rgba(255,255,255,.8);color:var(--ink)}
+#start .note{font-size:11px;color:var(--sub);margin-top:12px;line-height:1.5}
+@media (max-height:430px){.big{width:64px;height:64px}.big svg{width:26px;height:26px}#start .card{padding:16px 18px 12px}#start p{margin-bottom:8px}.cta{padding:11px;margin-top:8px}}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="top">
+  <div></div>
+  <div class="row">
+    <div id="score" class="pill glass">GET <b id="getN">0</b></div>
+    <button id="modeBtn" class="pill glass"><span id="dot" class="dot"></span><span id="modeTxt">ドラッグ</span></button>
+    <button id="centerBtn" class="pill glass" title="中心合わせ">中心</button>
+    <button id="gearBtn" class="pill glass" aria-label="設定">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+    </button>
+  </div>
+</div>
+
+<div id="panel" class="glass">
+  <label for="gain">立体感（動きの大きさ）</label>
+  <input id="gain" type="range" min="0.5" max="3" step="0.1" value="1.4">
+  <label for="depth" style="margin-top:10px">箱の奥行き</label>
+  <input id="depth" type="range" min="1" max="3" step="0.1" value="1.9">
+  <div class="chk"><input id="showPrev" type="checkbox"><span>カメラ映像を表示</span></div>
+  <div class="sm">「中心」を押すと、今の顔の位置を画面の正面として合わせ直します。カメラ映像と顔の位置は端末の中だけで処理し、保存・送信しません。</div>
+</div>
+
+<div id="ctrl">
+  <button id="b1" class="big" aria-label="右へ">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg><small>1</small>
+  </button>
+  <button id="b2" class="big" aria-label="奥へ" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V6M6 11l6-6 6 6"/></svg><small>2</small>
+  </button>
+</div>
+
+<video id="prev" playsinline muted autoplay></video>
+<div id="hint" class="glass"></div>
+<div id="toast" class="glass"></div>
+
+<div id="start">
+  <div class="card glass">
+    <h1>まどクレーン</h1>
+    <p>画面の向こうに、ほんとうに箱があるみたい。<br>顔を左右・上下に動かして、のぞきこんでね。</p>
+    <button id="goCam" class="cta main">カメラではじめる</button>
+    <button id="goDrag" class="cta sub">ドラッグではじめる</button>
+    <div class="note">横向き・顔から30〜40cmがおすすめ。<br>カメラ映像は端末の中だけで処理されます。</div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   まどクレーン — head-coupled perspective crane game
+   画面 = 窓。目の位置 E から見た「箱の中」を、窓（z=0 の画面）に投影する。
+   world: x→右, y→下, z→手前(+) / 奥(-)。画面は z=0 で x∈[0,W], y∈[0,H]。
+   ============================================================ */
+const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+const MODEL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ---------- layout ---------- */
+let W = 0, H = 0, DPR = 1, U = 1, R = 30, D = 400;
+let hole = {x0:0,x1:0,z0:0,z1:0,gh:0};
+let rh = 10, L = 40, tipR = 4, topY = 40;
+let depthK = 1.9;
+const EYE_Y = 0.2;            // ふつうの見る位置：少し上からのぞきこむ
+const PERSP = 0.72;           // 遠近の強調（1=実寸）
+
+function pxPerCm() {
+  const big = Math.max(screen.width, screen.height);
+  return big <= 1000 ? 60 : big <= 1400 ? 50 : 38;
+}
+const PPC = pxPerCm();
+
+/* ---------- eye ---------- */
+const E = {x:0, y:0, z:2000};           // 現在の目（平滑化後）
+const ET = {x:0, y:0, z:2000};          // 目標
+let gain = 1.4;
+let mode = 'drag';                       // 'drag' | 'camera'
+let dragOff = {x:0, y:0};
+
+/* ---------- prizes ---------- */
+const TYPES = [
+  {k:'pen', name:'ペンギン', base:'#5f95de', lite:'#b5d6fa', dark:'#3c69ad'},
+  {k:'hiy', name:'ひよこ',   base:'#ffd84f', lite:'#fff4b0', dark:'#e3ad1c'},
+  {k:'cat', name:'ねこ',     base:'#b58ce2', lite:'#e2cff8', dark:'#8760bd'},
+  {k:'usa', name:'うさぎ',   base:'#f6f0ee', lite:'#ffffff', dark:'#d3c7c3'},
+  {k:'kum', name:'くま',     base:'#cf9a64', lite:'#f0cfa4', dark:'#9c6b3e'},
+];
+let prizes = [];
+let targetCount = 16;
+let gets = loadGets();
+
+function loadGets(){ try { return JSON.parse(localStorage.getItem('madoCrane.gets')) || {}; } catch(e){ return {}; } }
+function saveGets(){ try { localStorage.setItem('madoCrane.gets', JSON.stringify(gets)); } catch(e){} }
+
+function newPrize(x, y, z) {
+  const t = TYPES[(Math.random() * TYPES.length) | 0];
+  const r = R * (0.88 + Math.random() * 0.34);
+  return {t, r, x, y, z, vx:0, vy:0, vz:0, yaw:(Math.random() - 0.5) * 1.1, inHole:false, held:false, gone:false};
+}
+function overHoleXZ(x, z, m) { return x > hole.x0 - m && x < hole.x1 + m && z > hole.z0 - m && z < hole.z1 + m; }
+
+function spawnAll() {
+  prizes = [];
+  targetCount = clamp(Math.round(W * D / (R * R * 15)), 10, 26);
+  let tries = 0;
+  while (prizes.length < targetCount && tries++ < 3000) {
+    const r = R * 1.1;
+    const x = r + Math.random() * (W - 2 * r), z = -D + r + Math.random() * (D - 2 * r);
+    if (overHoleXZ(x, z, r * 2)) continue;
+    let ok = true;
+    for (const p of prizes) if (Math.hypot(p.x - x, p.z - z) < (p.r + r) * 0.92) { ok = false; break; }
+    if (!ok && tries < 2000) continue;
+    const p = newPrize(x, 0, z); p.y = H - p.r - (ok ? 0 : R * 1.6);
+    prizes.push(p);
+  }
+}
+
+/* ---------- claw ---------- */
+const PHIS = [-Math.PI / 2, Math.PI / 6, Math.PI * 5 / 6];   // 奥・右手前・左手前
+const TH_OPEN = 0.86, TH_SEMI = 0.42, TH_CLOSED = 0.08;
+const C = {x:0, y:0, z:0, th:TH_SEMI, thT:TH_SEMI, state:'idle', t:0, held:null, cand:null, hold:1, slip1:false, slip2:false, plays:0};
+function home(){ return {x:(hole.x0 + hole.x1) / 2, z:(hole.z0 + hole.z1) / 2}; }
+
+function clawArms(cx, cy, cz, th) {
+  const arms = [], L1 = L * 0.55, L2 = L * 0.45;
+  for (const ph of PHIS) {
+    const c = Math.cos(ph), s = Math.sin(ph);
+    const h0 = [cx + c * rh * 0.8, cy + rh * 0.35, cz + s * rh * 0.8];
+    const a1 = th, a2 = th - 0.5;
+    const k = [h0[0] + Math.sin(a1) * c * L1, h0[1] + Math.cos(a1) * L1, h0[2] + Math.sin(a1) * s * L1];
+    const t = [k[0] + Math.sin(a2) * c * L2, k[1] + Math.cos(a2) * L2, k[2] + Math.sin(a2) * s * L2];
+    const hk = [t[0] - c * R * 0.22, t[1] + R * 0.02, t[2] - s * R * 0.22];
+    arms.push({ph, c, s, h0, k, t, hk});
+  }
+  return arms;
+}
+function hookRadial(th) {            // 爪先端の軸からの距離
+  const L1 = L * 0.55, L2 = L * 0.45;
+  return rh * 0.8 + Math.sin(th) * L1 + Math.sin(th - 0.5) * L2 - R * 0.22;
+}
+function hookDrop(th) { const L1 = L * 0.55, L2 = L * 0.45; return rh * 0.35 + Math.cos(th) * L1 + Math.cos(th - 0.5) * L2 + R * 0.02; }
+
+/* ---------- resize ---------- */
+function layout(keep) {
+  const oW = W, oH = H, oD = D;
+  W = innerWidth; H = innerHeight;
+  DPR = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
+  U = Math.min(W, H);
+  R = clamp(U * 0.085, 22, 80);
+  D = U * depthK;
+  const hs = R * 2.9;
+  hole = {x0:R * 0.35, x1:R * 0.35 + hs, z1:-R * 0.35, z0:-R * 0.35 - hs, gh:R * 1.05};
+  rh = R * 0.34; L = R * 1.6; tipR = R * 0.14; topY = H * 0.09 + rh;
+  if (keep && oW > 0 && prizes.length) {
+    const sx = W / oW, sy = H / oH, sz = D / oD, sr = R / (keep.R || R);
+    for (const p of prizes) { p.x *= sx; p.y *= sy; p.z *= sz; p.r *= sr; p.vx = p.vy = p.vz = 0; }
+  } else spawnAll();
+  const h = home();
+  C.x = h.x; C.z = h.z; C.y = topY; C.state = 'idle'; C.th = C.thT = TH_SEMI;
+  if (C.held) { C.held.held = false; C.held = null; }
+  C.cand = null;
+  ET.x = E.x = W / 2; ET.y = E.y = H * EYE_Y; ET.z = E.z = 35 * PPC * PERSP;
+  setButtons();
+}
+let resizeTimer = 0;
+addEventListener('resize', () => { clearTimeout(resizeTimer); const keepR = R; resizeTimer = setTimeout(() => layout({R:keepR}), 120); });
+
+/* ---------- projection ---------- */
+function P(x, y, z) { const t = E.z / (E.z - z); return [E.x + (x - E.x) * t, E.y + (y - E.y) * t, t]; }
+function pathPts(pts) {
+  ctx.beginPath();
+  for (let i = 0; i < pts.length; i++) { const q = P(pts[i][0], pts[i][1], pts[i][2]); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }
+  ctx.closePath();
+}
+function quad(pts, fill, stroke, lw) {
+  pathPts(pts);
+  if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw || 1; ctx.stroke(); }
+}
+function line3(a, b, col, w) {
+  const p = P(a[0], a[1], a[2]), q = P(b[0], b[1], b[2]);
+  ctx.strokeStyle = col; ctx.lineWidth = w * (p[2] + q[2]) / 2;
+  ctx.beginPath(); ctx.moveTo(p[0], p[1]); ctx.lineTo(q[0], q[1]); ctx.stroke();
+}
+function planeZ(z) { const t = E.z / (E.z - z); ctx.setTransform(DPR * t, 0, 0, DPR * t, DPR * E.x * (1 - t), DPR * E.y * (1 - t)); }
+function resetT() { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); }
+function hull(pts) {
+  pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const p of pts) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (let i = pts.length - 1; i >= 0; i--) { const p = pts[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  up.pop(); lo.pop(); return lo.concat(up);
+}
+
+/* ---------- room ---------- */
+function drawBackWall() {
+  planeZ(-D);
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#bfe3ff'); g.addColorStop(0.65, '#e6f4ff'); g.addColorStop(1, '#fdf3fa');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // 丘
+  ctx.fillStyle = '#c8efd9';
+  ctx.beginPath(); ctx.moveTo(0, H); ctx.quadraticCurveTo(W * 0.22, H * 0.55, W * 0.5, H * 0.8); ctx.quadraticCurveTo(W * 0.78, H * 0.5, W, H * 0.72); ctx.lineTo(W, H); ctx.fill();
+  ctx.fillStyle = '#a9e3c4';
+  ctx.beginPath(); ctx.moveTo(0, H * 0.88); ctx.quadraticCurveTo(W * 0.35, H * 0.7, W * 0.62, H * 0.92); ctx.quadraticCurveTo(W * 0.85, H * 0.78, W, H * 0.9); ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.fill();
+  // 雲
+  ctx.fillStyle = 'rgba(255,255,255,.95)';
+  const cloud = (x, y, s) => { ctx.beginPath(); ctx.arc(x, y, s, 0, 7); ctx.arc(x + s * 1.1, y - s * 0.45, s * 1.15, 0, 7); ctx.arc(x + s * 2.2, y, s * 0.9, 0, 7); ctx.rect(x, y - s * 0.2, s * 2.2, s * 0.9); ctx.fill(); };
+  cloud(W * 0.12, H * 0.25, U * 0.05); cloud(W * 0.62, H * 0.17, U * 0.04); cloud(W * 0.8, H * 0.38, U * 0.035);
+  // おひさま
+  ctx.fillStyle = '#ffe58a'; ctx.beginPath(); ctx.arc(W * 0.42, H * 0.3, U * 0.07, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,229,138,.35)'; ctx.beginPath(); ctx.arc(W * 0.42, H * 0.3, U * 0.105, 0, 7); ctx.fill();
+  // きらきら
+  ctx.fillStyle = 'rgba(255,255,255,.9)';
+  for (let i = 0; i < 14; i++) { const x = ((i * 0.618) % 1) * W, y = ((i * 0.377 + 0.1) % 0.6) * H, s = U * (0.006 + (i % 3) * 0.003); ctx.beginPath(); ctx.arc(x, y, s, 0, 7); ctx.fill(); }
+  resetT();
+  // 奥の枠
+  quad([[0,0,-D],[W,0,-D],[W,H,-D],[0,H,-D]], null, 'rgba(255,255,255,.9)', 3);
+}
+
+function drawFloor() {
+  quad([[0,H,0],[W,H,0],[W,H,-D],[0,H,-D]], null);
+  const p0 = P(0, H, -D), p1 = P(0, H, 0);
+  const g = ctx.createLinearGradient(0, p0[1], 0, p1[1]);
+  g.addColorStop(0, '#9fcfe0'); g.addColorStop(1, '#bfe4ee');
+  ctx.fillStyle = g; ctx.fill();
+  // 格子
+  ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 1;
+  const step = R * 1.5;
+  for (let z = 0; z >= -D; z -= step) { const a = P(0, H, z), b = P(W, H, z); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  for (let x = 0; x <= W + 1; x += step) { const a = P(x, H, 0), b = P(x, H, -D); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+  // 取り出し口
+  const y = H;
+  quad([[hole.x0,y,hole.z1],[hole.x1,y,hole.z1],[hole.x1,y,hole.z0],[hole.x0,y,hole.z0]], '#4a3f6b');
+  // 穴の内壁（奥側が見える）
+  const dd = R * 3;
+  quad([[hole.x0,y,hole.z0],[hole.x1,y,hole.z0],[hole.x1,y + dd,hole.z0],[hole.x0,y + dd,hole.z0]], null);
+  ctx.save(); pathPts([[hole.x0,y,hole.z1],[hole.x1,y,hole.z1],[hole.x1,y,hole.z0],[hole.x0,y,hole.z0]]); ctx.clip();
+  ctx.fillStyle = '#6c5f94';
+  quad([[hole.x0,y,hole.z0],[hole.x1,y,hole.z0],[hole.x1,y + dd,hole.z0],[hole.x0,y + dd,hole.z0]], '#6c5f94');
+  quad([[hole.x0,y,hole.z0],[hole.x0,y,hole.z1],[hole.x0,y + dd,hole.z1],[hole.x0,y + dd,hole.z0]], '#5c5084');
+  quad([[hole.x1,y,hole.z0],[hole.x1,y,hole.z1],[hole.x1,y + dd,hole.z1],[hole.x1,y + dd,hole.z0]], '#5c5084');
+  ctx.restore();
+}
+
+function drawCeiling() {
+  quad([[0,0,0],[W,0,0],[W,0,-D],[0,0,-D]], '#fbf8ff');
+  // ライト
+  for (const fx of [0.25, 0.75]) {
+    const x = W * fx, w = R * 0.25;
+    quad([[x - w,0,-R * 0.3],[x + w,0,-R * 0.3],[x + w,0,-D + R * 0.3],[x - w,0,-D + R * 0.3]], '#fff6d8', 'rgba(255,220,140,.7)', 1);
+  }
+  // レール
+  const h = home();
+  for (const z of [h.z, -D + R * 0.5]) line3([0, R * 0.08, z], [W, R * 0.08, z], 'rgba(170,160,200,.6)', 3);
+  line3([C.x, R * 0.12, h.z], [C.x, R * 0.12, -D + R * 0.5], 'rgba(150,140,185,.8)', 4);
+}
+
+function drawSideWalls() {
+  for (const x of [0, W]) {
+    quad([[x,0,0],[x,0,-D],[x,H,-D],[x,H,0]], 'rgba(238,232,252,.92)');
+    ctx.strokeStyle = 'rgba(190,175,230,.35)'; ctx.lineWidth = 1;
+    const step = R * 1.5;
+    for (let z = 0; z >= -D; z -= step) { const a = P(x, 0, z), b = P(x, H, z); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    for (let y = 0; y <= H; y += step) { const a = P(x, y, 0), b = P(x, y, -D); ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); }
+    // ガラスの反射
+    const a = P(x, H * 0.1, -D * 0.25), b = P(x, H * 0.9, -D * 0.55);
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 6 * a[2];
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+  }
+  // 角の柱
+  for (const [x, y] of [[0,0],[W,0],[0,H],[W,H]]) line3([x, y, 0], [x, y, -D], 'rgba(255,255,255,.95)', 4);
+}
+
+function floorEllipse(x, z, r, alpha) {
+  ctx.beginPath();
+  for (let i = 0; i < 16; i++) { const a = i / 16 * Math.PI * 2; const q = P(x + Math.cos(a) * r, H - 0.5, z + Math.sin(a) * r); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); }
+  ctx.closePath(); ctx.fillStyle = `rgba(60,70,120,${alpha})`; ctx.fill();
+}
+
+/* ---------- guard (取り出し口のアクリル) ---------- */
+function guardFace(which) {
+  const y0 = H - hole.gh, y1 = H, {x0, x1, z0, z1} = hole;
+  let pts;
+  if (which === 'back') pts = [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0]];
+  else if (which === 'front') pts = [[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]];
+  else if (which === 'left') pts = [[x0,y0,z0],[x0,y0,z1],[x0,y1,z1],[x0,y1,z0]];
+  else pts = [[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0]];
+  quad(pts, 'rgba(255,255,255,.22)', 'rgba(255,255,255,.95)', 1.6);
+}
+
+/* ---------- prize drawing ---------- */
+function fdir(p, dx, dy, dz) {                    // ローカル方向 → ワールド（yaw回転）
+  const c = Math.cos(p.yaw), s = Math.sin(p.yaw);
+  const x = dx * c + dz * s, z = -dx * s + dz * c;
+  const n = Math.hypot(x, dy, z);
+  return [x / n, dy / n, z / n];
+}
+function feat(p, dx, dy, dz, rad, col, sq) {     // 球面に貼った円（見る角度で楕円に）
+  const n = fdir(p, dx, dy, dz);
+  const w = [p.x + n[0] * p.r, p.y + n[1] * p.r, p.z + n[2] * p.r];
+  const v = [E.x - w[0], E.y - w[1], E.z - w[2]], vl = Math.hypot(v[0], v[1], v[2]);
+  const cos = (n[0] * v[0] + n[1] * v[1] + n[2] * v[2]) / vl;
+  if (cos <= 0.02) return;
+  const a = P(w[0], w[1], w[2]), b = P(w[0] + n[0], w[1] + n[1], w[2] + n[2]);
+  const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+  const rr = rad * p.r * a[2];
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.ellipse(a[0], a[1], Math.max(rr * cos, 0.3), rr * (sq || 1), ang, 0, 7); ctx.fill();
+}
+function wpt(p, dx, dy, dz, k) { const n = fdir(p, dx, dy, dz); return [p.x + n[0] * p.r * k, p.y + n[1] * p.r * k, p.z + n[2] * p.r * k]; }
+function sphere(x, y, z, r, lite, base, dark) {
+  const [sx, sy, t] = P(x, y, z), rr = r * t;
+  // 光は左上手前
+  const g = ctx.createRadialGradient(sx - rr * 0.35, sy - rr * 0.42, rr * 0.08, sx, sy, rr);
+  g.addColorStop(0, lite); g.addColorStop(0.55, base); g.addColorStop(1, dark);
+  ctx.fillStyle = g; ctx.beginPath(); ctx.arc(sx, sy, rr, 0, 7); ctx.fill();
+  return [sx, sy, rr];
+}
+function eyes(p, sp, y) {
+  feat(p, -0.3, y, 0.92, 0.1, '#2a2340'); feat(p, 0.3, y, 0.92, 0.1, '#2a2340');
+  feat(p, -0.27, y - 0.04, 0.95, 0.035, '#fff'); feat(p, 0.33, y - 0.04, 0.93, 0.035, '#fff');
+}
+function cheeks(p, y) { feat(p, -0.52, y, 0.84, 0.11, 'rgba(255,120,150,.45)'); feat(p, 0.52, y, 0.84, 0.11, 'rgba(255,120,150,.45)'); }
+
+function drawPrize(p) {
+  const T = p.t;
+  // 体の後ろに描くパーツ
+  if (T.k === 'cat') {
+    for (const sx of [-1, 1]) {
+      const a = wpt(p, sx * 0.25, -0.95, 0.1, 0.95), b = wpt(p, sx * 0.78, -0.62, 0.1, 0.95), tip = wpt(p, sx * 0.62, -1.0, 0.15, 1.38);
+      quad([a, tip, b], T.dark);
+    }
+  } else if (T.k === 'usa') {
+    for (const sx of [-1, 1]) {
+      const a = wpt(p, sx * 0.3, -0.95, 0.05, 0.9), b = wpt(p, sx * 0.5, -1, 0.0, 1.95);
+      line3(a, b, T.dark, p.r * 0.5); line3(a, b, T.base, p.r * 0.38);
+      const a2 = wpt(p, sx * 0.3, -0.95, 0.12, 1.0), b2 = wpt(p, sx * 0.5, -1, 0.08, 1.8);
+      line3(a2, b2, 'rgba(255,160,185,.8)', p.r * 0.16);
+    }
+  } else if (T.k === 'kum') {
+    for (const sx of [-1, 1]) { const e = wpt(p, sx * 0.68, -0.73, 0, 0.98); sphere(e[0], e[1], e[2], p.r * 0.3, T.lite, T.base, T.dark); }
+  } else if (T.k === 'hiy') {
+    const a = wpt(p, 0, -1, 0.1, 0.9), b = wpt(p, 0.15, -1, 0.1, 1.28), c = wpt(p, -0.2, -1, 0.15, 1.22);
+    line3(a, b, T.dark, p.r * 0.1); line3(a, c, T.dark, p.r * 0.1);
+  }
+  const sp = sphere(p.x, p.y, p.z, p.r, T.lite, T.base, T.dark);
+  ctx.save(); ctx.beginPath(); ctx.arc(sp[0], sp[1], sp[2], 0, 7); ctx.clip();
+  if (T.k === 'pen') {
+    feat(p, 0, 0.28, 1, 0.66, '#fbfdff');
+    eyes(p, sp, -0.12); cheeks(p, 0.08);
+    feat(p, 0, 0.03, 1, 0.13, '#ffa23c', 0.7);
+  } else if (T.k === 'hiy') {
+    feat(p, -0.93, 0.2, 0.3, 0.3, T.dark); feat(p, 0.93, 0.2, 0.3, 0.3, T.dark);
+    eyes(p, sp, -0.12); cheeks(p, 0.1); feat(p, 0, 0.04, 1, 0.13, '#ff9a2e', 0.7);
+  } else if (T.k === 'cat') {
+    feat(p, 0, 0.32, 1, 0.5, T.lite);
+    eyes(p, sp, -0.05); cheeks(p, 0.15); feat(p, 0, 0.12, 1, 0.06, '#ff7fa6');
+  } else if (T.k === 'usa') {
+    eyes(p, sp, -0.08); cheeks(p, 0.14); feat(p, 0, 0.1, 1, 0.07, '#ff8fb0', 0.8);
+  } else if (T.k === 'kum') {
+    feat(p, 0, 0.25, 1, 0.38, T.lite);
+    eyes(p, sp, -0.12); feat(p, 0, 0.12, 1, 0.1, '#5a3a22', 0.75); cheeks(p, 0.12);
+  }
+  // つやの光
+  ctx.fillStyle = 'rgba(255,255,255,.35)';
+  ctx.beginPath(); ctx.ellipse(sp[0] - sp[2] * 0.38, sp[1] - sp[2] * 0.48, sp[2] * 0.26, sp[2] * 0.14, -0.6, 0, 7); ctx.fill();
+  ctx.restore();
+  if (T.k === 'pen' || T.k === 'hiy') {
+    for (const sx of [-1, 1]) { const f = wpt(p, sx * 0.38, 0.9, 0.45, 0.95); sphere(f[0], f[1], f[2], p.r * 0.18, '#ffd08a', '#ff9f3a', '#d9761a'); }
+  }
+}
+
+let holeHull = null;
+function computeHoleHull() {
+  const pts = [];
+  for (const x of [hole.x0, hole.x1]) for (const z of [hole.z0, hole.z1]) for (const y of [-H, H]) { const q = P(x, y, z); pts.push([q[0], q[1]]); }
+  holeHull = hull(pts);
+}
+
+/* ---------- claw drawing ---------- */
+function metal(a, b, w) { line3(a, b, '#7d8396', w + 3); line3(a, b, '#d8dde7', w); }
+function drawClawBack() {
+  const arms = clawArms(C.x, C.y, C.z, C.th);
+  const top = [C.x, R * 0.12, C.z];
+  // キャリッジ
+  const cp = P(top[0], top[1], top[2]);
+  ctx.fillStyle = '#9b93bf'; ctx.beginPath(); ctx.ellipse(cp[0], cp[1], R * 0.45 * cp[2], R * 0.2 * cp[2], 0, 0, 7); ctx.fill();
+  line3(top, [C.x, C.y - rh * 0.8, C.z], '#8a8fa3', 2.2);
+  for (const a of arms) if (a.s < 0) { metal(a.h0, a.k, R * 0.11); metal(a.k, a.t, R * 0.1); metal(a.t, a.hk, R * 0.09); }
+  sphere(C.x, C.y - rh * 0.35, C.z, rh * 0.75, '#ffffff', '#c9cfdb', '#7d8396');
+  sphere(C.x, C.y, C.z, rh, '#ffffff', '#ffb3cf', '#d9688f');
+}
+function drawClawFront() {
+  const arms = clawArms(C.x, C.y, C.z, C.th);
+  for (const a of arms) if (a.s >= 0) { metal(a.h0, a.k, R * 0.11); metal(a.k, a.t, R * 0.1); metal(a.t, a.hk, R * 0.09); }
+}
+
+/* ---------- physics ---------- */
+const STEP = 1 / 120;
+function kinematicBodies() {
+  const out = [{x:C.x, y:C.y, z:C.z, r:rh}];
+  for (const a of clawArms(C.x, C.y, C.z, C.th)) {
+    out.push({x:a.t[0], y:a.t[1], z:a.t[2], r:tipR});
+    out.push({x:a.hk[0], y:a.hk[1], z:a.hk[2], r:tipR});
+    out.push({x:a.k[0], y:a.k[1], z:a.k[2], r:tipR * 0.8});
+  }
+  return out;
+}
+function physics(dt) {
+  const g = 4.6 * U;
+  for (const p of prizes) {
+    if (p.held) continue;
+    p.vy += g * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+  }
+  const kin = kinematicBodies();
+  for (let it = 0; it < 3; it++) {
+    // prize vs prize
+    for (let i = 0; i < prizes.length; i++) {
+      const a = prizes[i];
+      for (let j = i + 1; j < prizes.length; j++) {
+        const b = prizes[j];
+        const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z, rr = a.r + b.r;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= rr * rr || d2 < 1e-6) continue;
+        const d = Math.sqrt(d2), o = (rr - d), nx = dx / d, ny = dy / d, nz = dz / d;
+        const wa = a.held ? 0 : b.held ? 1 : 0.5, wb = 1 - wa;
+        if (a.held && b.held) continue;
+        a.x -= nx * o * wa; a.y -= ny * o * wa; a.z -= nz * o * wa;
+        b.x += nx * o * wb; b.y += ny * o * wb; b.z += nz * o * wb;
+        const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny + (b.vz - a.vz) * nz;
+        if (rv < 0) {
+          const imp = -rv * 1.1;
+          if (!a.held) { a.vx -= nx * imp * wa; a.vy -= ny * imp * wa; a.vz -= nz * imp * wa; }
+          if (!b.held) { b.vx += nx * imp * wb; b.vy += ny * imp * wb; b.vz += nz * imp * wb; }
+        }
+      }
+    }
+    // claw vs prize
+    for (const p of prizes) {
+      if (p.held || p === C.cand) continue;
+      for (const k of kin) {
+        const dx = p.x - k.x, dy = p.y - k.y, dz = p.z - k.z, rr = p.r + k.r;
+        const d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= rr * rr || d2 < 1e-6) continue;
+        const d = Math.sqrt(d2), o = rr - d, nx = dx / d, ny = dy / d, nz = dz / d;
+        p.x += nx * o; p.y += ny * o; p.z += nz * o;
+        const rv = p.vx * nx + p.vy * ny + p.vz * nz;
+        if (rv < 0) { p.vx -= nx * rv; p.vy -= ny * rv; p.vz -= nz * rv; }
+      }
+    }
+    // walls, floor, hole, guard
+    for (const p of prizes) {
+      if (p.held) continue;
+      const over = p.x > hole.x0 && p.x < hole.x1 && p.z > hole.z0 && p.z < hole.z1;
+      if (!p.inHole && over && p.y + p.r * 0.3 < H - hole.gh) p.inHole = true;
+      if (p.inHole) {
+        const m = Math.min(p.r * 0.92, (hole.x1 - hole.x0) / 2 - 1);
+        p.x = clamp(p.x, hole.x0 + m, hole.x1 - m); p.z = clamp(p.z, hole.z0 + m, hole.z1 - m);
+        if (p.y - p.r > H + 4) p.gone = true;
+        continue;
+      }
+      if (p.y > H - p.r) { p.y = H - p.r; if (p.vy > 0) p.vy *= -0.12; }
+      // guard box
+      const qx = clamp(p.x, hole.x0, hole.x1), qy = clamp(p.y, H - hole.gh, H), qz = clamp(p.z, hole.z0, hole.z1);
+      let dx = p.x - qx, dy = p.y - qy, dz = p.z - qz, d2 = dx * dx + dy * dy + dz * dz;
+      if (d2 < p.r * p.r) {
+        let d = Math.sqrt(d2);
+        if (d < 1e-4) { dx = 0; dy = -1; dz = 0; d = 1; p.y = H - hole.gh; }
+        const o = p.r - (d2 < 1e-8 ? 0 : d), nx = dx / d, ny = dy / d, nz = dz / d;
+        p.x += nx * o; p.y += ny * o; p.z += nz * o;
+        const rv = p.vx * nx + p.vy * ny + p.vz * nz;
+        if (rv < 0) { p.vx -= nx * rv * 1.1; p.vy -= ny * rv * 1.1; p.vz -= nz * rv * 1.1; }
+      }
+      if (p.x < p.r) { p.x = p.r; if (p.vx < 0) p.vx *= -0.2; }
+      if (p.x > W - p.r) { p.x = W - p.r; if (p.vx > 0) p.vx *= -0.2; }
+      if (p.z < -D + p.r) { p.z = -D + p.r; if (p.vz < 0) p.vz *= -0.2; }
+      if (p.z > -p.r) { p.z = -p.r; if (p.vz > 0) p.vz *= -0.2; }
+    }
+  }
+  // 摩擦
+  for (const p of prizes) {
+    if (p.held || p.inHole) continue;
+    const onFloor = p.y >= H - p.r - 1.5;
+    const f = Math.pow(onFloor ? 0.9 : 0.995, dt * 120);
+    p.vx *= f; p.vz *= f;
+    if (onFloor && Math.abs(p.vy) < 20) p.vy *= 0.5;
+  }
+  // 取り出し口へ落ちた
+  for (let i = prizes.length - 1; i >= 0; i--) if (prizes[i].gone) { gotPrize(prizes[i]); prizes.splice(i, 1); }
+}
+
+/* ---------- game logic ---------- */
+const input = {b1:false, b2:false};
+function setButtons() {
+  $('b1').disabled = C.state !== 'idle' && C.state !== 'moveX';
+  $('b2').disabled = C.state !== 'waitZ' && C.state !== 'moveZ';
+}
+function setState(s) { C.state = s; C.t = 0; setButtons(); }
+
+function findCandidate() {
+  // 閉じたとき掴めそうな景品
+  let best = null, bd = 1e9;
+  const hookY = C.y + hookDrop(TH_CLOSED);
+  for (const p of prizes) {
+    if (p.inHole) continue;
+    const d = Math.hypot(p.x - C.x, p.z - C.z);
+    if (d > p.r * 0.95) continue;
+    if (p.y < C.y) continue;                     // 爪より上
+    if (hookY < p.y - p.r * 0.35) continue;      // 爪が赤道まで届かない
+    if (d < bd) { bd = d; best = p; }
+  }
+  if (!best) return null;
+  let q = 1 - bd / best.r;                       // 真ん中ほど強い
+  q -= (best.r / R - 1) * 0.7;                   // 大きい子ほど難しい
+  // 下の子に乗っている等で浮いているなら少し不利
+  if (best.y < H - best.r - 2) q -= 0.08;
+  return {p:best, hold:clamp(0.22 + q * 1.5, 0.05, 0.97)};
+}
+function targetThetaFor(p) {
+  for (let th = TH_OPEN; th > TH_CLOSED; th -= 0.01) {
+    const hy = C.y + hookDrop(th);
+    const dy = hy - p.y;
+    const chord = Math.sqrt(Math.max(p.r * p.r - dy * dy, (p.r * 0.3) ** 2));
+    if (hookRadial(th) <= chord * 0.82) return th;
+  }
+  return TH_CLOSED;
+}
+
+function update(dt) {
+  C.t += dt;
+  const sp = U * 0.5, h = home();
+  // アームの開閉アニメ
+  C.th = lerp(C.th, C.thT, 1 - Math.pow(0.0005, dt));
+  switch (C.state) {
+    case 'idle': if (input.b1) setState('moveX'); break;
+    case 'moveX':
+      C.x = Math.min(C.x + sp * dt, W - R * 0.7);
+      if (!input.b1 || C.x >= W - R * 0.7) setState('waitZ');
+      break;
+    case 'waitZ': if (input.b2) setState('moveZ'); break;
+    case 'moveZ':
+      C.z = Math.max(C.z - sp * dt, -D + R * 0.7);
+      if (!input.b2 || C.z <= -D + R * 0.7) { setState('open'); C.thT = TH_OPEN; }
+      break;
+    case 'open': if (C.t > 0.45) setState('drop'); break;
+    case 'drop': {
+      const ny = C.y + sp * 0.85 * dt;
+      let stop = ny + hookDrop(C.th) >= H - tipR * 0.6 || ny >= H - rh;
+      for (const p of prizes) {
+        if (p.inHole) continue;
+        if (Math.hypot(p.x - C.x, ny - p.y, p.z - C.z) < rh + p.r - 1) { stop = true; break; }
+      }
+      if (stop || C.t > 4) {
+        setState('close');
+        const c = findCandidate();
+        C.cand = c ? c.p : null; C.hold = c ? c.hold : 0;
+        C.thT = c ? targetThetaFor(c.p) : TH_CLOSED;
+      } else C.y = ny;
+      break;
+    }
+    case 'close':
+      if (C.t > 0.7) {
+        if (C.cand) {
+          const p = C.cand; p.held = true; p.vx = p.vy = p.vz = 0;
+          C.held = p; p.off = [p.x - C.x, p.y - C.y, p.z - C.z];
+        }
+        C.cand = null; C.slip1 = C.slip2 = false;
+        setState('lift');
+      }
+      break;
+    case 'lift':
+      C.y = Math.max(C.y - sp * 0.6 * dt, topY);
+      if (C.held && !C.slip1 && C.t > 0.3) { C.slip1 = true; if (Math.random() > C.hold) dropHeld(); }
+      if (C.y <= topY) {
+        if (C.held && !C.slip2) { C.slip2 = true; if (Math.random() > (C.hold + 1) / 2) dropHeld(); }
+        setState('return');
+      }
+      break;
+    case 'return': {
+      const dx = h.x - C.x, dz = h.z - C.z, d = Math.hypot(dx, dz), st = sp * 0.9 * dt;
+      if (d <= st) { C.x = h.x; C.z = h.z; setState('release'); C.thT = TH_OPEN; if (C.held) dropHeld(); }
+      else { C.x += dx / d * st; C.z += dz / d * st; }
+      break;
+    }
+    case 'release': if (C.t > 0.9) { C.thT = TH_SEMI; C.plays++; setState('idle'); } break;
+  }
+  if (C.held) {
+    const p = C.held;
+    p.off[0] *= Math.pow(0.05, dt); p.off[2] *= Math.pow(0.05, dt);
+    p.x = C.x + p.off[0]; p.y = C.y + p.off[1]; p.z = C.z + p.off[2];
+  }
+  // 補充
+  if (C.state === 'idle' && prizes.length < targetCount * 0.6 && Math.random() < dt * 0.8) {
+    const r = R * 1.1;
+    for (let k = 0; k < 20; k++) {
+      const x = r + Math.random() * (W - 2 * r), z = -D + r + Math.random() * (D - 2 * r);
+      if (overHoleXZ(x, z, r * 1.5)) continue;
+      const p = newPrize(x, H * 0.15, z); prizes.push(p); break;
+    }
+  }
+}
+function dropHeld() { const p = C.held; if (!p) return; p.held = false; p.vx = p.vy = p.vz = 0; C.held = null; }
+
+function gotPrize(p) {
+  gets[p.t.k] = (gets[p.t.k] || 0) + 1; saveGets(); renderScore();
+  toast(`${p.t.name} ゲット！`);
+  if (navigator.vibrate) navigator.vibrate([30, 40, 60]);
+}
+function renderScore() {
+  let n = 0; for (const k in gets) n += gets[k];
+  $('getN').textContent = n;
+}
+let toastTimer = 0;
+function toast(s) { const t = $('toast'); t.textContent = s; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 1500); }
+let hintShown = '';
+function hint(s) { if (s === hintShown) return; hintShown = s; const h = $('hint'); if (s) { h.textContent = s; h.style.opacity = 1; } else h.style.opacity = 0; }
+
+/* ---------- render ---------- */
+function render() {
+  resetT();
+  ctx.clearRect(0, 0, W, H);
+  drawBackWall();
+  drawCeiling();
+  drawSideWalls();
+  drawFloor();
+  computeHoleHull();
+  // 影
+  for (const p of prizes) {
+    if (p.inHole) continue;
+    const hgt = H - p.y - p.r;
+    floorEllipse(p.x, p.z, p.r * clamp(0.85 - hgt / (H * 2), 0.3, 0.85), clamp(0.2 - hgt / (H * 3), 0.04, 0.2));
+  }
+  floorEllipse(C.x, C.z, R * 0.55, 0.1);
+  // 奥から順に描く
+  const list = [];
+  for (const p of prizes) list.push({z:p.z, f:() => {
+    if (p.inHole) { ctx.save(); ctx.beginPath(); holeHull.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1])); ctx.closePath(); ctx.clip(); drawPrize(p); ctx.restore(); }
+    else drawPrize(p);
+  }});
+  list.push({z:C.z - R * 0.5, f:drawClawBack});
+  list.push({z:C.z + R * 0.5, f:drawClawFront});
+  list.push({z:hole.z0 - 0.1, f:() => guardFace('back')});
+  list.push({z:(hole.z0 + hole.z1) / 2, f:() => { guardFace('left'); guardFace('right'); }});
+  list.push({z:hole.z1 + 0.1, f:() => guardFace('front')});
+  list.sort((a, b) => a.z - b.z);
+  for (const o of list) o.f();
+  // 画面（ガラス）の縁
+  const g = ctx.createLinearGradient(0, 0, W, H);
+  g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(0.42, 'rgba(255,255,255,0)'); g.addColorStop(0.47, 'rgba(255,255,255,.12)'); g.addColorStop(0.52, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 6; ctx.strokeRect(3, 3, W - 6, H - 6);
+}
+
+/* ---------- face tracking (MediaPipe) ---------- */
+const video = $('prev');
+let landmarker = null, lastVT = -1, lostT = 0, calib = null, faceOK = false;
+async function startCamera() {
+  setMode('camera');
+  hint('カメラを準備中…');
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user', width:{ideal:640}, height:{ideal:480}}, audio:false});
+    video.srcObject = stream; await video.play();
+    const vision = await import(MP_BASE + '/vision_bundle.mjs');
+    const fs = await vision.FilesetResolver.forVisionTasks(MP_BASE + '/wasm');
+    const opt = d => ({baseOptions:{modelAssetPath:MODEL, delegate:d}, runningMode:'VIDEO', numFaces:1});
+    try { landmarker = await vision.FaceLandmarker.createFromOptions(fs, opt('GPU')); }
+    catch (e) { landmarker = await vision.FaceLandmarker.createFromOptions(fs, opt('CPU')); }
+    calib = null;
+    hint('顔をさがしています…');
+  } catch (e) {
+    console.error(e);
+    setMode('drag');
+    hint(''); toast('カメラが使えないのでドラッグで');
+  }
+}
+function setMode(m) {
+  mode = m;
+  $('modeTxt').textContent = m === 'camera' ? 'カメラ' : 'ドラッグ';
+  $('dot').className = 'dot' + (m === 'camera' ? (faceOK ? ' on' : ' warn') : '');
+  // iOSでは非表示(display:none)の動画がフレームを止めることがあるので、透明にして残す
+  video.style.display = m === 'camera' ? 'block' : 'none';
+  video.style.opacity = $('showPrev').checked ? 1 : 0;
+  if (m === 'drag') { hint(''); dragOff.x = dragOff.y = 0; ET.x = W / 2; ET.y = H * EYE_Y; ET.z = 35 * PPC * PERSP; }
+}
+function trackFace(now, dt) {
+  if (mode !== 'camera' || !landmarker || video.readyState < 2) return;
+  if (video.currentTime === lastVT) return;
+  lastVT = video.currentTime;
+  let res;
+  try { res = landmarker.detectForVideo(video, now); } catch (e) { return; }
+  const lm = res && res.faceLandmarks && res.faceLandmarks[0];
+  const ok = !!lm;
+  if (ok !== faceOK) { faceOK = ok; $('dot').className = 'dot ' + (ok ? 'on' : 'warn'); }
+  if (!lm) { lostT += dt; if (lostT > 0.8) hint('顔が見えません'); return; }
+  lostT = 0; hint('');
+  const vw = video.videoWidth, vh = video.videoHeight;
+  const a = lm[33], b = lm[263];                       // 両目の外側の端
+  const ax = a.x * vw, ay = a.y * vh, bx = b.x * vw, by = b.y * vh;
+  const iod = Math.hypot(bx - ax, by - ay);
+  const f = Math.max(vw, vh) * 0.9;                    // 焦点距離(px) ≒ 画角60°前後
+  const zcm = clamp(9.0 * f / iod, 15, 110);           // 目尻間 ≒ 9cm
+  const mx = (ax + bx) / 2, my = (ay + by) / 2;
+  const xcm = -(mx - vw / 2) * zcm / f;                // 前カメラは鏡像なので反転
+  const ycm = (my - vh / 2) * zcm / f;
+  if (!calib) calib = {x:xcm, y:ycm};
+  ET.x = W / 2 + (xcm - calib.x) * PPC * gain;
+  ET.y = H * EYE_Y + (ycm - calib.y) * PPC * gain;
+  ET.z = zcm * PPC * PERSP;
+}
+
+/* ---------- input ---------- */
+function bindHold(btn, key) {
+  const down = e => { e.preventDefault(); if (btn.disabled) return; input[key] = true; btn.classList.add('press'); try { btn.setPointerCapture(e.pointerId); } catch (_) {} };
+  const up = () => { input[key] = false; btn.classList.remove('press'); };
+  btn.addEventListener('pointerdown', down);
+  btn.addEventListener('pointerup', up); btn.addEventListener('pointercancel', up); btn.addEventListener('lostpointercapture', up);
+  btn.addEventListener('contextmenu', e => e.preventDefault());
+}
+bindHold($('b1'), 'b1'); bindHold($('b2'), 'b2');
+addEventListener('keydown', e => { if (e.repeat) return; if (e.key === 'ArrowRight' || e.key === '1') input.b1 = true; if (e.key === 'ArrowUp' || e.key === '2') input.b2 = true; });
+addEventListener('keyup', e => { if (e.key === 'ArrowRight' || e.key === '1') input.b1 = false; if (e.key === 'ArrowUp' || e.key === '2') input.b2 = false; });
+
+let drag = null;
+cv.addEventListener('pointerdown', e => { if (mode === 'drag') { drag = {x:e.clientX, y:e.clientY, ox:dragOff.x, oy:dragOff.y}; cv.setPointerCapture(e.pointerId); } closePanel(); });
+cv.addEventListener('pointermove', e => {
+  if (!drag) return;
+  dragOff.x = clamp(drag.ox + (e.clientX - drag.x) * 1.6 * gain / 1.4, -W * 0.7, W * 0.7);
+  dragOff.y = clamp(drag.oy + (e.clientY - drag.y) * 1.6 * gain / 1.4, -H * 0.7, H * 0.9);
+  ET.x = W / 2 + dragOff.x; ET.y = H * EYE_Y + dragOff.y;
+});
+cv.addEventListener('pointerup', () => drag = null);
+cv.addEventListener('pointercancel', () => drag = null);
+cv.addEventListener('dblclick', () => { dragOff.x = dragOff.y = 0; ET.x = W / 2; ET.y = H * EYE_Y; });
+
+$('modeBtn').onclick = () => { if (mode === 'camera') setMode('drag'); else if (landmarker) { setMode('camera'); calib = null; } else startCamera(); };
+$('centerBtn').onclick = () => { calib = null; dragOff.x = dragOff.y = 0; if (mode === 'drag') { ET.x = W / 2; ET.y = H * EYE_Y; } toast('中心を合わせました'); };
+$('gearBtn').onclick = () => { const p = $('panel'); p.style.display = p.style.display === 'block' ? 'none' : 'block'; };
+function closePanel() { $('panel').style.display = 'none'; }
+$('gain').oninput = e => { gain = +e.target.value; };
+$('depth').oninput = e => { depthK = +e.target.value; layout({R}); };
+$('showPrev').onchange = () => setMode(mode);
+$('goCam').onclick = () => { $('start').style.display = 'none'; startCamera(); };
+$('goDrag').onclick = () => { $('start').style.display = 'none'; setMode('drag'); };
+
+/* ---------- loop ---------- */
+let last = performance.now(), acc = 0;
+function frame(now) {
+  let dt = Math.min((now - last) / 1000, 0.05); last = now;
+  trackFace(now, dt);
+  // 目の平滑化（速く動くと追従を速く）
+  const dist = Math.hypot(ET.x - E.x, ET.y - E.y);
+  const k = 1 - Math.pow(mode === 'camera' ? clamp(0.02 - dist / 4000, 0.0008, 0.02) : 0.0005, dt);
+  E.x = lerp(E.x, clamp(ET.x, -W * 0.4, W * 1.4), k);
+  E.y = lerp(E.y, clamp(ET.y, -H * 0.6, H * 0.98), k);
+  E.z = lerp(E.z, ET.z, k);
+  acc += dt;
+  while (acc >= STEP) { update(STEP); physics(STEP); acc -= STEP; }
+  render();
+  requestAnimationFrame(frame);
+}
+layout();
+renderScore();
+window.__mado = {C, E, ET, prizes:() => prizes, input, setState, layout};
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
