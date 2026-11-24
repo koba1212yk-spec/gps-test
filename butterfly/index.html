@@ -43,7 +43,7 @@ button{font-family:inherit;color:inherit}
 .cta{display:block;width:100%;border:none;border-radius:18px;padding:15px;font-size:16px;font-weight:800;cursor:pointer;color:#fff;
   background:linear-gradient(135deg,#2b86ee,#7a5cf2);box-shadow:0 10px 24px rgba(70,100,240,.35)}
 #start .fine{font-size:11px;color:var(--sub);margin-top:10px;line-height:1.55}
-#start .err{color:#d6455d;font-weight:700;font-size:12px;margin-top:8px;display:none}
+#start #tnErr{color:#d6455d;font-weight:700;font-size:12px;margin-top:8px;display:none}
 @media (max-height:600px){.how{display:none}#start .box{padding:14px 18px 12px}#start h1{font-size:24px}#start .lead{margin-bottom:8px}.cta{padding:12px}}
 
 /* シート */
@@ -74,7 +74,7 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 #photo .btns{display:flex;gap:10px}
 #photo button{border:none;border-radius:16px;padding:12px 22px;font-weight:800;font-size:15px;cursor:pointer;background:#fff;box-shadow:0 4px 14px rgba(30,40,80,.15)}
 #photo button.p{color:#fff;background:linear-gradient(135deg,#2b86ee,#7a5cf2)}
-#dbg{position:fixed;left:6px;top:calc(env(safe-area-inset-top) + 52px);z-index:50;font:10px/1.35 ui-monospace,Menlo,monospace;color:#223;
+#tnDebug{position:fixed;left:6px;top:calc(env(safe-area-inset-top) + 52px);z-index:50;font:10px/1.35 ui-monospace,Menlo,monospace;color:#223;
   background:rgba(255,255,255,.8);padding:4px 6px;border-radius:8px;pointer-events:none;display:none;white-space:pre}
 #fatal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;font-weight:700;background:#f4f2ff}
 </style>
@@ -105,7 +105,7 @@ input[type=range]{width:100%;accent-color:var(--blue)}
       <li><b>3</b>そっと手を返すと、とまった蝶は手の向こう側に隠れる</li>
     </ul>
     <button id="go" class="cta">カメラをひらく</button>
-    <div class="err" id="err"></div>
+    <div class="err" id="tnErr"></div>
     <div class="fine">カメラの映像は端末の中だけで処理し、保存・送信しません。</div>
   </div>
 </div>
@@ -130,7 +130,7 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 </div>
 
 <div id="photo"><img id="pImg" alt=""><div class="btns"><button id="pClose">とじる</button><button id="pSave" class="p">保存・共有</button></div></div>
-<div id="dbg"></div>
+<div id="tnDebug"></div>
 <div id="fatal"></div>
 
 <script type="module">
@@ -742,8 +742,8 @@ canvas.addEventListener('pointerdown', () => openSheet(''));
   sz.oninput = () => { SET.size = +sz.value; show(); persist(); };
   fv.oninput = () => { SET.fov = +fv.value; show(); persist(); TR.reset(); updateProjection(); };
   const tg = (id, k, fn) => { const el = $(id); el.checked = !!SET[k]; el.onchange = () => { SET[k] = el.checked; persist(); fn && fn(); }; };
-  tg('sShadow', 'shadow'); tg('sFlip', 'flip'); tg('sDebug', 'debug', () => { $('dbg').style.display = SET.debug ? 'block' : 'none'; });
-  $('dbg').style.display = SET.debug ? 'block' : 'none';
+  tg('sShadow', 'shadow'); tg('sFlip', 'flip'); tg('sDebug', 'debug', () => { $('tnDebug').style.display = SET.debug ? 'block' : 'none'; });
+  $('tnDebug').style.display = SET.debug ? 'block' : 'none';
 })();
 
 /* 撮影：カメラ映像＋蝶を1枚に */
@@ -809,7 +809,7 @@ function step(dt, now) {
   uiTick(dt);
   if (SET.debug && (dbgT += dt) > 0.25) {
     dbgT = 0;
-    $('dbg').textContent = `mode ${S.mode}  side ${S.side}\n${TR.delegate} frames ${TR.frames} hits ${TR.hits} errs ${TR.errs}\n${TR.err.slice(0, 50)}\nhand ${TR.seen ? 'yes' : 'no'}  det ${TR.detMs.toFixed(1)}ms\nO ${HF.O.x.toFixed(1)} ${HF.O.y.toFixed(1)} ${HF.O.z.toFixed(1)}cm\nfacing ${HF.facing}  chi ${TR.chi.toFixed(2)}\nfist ${TR.fist.toFixed(2)}  speed ${HF.speed.toFixed(0)}\nvideo ${TR.vw}x${TR.vh}`;
+    $('tnDebug').textContent = `mode ${S.mode}  side ${S.side}\n${TR.delegate} frames ${TR.frames} hits ${TR.hits} errs ${TR.errs}\n${TR.err.slice(0, 50)}\nhand ${TR.seen ? 'yes' : 'no'}  det ${TR.detMs.toFixed(1)}ms\nO ${HF.O.x.toFixed(1)} ${HF.O.y.toFixed(1)} ${HF.O.z.toFixed(1)}cm\nfacing ${HF.facing}  chi ${TR.chi.toFixed(2)}\nfist ${TR.fist.toFixed(2)}  speed ${HF.speed.toFixed(0)}\nvideo ${TR.vw}x${TR.vh}`;
   }
 }
 requestAnimationFrame(frame);
