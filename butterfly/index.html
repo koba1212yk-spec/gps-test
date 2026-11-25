@@ -76,6 +76,21 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 #photo button.p{color:#fff;background:linear-gradient(135deg,#2b86ee,#7a5cf2)}
 #tnDebug{position:fixed;left:6px;top:calc(env(safe-area-inset-top) + 52px);z-index:50;font:10px/1.35 ui-monospace,Menlo,monospace;color:#223;
   background:rgba(255,255,255,.8);padding:4px 6px;border-radius:8px;pointer-events:none;display:none;white-space:pre}
+/* 手の採寸 */
+#calib{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 112px);transform:translateX(-50%);z-index:6;display:none;align-items:center;gap:12px;
+  width:min(380px,calc(100% - 24px));padding:12px 12px 12px 14px;border-radius:22px}
+#calib .ring{position:relative;flex:none;width:48px;height:48px}
+#calib svg{width:48px;height:48px;transform:rotate(-90deg)}
+#calib circle{fill:none;stroke-width:4.5}
+#calib .bg{stroke:rgba(43,134,238,.16)}#calib .fg{stroke:url(#cg);stroke-linecap:round;transition:stroke-dashoffset .15s}
+#calib .ring b{position:absolute;inset:0;display:grid;place-items:center;font-size:12px;font-weight:800;color:var(--blue)}
+#calib .tx{flex:1;min-width:0}
+#calib .tt{font-size:11px;font-weight:800;color:var(--sub);letter-spacing:.08em}
+#calib .msg{font-size:14px;font-weight:800;line-height:1.4}
+#calib button{flex:none;border:none;border-radius:999px;padding:8px 12px;font-size:12px;font-weight:800;background:#eef0f7;cursor:pointer}
+#calib.done .ring b{color:#35c47a}
+@media (orientation:landscape) and (max-height:560px){#calib{left:calc(env(safe-area-inset-left) + 12px);top:calc(env(safe-area-inset-top) + 12px);bottom:auto;transform:none;width:min(260px,calc(50% - 120px));gap:10px;padding:10px}#calib .msg{font-size:13px}}
+.btn2{display:block;width:100%;margin-top:4px;border:none;border-radius:14px;padding:12px;font-size:14px;font-weight:800;cursor:pointer;color:var(--blue);background:rgba(43,134,238,.1)}
 #fatal{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;padding:30px;text-align:center;font-weight:700;background:#f4f2ff}
 </style>
 <script type="importmap">
@@ -100,7 +115,7 @@ input[type=range]{width:100%;accent-color:var(--blue)}
     <h1>てのり蝶</h1>
     <div class="lead">手をかざすと、モルフォ蝶がとまりにくる</div>
     <ul class="how">
-      <li><b>1</b>スマホを持っていない方の手を、うしろのカメラに映す</li>
+      <li><b>1</b>スマホを持っていない方の手を、うしろのカメラに映す（はじめに数秒、手の形を測ります）</li>
       <li><b>2</b>じっとしていると、画面の外からひらひら飛んでくる</li>
       <li><b>3</b>そっと手を返すと、とまった蝶は手の向こう側に隠れる</li>
     </ul>
@@ -114,6 +129,8 @@ input[type=range]{width:100%;accent-color:var(--blue)}
   <h3>設定<button class="x" data-close>✕</button></h3>
   <div class="row"><label>蝶の大きさ<span id="vSize"></span></label><input id="sSize" type="range" min="0.6" max="1.4" step="0.05"></div>
   <div class="row"><label>カメラの画角<span id="vFov"></span></label><input id="sFov" type="range" min="0.55" max="1.2" step="0.01"></div>
+  <button id="bCal" class="btn2">手を測りなおす</button>
+  <div class="sw"><div>手への貼り付きを強く<small>スマホの傾きセンサーで、画面の動きを先読みして合わせる</small></div><input id="sGyro" class="tg" type="checkbox"></div>
   <div class="sw"><div>影<small>手の上に蝶の影を落とす</small></div><input id="sShadow" class="tg" type="checkbox"></div>
   <div class="sw"><div>手のひら/手の甲を逆に判定<small>止まる面が逆になるときだけ</small></div><input id="sFlip" class="tg" type="checkbox"></div>
   <div class="sw"><div>手の判定を表示<small>隠れる範囲が見えます</small></div><input id="sDebug" class="tg" type="checkbox"></div>
@@ -130,6 +147,12 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 </div>
 
 <div id="photo"><img id="pImg" alt=""><div class="btns"><button id="pClose">とじる</button><button id="pSave" class="p">保存・共有</button></div></div>
+<div id="calib" class="glass">
+  <div class="ring"><svg viewBox="0 0 48 48"><defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2b86ee"/><stop offset="1" stop-color="#7a5cf2"/></linearGradient></defs>
+    <circle class="bg" cx="24" cy="24" r="20"/><circle id="cArc" class="fg" cx="24" cy="24" r="20" stroke-dasharray="125.7" stroke-dashoffset="125.7"/></svg><b id="cStep">1/2</b></div>
+  <div class="tx"><div class="tt">手の採寸</div><div class="msg" id="cMsg">指を広げて、手のひらをカメラに</div></div>
+  <button id="cSkip">スキップ</button>
+</div>
 <div id="tnDebug"></div>
 <div id="fatal"></div>
 
@@ -156,7 +179,7 @@ function store(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch
 const MP_BASE = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
 const HAND_MODEL = 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
 const MOCK = /[?&]mock\b/.test(location.search);
-const DEF = { size: 1, fov: 0.8, shadow: true, flip: false, debug: false };
+const DEF = { size: 1, fov: 0.8, shadow: true, flip: false, debug: false, gyro: true };
 const SET = Object.assign({}, DEF, load('tenori.set', {}));
 const persist = () => store('tenori.set', SET);
 
@@ -168,7 +191,7 @@ const ATLAS = { top: 'morpho4_top.webp', under: 'morpho4_under.webp', w: 886, h:
   LH: { x0: 88, x1: 433, y0: 415, y1: 736, rx: 415, ry: 427, span: 327 },
   RH: { x0: 455, x1: 799, y0: 415, y1: 736, rx: 469, ry: 429, span: 329 } } };
 const WINGSPAN = 12;               // 実際の大きさ(cm)
-const HAND_HALF = 1.3;             // 手の厚みの半分(cm)
+let HANDH = 1.3;                   // 手の厚みの半分(cm)（採寸で手の大きさに合わせる）
 let PERCH_H = 0.96;                // とまっているときの胴体の高さ(cm)（脚の形から計算しなおす）
 
 /* ---------- renderer ---------- */
@@ -201,8 +224,9 @@ const LIGHT_DIR = new THREE.Vector3(-0.35, 1, 0.45).normalize();
 
 /* ---------- 蝶 ---------- */
 const loader = new THREE.TextureLoader();
-function atlasTex(url) { const t = loader.load(url); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
-const TEX_TOP = atlasTex(ATLAS.top), TEX_UNDER = atlasTex(ATLAS.under);
+function atlasTex(url, onLoad) { const t = loader.load(url, onLoad); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; }
+let WING_IMG = null, WINGS = null;
+const TEX_TOP = atlasTex(ATLAS.top, t => { WING_IMG = t.image; buildWingMasks(); }), TEX_UNDER = atlasTex(ATLAS.under);
 const UNI = { grain: { value: 0.018 }, seed: { value: 0 }, lightDir: { value: new THREE.Vector3(0, 1, 0) } };   // 蝶の材質で共有
 
 // カメラ映像のざらつきに合わせる粒子
@@ -377,7 +401,8 @@ function buildButterfly() {
       const g = new THREE.Group(), gp = new THREE.Group(); g.visible = false; pivot.add(g); g.add(gp);
       gp.add(new THREE.Mesh(w.geo, MAT_GHOST_T), new THREE.Mesh(w.geo, MAT_GHOST_U)); g.userData.plane = gp; return g;
     });
-    w.flap = flap; w.plane = plane;
+    w.flap = flap; w.plane = plane; w.pivotPos = pivot.position; w.lift = 0; w.thEff = 0;
+    w.reach = Math.hypot(w.span, Math.max(Math.abs(w.zMin), Math.abs(w.zMax)));
     B.wings.push(w);
   }
   root.traverse(o => { if (o.isMesh) o.frustumCulled = false; });
@@ -386,13 +411,54 @@ function buildButterfly() {
 }
 const BF = buildButterfly();
 
+/* ---------- 羽の形の距離マップ（羽が手を突き抜けないようにする判定用） ---------- */
+// 羽の面の座標（x：根元から外へ、z：頭の方向, cm）を 0.25cm の格子にし、各マスから羽の形までの距離を持つ
+const WM_RES = 0.25;
+function buildWingMasks() {
+  if (!WING_IMG || !WINGS || WINGS[0].mask) return;
+  const c = document.createElement('canvas'); c.width = ATLAS.w; c.height = ATLAS.h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  let A;
+  try { g.drawImage(WING_IMG, 0, 0, ATLAS.w, ATLAS.h); A = g.getImageData(0, 0, ATLAS.w, ATLAS.h).data; } catch (e) { return; }
+  for (const w of WINGS) {
+    const m = ATLAS.wings[w.name], nx = Math.ceil(w.span / WM_RES) + 2, nz = Math.ceil((w.zMax - w.zMin) / WM_RES) + 1;
+    const occ = new Uint8Array(nx * nz), ins = [];
+    let reach = 0;
+    for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) {
+      const x = ix * WM_RES, z = w.zMin + iz * WM_RES;
+      const px = Math.round(m.rx + w.side * x * K_PX), py = Math.round(m.ry - z * K_PX);
+      if (px < 0 || py < 0 || px >= ATLAS.w || py >= ATLAS.h || A[(py * ATLAS.w + px) * 4 + 3] < 128) continue;
+      occ[iz * nx + ix] = 1; ins.push(ix, iz); reach = Math.max(reach, Math.hypot(x, z));
+    }
+    if (!ins.length) continue;
+    const d = new Float32Array(nx * nz);
+    for (let iz = 0; iz < nz; iz++) for (let ix = 0; ix < nx; ix++) {
+      if (occ[iz * nx + ix]) continue;
+      let best = 1e9;
+      for (let k = 0; k < ins.length; k += 2) { const dx = ins[k] - ix, dz = ins[k + 1] - iz, q = dx * dx + dz * dz; if (q < best) best = q; }
+      d[iz * nx + ix] = Math.sqrt(best) * WM_RES;
+    }
+    w.mask = { nx, nz, d }; w.reach = reach + 0.2;
+  }
+}
+function wingDist(w, x, z) {                  // 羽の面の上の点 (x,z) から羽の形までの距離(cm)。羽の上なら 0
+  const M = w.mask;
+  if (!M) return Math.hypot(Math.max(0, -x, x - w.span), Math.max(0, w.zMin - z, z - w.zMax));
+  const gx = x / WM_RES, gz = (z - w.zMin) / WM_RES;
+  const ix = clamp(Math.round(gx), 0, M.nx - 1), iz = clamp(Math.round(gz), 0, M.nz - 1);
+  const out = Math.hypot(Math.max(0, -gx, gx - (M.nx - 1)), Math.max(0, -gz, gz - (M.nz - 1))) * WM_RES;
+  return M.d[iz * M.nx + ix] + out;
+}
+WINGS = BF.wings; buildWingMasks();
+
 /* ---------- 手の見えない板（奥行きだけ書く）と影受け ---------- */
 const HAND = { valid: false };
 const MAT_DEPTH = new THREE.MeshBasicMaterial({ colorWrite: false });
 const MAT_SKIN = new THREE.MeshStandardMaterial({ color: '#e9b99c', roughness: 0.7 });
 const MAT_DEBUG = new THREE.MeshBasicMaterial({ color: '#46a0ff', transparent: true, opacity: 0.28, depthWrite: true });
+const MAT_CAL = new THREE.MeshBasicMaterial({ color: '#3d9bff', transparent: true, opacity: 0.34, depthWrite: false, depthFunc: THREE.EqualDepth });   // 手前の面だけ1枚に塗る
 const MAT_SHADOW = new THREE.ShadowMaterial({ opacity: 0.34, transparent: true, depthWrite: false });
-const RING = [0, 1, 2, 5, 9, 13, 17];
+const RING = [0, 1, 2, 5, 9, 13, 17], PALM5 = [0, 5, 9, 13, 17];
 const palmGeo = new THREE.BufferGeometry();
 {
   const n = RING.length, pos = new Float32Array((n * 2 + 2) * 3), idx = [];
@@ -408,7 +474,23 @@ const palmGeo = new THREE.BufferGeometry();
 }
 const SEGS = [[1, 2], [2, 3], [3, 4], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12], [13, 14], [14, 15], [15, 16], [17, 18], [18, 19], [19, 20], [0, -1]];
 const JOINTS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
-const FINGER_R = i => i <= 4 ? 1.05 : i <= 8 ? 0.92 : i <= 12 ? 0.95 : i <= 16 ? 0.88 : 0.76;
+// 手の寸法(cm)：採寸があればその人の手、なければ平均的な手
+const DEF_R = i => i <= 4 ? 1.05 : i <= 8 ? 0.92 : i <= 12 ? 0.95 : i <= 16 ? 0.88 : 0.76;
+const HDIM = { r: Array.from({ length: 21 }, (_, i) => DEF_R(i)), margin: { 0: 0.9, 1: 0.9, 2: 0.9, 5: 0.9, 9: 0.9, 13: 0.9, 17: 0.9 }, arm: 2.0, len: null };
+function applyHandDims(cal) {
+  for (let i = 0; i < 21; i++) HDIM.r[i] = DEF_R(i);
+  HDIM.margin[5] = HDIM.margin[17] = 0.9; HDIM.arm = 2.0; HDIM.len = null; HANDH = 1.3;
+  if (!cal) return;
+  if (cal.r) for (let i = 0; i < 21; i++) if (cal.r[i]) HDIM.r[i] = cal.r[i];
+  if (cal.mIdx) HDIM.margin[5] = cal.mIdx;
+  if (cal.mPinky) HDIM.margin[17] = cal.mPinky;
+  if (cal.arm) HDIM.arm = cal.arm;
+  if (cal.half) HANDH = cal.half;
+  HDIM.len = cal.len || null;
+}
+// 手の当たり判定用の球（指・関節・腕）。羽が手を突き抜けないようにするのに使う
+const HSPH = { n: 0, d: new Float32Array(4 * 220) };
+function addSph(x, y, z, r) { if (HSPH.n >= 220) return; const k = HSPH.n++ * 4; HSPH.d[k] = x; HSPH.d[k + 1] = y; HSPH.d[k + 2] = z; HSPH.d[k + 3] = r; }
 const cylG = new THREE.CylinderGeometry(1, 1, 1, 14, 1, true), sphG = new THREE.SphereGeometry(1, 14, 10);
 function handMeshes(mat, order) {
   const palm = new THREE.Mesh(palmGeo, mat), cyl = new THREE.InstancedMesh(cylG, mat, SEGS.length), sph = new THREE.InstancedMesh(sphG, mat, JOINTS.length + 1);
@@ -421,44 +503,50 @@ HS.cyl.instanceMatrix = HD.cyl.instanceMatrix; HS.sph.instanceMatrix = HD.sph.in
 for (const m of HS.list) m.receiveShadow = true;
 function setHandVisible(v) { for (const m of [...HD.list, ...HS.list]) m.visible = v; }
 function applyHandMaterial(occ) {
-  const mat = MOCK ? MAT_SKIN : SET.debug ? MAT_DEBUG : MAT_DEPTH;
-  for (const m of HD.list) { m.material = mat; m.visible = HAND.valid && (occ || MOCK || SET.debug); }
+  const calV = CAL.active || CAL.show > 0;                // 採寸中は、測った手の形を半透明で見せる（奥行きを書いた面に色を1枚だけ）
+  const mat = calV ? MAT_DEPTH : MOCK ? MAT_SKIN : SET.debug ? MAT_DEBUG : MAT_DEPTH;
+  for (const m of HD.list) { m.material = mat; m.visible = HAND.valid && (occ || MOCK || SET.debug || calV); }
   MAT_DEBUG.depthWrite = occ;              // 判定表示中も、隠すのは必要なときだけ
-  for (const m of HS.list) m.visible = HAND.valid && SET.shadow;
+  for (const m of HS.list) { m.material = calV ? MAT_CAL : MAT_SHADOW; m.visible = HAND.valid && (SET.shadow || calV); }
 }
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _s = new THREE.Vector3(), YUP = new THREE.Vector3(0, 1, 0);
 function updateHandMeshes(P, N, O) {
-  // 手のひらの板：輪郭を少し外に広げ、法線方向に厚みをつける
+  // 手のひらの板：輪郭を少し外に広げ（採寸した手のふちまで）、法線方向に厚みをつける
   const pos = palmGeo.attributes.position, n = RING.length;
   let cx = 0, cy = 0, cz = 0;
-  for (const i of RING) { cx += P[i].x; cy += P[i].y; cz += P[i].z; }
-  cx /= n; cy /= n; cz /= n;
+  for (const i of PALM5) { cx += P[i].x; cy += P[i].y; cz += P[i].z; }
+  cx /= 5; cy /= 5; cz /= 5;
+  HF.slabOff = (cx - O.x) * N.x + (cy - O.y) * N.y + (cz - O.z) * N.z;      // 板の中心面が手の座標の原点からどれだけずれているか
   for (let k = 0; k < n; k++) {
     const p = P[RING[k]];
     let dx = p.x - cx, dy = p.y - cy, dz = p.z - cz;
     const dn = dx * N.x + dy * N.y + dz * N.z; dx -= N.x * dn; dy -= N.y * dn; dz -= N.z * dn;   // 平面に落とす
-    const len = Math.hypot(dx, dy, dz) || 1, grow = 0.9 / len + 1.0;
+    const len = Math.hypot(dx, dy, dz) || 1, grow = HDIM.margin[RING[k]] / len + 1.0;
     const x = cx + dx * grow, y = cy + dy * grow, z = cz + dz * grow;
-    pos.setXYZ(k, x + N.x * HAND_HALF, y + N.y * HAND_HALF, z + N.z * HAND_HALF);
-    pos.setXYZ(n + k, x - N.x * HAND_HALF, y - N.y * HAND_HALF, z - N.z * HAND_HALF);
+    pos.setXYZ(k, x + N.x * HANDH, y + N.y * HANDH, z + N.z * HANDH);
+    pos.setXYZ(n + k, x - N.x * HANDH, y - N.y * HANDH, z - N.z * HANDH);
   }
-  pos.setXYZ(2 * n, cx + N.x * HAND_HALF, cy + N.y * HAND_HALF, cz + N.z * HAND_HALF);
-  pos.setXYZ(2 * n + 1, cx - N.x * HAND_HALF, cy - N.y * HAND_HALF, cz - N.z * HAND_HALF);
+  pos.setXYZ(2 * n, cx + N.x * HANDH, cy + N.y * HANDH, cz + N.z * HANDH);
+  pos.setXYZ(2 * n + 1, cx - N.x * HANDH, cy - N.y * HANDH, cz - N.z * HANDH);
   pos.needsUpdate = true; palmGeo.computeVertexNormals();
-  // 指（円柱）と関節（球）
+  // 指（円柱）と関節（球）。同じ形を当たり判定用の球の列にもする
+  HSPH.n = 0;
   SEGS.forEach(([i, j], k) => {
     const a = P[i];
     let b, r;
-    if (j < 0) { b = _b.copy(P[0]).sub(P[9]).multiplyScalar(1.4).add(P[0]); r = 2.0; }   // 手首から先の腕
-    else { b = P[j]; r = FINGER_R(j); }
+    if (j < 0) { b = _b.copy(P[0]).sub(P[9]).multiplyScalar(1.4).add(P[0]); r = HDIM.arm; }   // 手首から先の腕
+    else { b = P[j]; r = HDIM.r[j]; }
     _a.subVectors(b, a); const len = _a.length() || 0.01;
+    const m = Math.max(2, Math.ceil(len / (r * 0.85)) + 1);
+    for (let t = 0; t < m; t++) { const u = t / (m - 1); addSph(a.x + _a.x * u, a.y + _a.y * u, a.z + _a.z * u, r); }
     _q.setFromUnitVectors(YUP, _a.normalize());
     _v.addVectors(a, b).multiplyScalar(0.5);
     HD.cyl.setMatrixAt(k, _m.compose(_v, _q, _s.set(r, len, r)));
   });
-  JOINTS.forEach((i, k) => { const r = FINGER_R(i); HD.sph.setMatrixAt(k, _m.compose(P[i], _q.identity(), _s.set(r, r, r))); });
-  HD.sph.setMatrixAt(JOINTS.length, _m.compose(P[0], _q.identity(), _s.set(1.8, 1.8, 1.8)));
+  JOINTS.forEach((i, k) => { const r = HDIM.r[i]; HD.sph.setMatrixAt(k, _m.compose(P[i], _q.identity(), _s.set(r, r, r))); addSph(P[i].x, P[i].y, P[i].z, r); });
+  const wr = HDIM.arm * 0.9;
+  HD.sph.setMatrixAt(JOINTS.length, _m.compose(P[0], _q.identity(), _s.set(wr, wr, wr))); addSph(P[0].x, P[0].y, P[0].z, wr);
   HD.cyl.instanceMatrix.needsUpdate = true; HD.sph.instanceMatrix.needsUpdate = true;
 }
 
@@ -485,6 +573,31 @@ function solve3(M, r) {
 }
 // 画像上の21点（x,y と相対的な奥行き z）で手の形を作り、実寸の手の大きさ（world landmarks の広がり）で距離を決める。
 // 軸の向きに頼らない（大きさだけ使う）ので、どの端末でも符号のずれが起きない。
+const PALM_PAIRS = [[0, 5], [0, 9], [0, 13], [0, 17], [5, 17]];
+const CHAINS = [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]];
+const LEN_PAIRS = [...PALM_PAIRS, [0, 1], [5, 9], [9, 13], [13, 17], ...CHAINS.flatMap(c => c.slice(1).map((j, n) => [c[n], j]))];
+// 採寸した指の骨の長さで、奥行き（MediaPipe の推定は荒い）を直す。
+// 画面上の位置はそのままに、骨の長さが合う奥行きを選ぶ（手前か奥かは MediaPipe の向きに従う）
+function constrainFingers(sol, Zs, f) {
+  const px = sol.px, cx = sol.cx, cy = sol.cy, L = HDIM.len;
+  for (const ch of CHAINS) for (let n = 1; n < ch.length; n++) {
+    const i = ch[n - 1], j = ch[n], len = L[i + '-' + j];
+    if (!len) continue;
+    const Lm = len / 100, Pz = Zs[i], Px = (px[i][0] - cx) * Pz / f, Py = (px[i][1] - cy) * Pz / f;
+    const rx = (px[j][0] - cx) / f, ry = (px[j][1] - cy) / f;
+    const a = rx * rx + ry * ry + 1, b = -2 * (rx * Px + ry * Py + Pz), c = Px * Px + Py * Py + Pz * Pz - Lm * Lm;
+    const disc = b * b - 4 * a * c, zm = Zs[j];
+    let zc, w;
+    if (disc <= 0) { zc = -b / (2 * a); w = 0.8; }
+    else {
+      const sq = Math.sqrt(disc), z1 = (-b - sq) / (2 * a), z2 = (-b + sq) / (2 * a);
+      zc = zm < Pz ? z1 : z2;
+      const conf = smooth(clamp((Math.abs(zm - Pz) / Lm - 0.12) / 0.23, 0, 1));
+      w = 0.8 * Math.max(conf, 1 - clamp((z2 - z1) / (1.2 * Lm), 0, 1));
+    }
+    Zs[j] = lerp(zm, zc, w);
+  }
+}
 function solveHand(lm, wl, vw, vh, f) {
   const cx = vw / 2, cy = vh / 2, px = [];
   let mx = 0, my = 0, mz = 0;
@@ -499,7 +612,12 @@ function solveHand(lm, wl, vw, vh, f) {
     r = Math.sqrt(r / 21); if (r > 0.02 && r < 0.12) rw = r;
   }
   if (rp < 3) return null;
-  const k = rw / rp;                                // 手のあたりで 1px が何m か
+  let k = rw / rp;                                  // 手のあたりで 1px が何m か
+  if (HDIM.len) {                                   // 採寸ずみ：指を曲げても形の変わらない手のひらの骨の長さで決める
+    let Lw = 0, Lp = 0;
+    for (const [i, j] of PALM_PAIRS) { const L = HDIM.len[i + '-' + j]; if (!L) continue; Lw += L / 100; const a = px[i], b = px[j]; Lp += Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]); }
+    if (Lp > 3 && Lw > 0) k = Lw / Lp;
+  }
   return { Zc: f * k, k, px, mz, cx, cy };
 }
 const TR = {
@@ -508,6 +626,8 @@ const TR = {
   fZ: new OneEuro(0.7, 0.03),
   fP: Array.from({ length: 63 }, () => new OneEuro(1.6, 0.12)),
   P: Array.from({ length: 21 }, () => new THREE.Vector3()),
+  SW: Array.from({ length: 21 }, () => new THREE.Vector3()),     // 部屋の向きに直した手の点（なめらか済み）
+  Z: new Float64Array(21), f: 1, lmRaw: null, wlRaw: null, fresh: false,
   seen: false, seenT: 0, lostT: 99, stableT: 0, chi: 0, speed: 0, fist: 0, prevWrist: null,
   async create(d) {
     return this.vision.HandLandmarker.createFromOptions(this.fs, { baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 2,
@@ -532,7 +652,7 @@ const TR = {
     catch (e) { progress('手の検知を読みこみ中…（CPU）'); this.lm = await limit(this.create('CPU'), 40, '検知モデルの読みこみ(CPU)'); this.delegate = 'CPU'; }
     this.ctx = this.can.getContext('2d', { willReadFrequently: false });
     this.running = true;
-    if ('requestVideoFrameCallback' in v) { const cb = now => { if (!this.running) return; this.detect(now); v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
+    if ('requestVideoFrameCallback' in v) { const cb = (now, meta) => { if (!this.running) return; this.detect(now, meta); v.requestVideoFrameCallback(cb); }; v.requestVideoFrameCallback(cb); }
     else this.poll = true;
     return true;
   },
@@ -543,9 +663,15 @@ const TR = {
     try { this.lm = await this.create('CPU'); this.delegate = 'CPU'; status('検知方式を切り替えました（' + reason + '）', ''); }
     catch (e) { this.err = String((e && e.message) || e); }
   },
-  detect(now) {
+  detect(now, meta) {
     const v = this.video;
     if (!this.lm || v.readyState < 2 || !v.videoWidth) return;
+    // このフレームが撮られたときのスマホの向きを引くための時刻
+    let tg;
+    const shown = (meta && meta.expectedDisplayTime) || now;
+    if (meta && meta.captureTime > 0 && shown - meta.captureTime > 0 && shown - meta.captureTime < 400) {
+      GYRO.lat = lerp(GYRO.lat, shown - meta.captureTime, 0.05); GYRO.capT = true; tg = meta.captureTime + GYRO.Ls;
+    } else tg = shown - gyroLag();
     // dance ページと同じく、いったんキャンバスに描いてから渡す（iPhoneのGPU検知で安定する）
     const vw = v.videoWidth, vh = v.videoHeight, sc = Math.min(1, 720 / Math.max(vw, vh));
     const cw = Math.round(vw * sc), ch = Math.round(vh * sc);
@@ -560,9 +686,9 @@ const TR = {
     if (res && res.landmarks && res.landmarks.length) this.hits++;
     // GPUで5秒以上なにも見つからないときも、念のためCPUを試す
     if (this.delegate === 'GPU' && this.frames > 150 && this.hits === 0) this.toCPU('GPUで検知ゼロ');
-    this.process(res, performance.now() / 1000, vw, vh);
+    this.process(res, performance.now() / 1000, vw, vh, tg);
   },
-  process(res, t, vw, vh) {
+  process(res, t, vw, vh, tg) {
     this.vw = vw; this.vh = vh;
     const L = res && res.landmarks, WL = res && res.worldLandmarks, HN = res && (res.handedness || res.handednesses);
     if (!L || !L.length) { this.seen = false; return; }
@@ -582,24 +708,33 @@ const TR = {
     // 右手か左手か（MediaPipeは自撮りの鏡像を前提にしているので、背面カメラでは逆）
     const cat = HN && HN[best] && HN[best][0];
     if (cat) { const r = cat.categoryName === 'Left' ? 1 : -1; this.chi = clamp(this.chi * 0.9 + r * cat.score, -3, 3); }
-    const Zc = this.fZ.filter(sol.Zc, t), k = Zc / f;
+    const Zc = this.fZ.filter(sol.Zc, t), k = Zc / f, Zs = this.Z;
+    for (let i = 0; i < 21; i++) Zs[i] = Zc + (sol.px[i][2] - sol.mz) * k;
+    if (HDIM.len) constrainFingers(sol, Zs, f);
+    // 撮ったときのスマホの向きで「部屋の向き」に直してから、なめらかにする（スマホの揺れでは遅れない）
+    gyroAt(tg, _gq);
     for (let i = 0; i < 21; i++) {
-      const q = sol.px[i], Z = Zc + (q[2] - sol.mz) * k, X = (q[0] - sol.cx) * Z / f, Y = (q[1] - sol.cy) * Z / f;
-      this.P[i].set(this.fP[i * 3].filter(X * 100, t), this.fP[i * 3 + 1].filter(-Y * 100, t), this.fP[i * 3 + 2].filter(-Z * 100, t));
+      const q = sol.px[i], Z = Zs[i], X = (q[0] - sol.cx) * Z / f, Y = (q[1] - sol.cy) * Z / f;
+      _gv.set(X * 100, -Y * 100, -Z * 100).applyQuaternion(_gq);
+      this.SW[i].set(this.fP[i * 3].filter(_gv.x, t), this.fP[i * 3 + 1].filter(_gv.y, t), this.fP[i * 3 + 2].filter(_gv.z, t));
     }
+    this.f = f; this.lmRaw = lm; this.wlRaw = wl; this.fresh = true;
     this.seen = true; this.seenT = t;
   },
+  refresh() { for (let i = 0; i < 21; i++) this.P[i].copy(this.SW[i]).applyQuaternion(GYRO.qdi); },   // 今の画面の向きに戻す
   reset() { this.fZ.reset(); this.fP.forEach(f => f.reset()); this.chi = 0; this.prevWrist = null; },
 };
 
 /* 手の座標系 */
-const HF = { O: new THREE.Vector3(), X: new THREE.Vector3(), Y: new THREE.Vector3(), N: new THREE.Vector3(), M: new THREE.Matrix4(), q: new THREE.Quaternion(), prevQ: null, angVel: 0, palmLen: 9, facing: 1, prevO: null, speed: 0, fastT: 0 };
+const HF = { slabOff: 0, O: new THREE.Vector3(), X: new THREE.Vector3(), Y: new THREE.Vector3(), N: new THREE.Vector3(), M: new THREE.Matrix4(), q: new THREE.Quaternion(), prevQ: null, angVel: 0, palmLen: 9, facing: 1, prevO: null, speed: 0, fastT: 0 };
+const _hw = new THREE.Vector3(), _hq = new THREE.Quaternion();
 function computeHandFrame(dt) {
   const P = TR.P;
   HF.O.copy(P[5]).add(P[9]).add(P[13]).add(P[17]).multiplyScalar(0.125).addScaledVector(P[0], 0.5);
-  // 手のひらの中心がどれだけ速く動いたか（手を返す回転では小さい）
-  if (HF.prevO && dt > 0) { const sp = HF.prevO.distanceTo(HF.O) / dt; HF.speed = lerp(HF.speed, sp, 1 - Math.exp(-10 * dt)); }
-  HF.prevO = (HF.prevO || new THREE.Vector3()).copy(HF.O);
+  // 手のひらの中心がどれだけ速く動いたか（手を返す回転では小さい）。スマホの向きの変化は除いて「部屋の中で」測る
+  _hw.copy(HF.O).applyQuaternion(GYRO.qd);
+  if (HF.prevO && dt > 0) { const sp = HF.prevO.distanceTo(_hw) / dt; HF.speed = lerp(HF.speed, sp, 1 - Math.exp(-10 * dt)); }
+  HF.prevO = (HF.prevO || new THREE.Vector3()).copy(_hw);
   HF.Y.subVectors(P[9], P[0]); HF.palmLen = HF.Y.length(); HF.Y.normalize();
   _a.subVectors(P[5], P[0]); _b.subVectors(P[17], P[0]);
   HF.N.crossVectors(_a, _b).normalize();
@@ -609,9 +744,10 @@ function computeHandFrame(dt) {
   HF.N.crossVectors(HF.X, HF.Y).normalize();
   HF.M.makeBasis(HF.X, HF.Y, HF.N).setPosition(HF.O);
   HF.q.setFromRotationMatrix(HF.M);
-  // 手の回る速さ（rad/s）
-  if (HF.prevQ && dt > 0) { const w = 2 * Math.acos(Math.min(1, Math.abs(HF.prevQ.dot(HF.q)))) / dt; HF.angVel = lerp(HF.angVel, w, 1 - Math.exp(-8 * dt)); }
-  HF.prevQ = (HF.prevQ || new THREE.Quaternion()).copy(HF.q);
+  // 手の回る速さ（rad/s、部屋の中で）
+  _hq.copy(GYRO.qd).multiply(HF.q);
+  if (HF.prevQ && dt > 0) { const w = 2 * Math.acos(Math.min(1, Math.abs(HF.prevQ.dot(_hq)))) / dt; HF.angVel = lerp(HF.angVel, w, 1 - Math.exp(-8 * dt)); }
+  HF.prevQ = (HF.prevQ || new THREE.Quaternion()).copy(_hq);
   HF.facing = HF.N.dot(_a.copy(HF.O).negate()) > 0 ? 1 : -1;   // +1: 手のひらがカメラ側
   let tip = 0; for (const i of [8, 12, 16, 20]) tip += P[i].distanceTo(HF.O);
   TR.fist = tip / 4 / HF.palmLen;                       // 開いた手 ≈1.2、グー ≈0.5
@@ -627,8 +763,65 @@ function onOrient(e) {
   const a = THREE.MathUtils.degToRad((screen.orientation && screen.orientation.angle) || window.orientation || 0);
   GRAV.tgt.set(ux * Math.cos(a) - uy * Math.sin(a), ux * Math.sin(a) + uy * Math.cos(a), uz).normalize();
   GRAV.has = true;
+  if (e.alpha != null) gyroPushQ(e.timeStamp || performance.now(), camQuat(THREE.MathUtils.degToRad(e.alpha), b, g, a, _gTmp));
 }
 addEventListener('deviceorientation', onOrient);
+
+/* ---------- スマホの向き（ジャイロ）：手への貼り付きを強くする ---------- */
+// 傾きセンサーからカメラの向きを出し、手の点を「部屋の向き」に直してからなめらかにする。
+// 描くときに今の画面の向きへ戻すので、スマホが揺れても蝶が手からずれない（検知の遅れも先読みでうめる）。
+const GN = 96;
+const GYRO = { has: false, n: 0, head: 0, t: new Float64Array(GN), q: Array.from({ length: GN }, () => new THREE.Quaternion()),
+  lat: 60, Ls: 15, capT: false, on: false, qd: new THREE.Quaternion(), qdi: new THREE.Quaternion(), qPrev: new THREE.Quaternion(), dq: new THREE.Quaternion() };
+const _gE = new THREE.Euler(), _gQ1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)), _gQ0 = new THREE.Quaternion(), _gZ = new THREE.Vector3(0, 0, 1);
+const _gTmp = new THREE.Quaternion(), _gq = new THREE.Quaternion(), _gv = new THREE.Vector3();
+function gyroPushQ(t, q) {
+  const k = GYRO.head, prev = (k + GN - 1) % GN;
+  if (GYRO.n && t <= GYRO.t[prev]) return;                      // 時間が戻るものは捨てる
+  GYRO.t[k] = t; GYRO.q[k].copy(q);
+  if (GYRO.n && GYRO.q[prev].dot(q) < 0) GYRO.q[k].set(-q.x, -q.y, -q.z, -q.w);
+  GYRO.head = (k + 1) % GN; GYRO.n = Math.min(GN, GYRO.n + 1); GYRO.has = true;
+}
+function camQuat(alpha, beta, gamma, orient, out) {           // 端末の向き（ラジアン）→ 背面カメラの向き（three.js の DeviceOrientationControls と同じ式）
+  _gE.set(beta, alpha, -gamma, 'YXZ');
+  return out.setFromEuler(_gE).multiply(_gQ1).multiply(_gQ0.setFromAxisAngle(_gZ, -orient));
+}
+function gyroRawAt(t, out) {                                   // 時刻 t(ms) のカメラの向き（前後の記録から補間）
+  const n = GYRO.n, h = GYRO.head;
+  if (!n) return out.identity();
+  let newer = -1;
+  for (let m = 1; m <= n; m++) {
+    const k = (h - m + GN) % GN;
+    if (GYRO.t[k] <= t) {
+      if (newer < 0) return out.copy(GYRO.q[k]);
+      const a = GYRO.t[k], b = GYRO.t[newer];
+      return out.slerpQuaternions(GYRO.q[k], GYRO.q[newer], b > a ? (t - a) / (b - a) : 1);
+    }
+    newer = k;
+  }
+  return out.copy(GYRO.q[newer]);
+}
+const gyroLag = () => clamp(GYRO.lat - GYRO.Ls, 0, 200);       // 画面に出ている映像が撮られたのは、今よりこれだけ前(ms)
+function gyroAt(t, out) { return GYRO.on ? gyroRawAt(t, out) : out.identity(); }
+function gyroUpdate(now) {
+  const on = !!(SET.gyro && GYRO.has && TR.running);
+  if (on !== GYRO.on) {                                          // 入/切の瞬間：手の点を新しい向きの基準に移しかえ、速さの計算もやり直す
+    const old = _gq.copy(GYRO.qd);
+    GYRO.on = on; gyroAt(now - gyroLag(), GYRO.qd);
+    _gTmp.copy(GYRO.qd).multiply(old.invert());
+    for (const p of TR.SW) p.applyQuaternion(_gTmp);
+    TR.fP.forEach(f => f.reset()); HF.prevO = null; HF.prevQ = null;
+    GYRO.qPrev.copy(GYRO.qd);
+  } else GYRO.qPrev.copy(GYRO.qd);
+  gyroAt(now - gyroLag(), GYRO.qd);
+  GYRO.qdi.copy(GYRO.qd).invert();
+  GYRO.dq.copy(GYRO.qdi).multiply(GYRO.qPrev);                  // 前のフレームのカメラの向き → 今のカメラの向き
+}
+// 飛んでいる蝶は部屋の中にいる：スマホを回すと、画面の中では逆向きに動いて見える
+function worldFix(dq) {
+  S.pos.applyQuaternion(dq); S.vel.applyQuaternion(dq); S.q.premultiply(dq);
+  S.exit.applyQuaternion(dq); S.from.p.applyQuaternion(dq); S.from.q.premultiply(dq);
+}
 
 /* ---------- 蝶のふるまい ---------- */
 const S = { mode: 'intro', t: 0, phase: 0, glide: 0, side: 1, pos: new THREE.Vector3(0, 5, -40), vel: new THREE.Vector3(), q: new THREE.Quaternion(),
@@ -650,7 +843,7 @@ function basisQuat(fwd, up, out) {          // 前向き・上向きから姿勢
 }
 const _pf = new THREE.Vector3(), _pu = new THREE.Vector3(), _pql = new THREE.Quaternion();
 function perchWorld(outP, outQ) {           // 手の上のとまり位置（手の座標）→ カメラ空間
-  outP.set(S.px, S.py, S.side * (HAND_HALF + PERCH_H)).applyMatrix4(HF.M);
+  outP.set(S.px, S.py, HF.slabOff + S.side * (HANDH + PERCH_H)).applyMatrix4(HF.M);
   basisQuat(_pf.set(Math.sin(S.yaw), Math.cos(S.yaw), 0), _pu.set(0, 0, S.side), _pql);
   outQ.copy(HF.q).multiply(_pql);
 }
@@ -725,7 +918,7 @@ function update(dt, now) {
     case 'wait':                                      // 手が落ち着くのを待つ
       visible = false;
       S.respawn -= dt;
-      if (S.respawn <= 0 && TR.stableT > 0.9) { S.pos.copy(spawnPoint()); S.vel.set(0, 0, 0); basisQuat(tD.set(0, 0, -1), GRAV.up, S.q); choosePerch(); setMode('enter'); }
+      if (S.respawn <= 0 && TR.stableT > 0.9 && !CAL.active && CAL.show <= 0) { S.pos.copy(spawnPoint()); S.vel.set(0, 0, 0); basisQuat(tD.set(0, 0, -1), GRAV.up, S.q); choosePerch(); setMode('enter'); }
       break;
     case 'enter': {                                   // 画面の外から近づく
       if (TR.lostT > 1.5) { startLeave(); break; }
@@ -800,10 +993,11 @@ function update(dt, now) {
       } else {
         S.openT -= dt;
         if (S.openT <= 0) { S.open = S.open === 1 ? 0 : 1; S.openT = S.open === 1 ? rand(6, 11) : rand(1.8, 3.2); }
-        const breathe = 0.55 + 0.42 * Math.sin(S.t * 1.25) * Math.sin(S.t * 0.37 + 1);
+        const breathe = 0.6 + 0.22 * Math.sin(S.t * 1.25) * Math.sin(S.t * 0.37 + 1);     // 開くときも平らにせず、浅いV字
         let tt = S.open === 1 ? breathe : 1.42 + Math.sin(S.t * 1.7) * 0.03;
         if (walking) tt = Math.max(tt, 1.15);
         if (S.hangT > 0) tt = 1.42;
+        if (window.__thOv != null) tt = window.__thOv;          // テスト用
         S.theta = lerp(S.theta, tt, 1 - Math.exp(-2.4 * dt));
       }
       if (!S.hinted && S.t > 4) { S.hinted = true; status('そっと手を返すと、向こう側に隠れるよ', 'on'); }
@@ -820,7 +1014,7 @@ function update(dt, now) {
   // 羽の角速度（しなりとブレに使う）、後翅は少し遅れて動く
   if (dt > 0) S.omega = lerp(S.omega, (S.theta - prevTheta) / dt, 1 - Math.exp(-20 * dt));
   S.thetaH = lerp(S.thetaH, S.theta, 1 - Math.exp(-dt / 0.035));
-  poseWings(flying);
+  poseWings(flying, perched, dt);
   poseLegs(dt, walking, flying);
   poseProboscis();
   // 触角：ゆっくりゆれる。手が動くと少し立てる
@@ -842,14 +1036,51 @@ function update(dt, now) {
   key.castShadow = SET.shadow;
   UNI.lightDir.value.copy(LIGHT_DIR);
 }
-function poseWings(flying) {
+// 手の当たり判定の球を、蝶の体の座標に移す
+const _cM = new THREE.Matrix4(), _cB = new THREE.Matrix4(), _cS = new THREE.Vector3(), _cV = new THREE.Vector3();
+const LSPH = new Float32Array(4 * 220); let LN = 0;
+function handToLocal() {
+  _cM.compose(S.pos, S.q, _cS.setScalar(SET.size)).multiply(_cB.makeRotationX(-S.pitch).setPosition(0, S.bob, 0)).invert();
+  const inv = 1 / SET.size; LN = 0;
+  for (let i = 0; i < HSPH.n; i++) {
+    const k = i * 4; _cV.set(HSPH.d[k], HSPH.d[k + 1], HSPH.d[k + 2]).applyMatrix4(_cM);
+    const o = LN++ * 4; LSPH[o] = _cV.x; LSPH[o + 1] = _cV.y; LSPH[o + 2] = _cV.z; LSPH[o + 3] = HSPH.d[k + 3] * inv;
+  }
+}
+// 羽の角度 th のとき、羽が手（指・関節・腕）に食いこまないか
+const WM_MARGIN = 0.12;
+function wingClear(w, th, sw) {
+  const s = w.side, c = Math.cos(s * th), sn = Math.sin(s * th), cs = Math.cos(sw), ss = Math.sin(sw), pv = w.pivotPos, R = w.reach;
+  for (let i = 0; i < LN; i++) {
+    const k = i * 4, r = LSPH[k + 3] + WM_MARGIN;
+    const px = LSPH[k] - pv.x, py = LSPH[k + 1] - pv.y, pz = LSPH[k + 2] - pv.z;
+    if (px * px + py * py + pz * pz > (R + r) * (R + r)) continue;
+    const fx = c * px + sn * py, fy = -sn * px + c * py;          // 羽ばたきの回転を戻す
+    if (fy >= r || fy <= -r) continue;                             // 羽の面から離れている
+    const lx = cs * fx - ss * pz, lz = ss * fx + cs * pz;          // 羽の面の中の回転を戻す
+    if (wingDist(w, s * lx, lz) < Math.sqrt(r * r - fy * fy)) return false;
+  }
+  return true;
+}
+const WING_ORDER = [2, 3, 0, 1];             // 後翅を先に決め、前翅は同じ側の後翅より下にならないようにする
+function poseWings(flying, perched, dt) {
   const closed = smooth(clamp((S.theta - 1.0) / 0.4, 0, 1));
   const sF = lerp(-0.08, -0.24, closed), sH = lerp(0.14, 0.04, closed);    // 閉じると前翅を少し後ろへ引いて後翅に重ねる
   const bend = clamp(-S.omega * 0.014, -0.45, 0.45), twist = clamp(-S.omega * 0.008, -0.3, 0.3);
   const blur = flying && Math.abs(S.omega) > 3;
-  for (const w of BF.wings) {
-    const th = w.fore ? S.theta : S.thetaH * 0.96;
+  const coll = perched && HAND.valid && HSPH.n > 0 && !window.__noColl;
+  if (coll) handToLocal();
+  for (const idx of WING_ORDER) {
+    const w = BF.wings[idx];
+    let th = w.fore ? S.theta : S.thetaH * 0.96;
     const sw = -w.side * (w.fore ? sF : sH);
+    // 手に当たるなら、当たらなくなるまで羽を持ち上げる（手の上に羽が乗る）
+    let need = 0;
+    if (coll && th < 1.45) { let t = th; while (t < 1.45 && !wingClear(w, t, sw)) t += 0.035; need = Math.min(t, 1.45) - th; }
+    w.lift = lerp(w.lift, need, 1 - Math.exp(-dt / (need > w.lift ? 0.025 : 0.18)));
+    th += w.lift;
+    if (w.fore) th = Math.max(th, BF.wings[w.side > 0 ? 2 : 3].thEff + 0.02);
+    w.thEff = th; w.sw = sw;
     w.flap.rotation.z = w.side * th;
     w.plane.rotation.y = sw;
     bendWing(w, w.fore ? bend : bend * 1.25, w.fore ? twist : twist * 0.7);
@@ -929,10 +1160,188 @@ function estimateLight(dt) {
   } catch (e) {}
 }
 
+/* ---------- 手の採寸 ---------- */
+// パーにした手を、手のひら→手の甲の順に見せてもらい、その人の手の寸法を測ってスマホに保存する。
+//  ・骨の長さ（MediaPipe の3Dの点から）→ 奥行きと手の大きさが安定する
+//  ・指や手首の太さ、手のふち（カメラ映像の肌色の幅から）→ 隠れ方と当たり判定が手の形に合う
+const CAL = { active: false, skipped: false, phase: 0, face0: 0, n: [0, 0], need: 14, lastT: 0, show: 0, acc: null, data: load('tenori.hand', null), note: '' };
+if (CAL.data && CAL.data.v !== 1) CAL.data = null;
+applyHandDims(CAL.data);
+const MEAS_BONES = [[2, 3], [3, 4], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12], [13, 14], [14, 15], [15, 16], [17, 18], [18, 19], [19, 20]];
+const fingerOf = i => i === 0 ? -1 : (i - 1) >> 2;
+const median = a => { if (!a || !a.length) return null; const v = [...a].sort((x, y) => x - y); return v[v.length >> 1]; };
+
+function calBegin() {
+  CAL.active = true; CAL.phase = 0; CAL.face0 = 0; CAL.n = [0, 0]; CAL.show = 0; CAL.lastT = 0;
+  CAL.acc = { len: {}, r: {}, mIdx: [], mPinky: [], wrist: [] };
+  const box = $('calib'); box.classList.remove('done'); box.style.display = 'flex'; $('cSkip').style.display = '';
+  if (S.mode === 'enter' || S.mode === 'land' || S.mode === 'perch') startLeave(false);
+  calUI('指を広げて、手のひらをカメラに');
+  updateStatus();
+}
+function calUI(msg) {
+  const p = clamp((CAL.n[0] + CAL.n[1]) / (CAL.need * 2), 0, 1);
+  $('cArc').style.strokeDashoffset = (125.7 * (1 - p)).toFixed(1);
+  $('cStep').textContent = CAL.active ? (CAL.phase + 1) + '/2' : '✓';
+  $('cMsg').textContent = msg;
+}
+function calTick(dt) {
+  if (CAL.show > 0 && (CAL.show -= dt) <= 0) { $('calib').style.display = 'none'; updateStatus(); }
+  if (!CAL.active || !TR.running) return;
+  const ph = CAL.phase;
+  let msg;
+  if (!TR.seen) msg = 'スマホを持っていない方の手を映してね';
+  else {
+    const face = Math.abs(HF.N.dot(tA.copy(HF.O).negate().normalize()));
+    const want = ph === 0 ? '指を広げて、手のひらをカメラに' : CAL.face0 > 0 ? '次は手を返して、手の甲をカメラに' : '次は手を返して、手のひらをカメラに';
+    if (TR.fist < 1.0) msg = '指をぱっと広げてね';
+    else if (face < 0.6) msg = want;
+    else if (ph === 1 && HF.facing === CAL.face0) msg = want;
+    else if (HF.speed > 25) msg = '手を止めて、そのまま…';
+    else {
+      msg = '測っています…そのまま';
+      if (TR.fresh && NOW - CAL.lastT > 60) {
+        TR.fresh = false; CAL.lastT = NOW;
+        if (ph === 0 && !CAL.face0) CAL.face0 = HF.facing;
+        calSample(); CAL.n[ph]++;
+        if (CAL.n[ph] >= CAL.need) { if (ph === 0) { CAL.phase = 1; msg = CAL.face0 > 0 ? '次は手を返して、手の甲をカメラに' : '次は手を返して、手のひらをカメラに'; } else { calFinish(); return; } }
+      }
+    }
+  }
+  calUI(msg);
+}
+function calSample() {
+  const A = CAL.acc, wl = TR.wlRaw, lm = TR.lmRaw;
+  if (wl && wl.length === 21) for (const [i, j] of LEN_PAIRS) {
+    const a = wl[i], b = wl[j], k = i + '-' + j;
+    (A.len[k] || (A.len[k] = [])).push(Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * 100);
+  }
+  const m = lm && measureHandImage(lm);
+  if (!m) return;
+  for (const j in m.r) (A.r[j] || (A.r[j] = [])).push(m.r[j]);
+  if (m.mIdx) A.mIdx.push(m.mIdx);
+  if (m.mPinky) A.mPinky.push(m.mPinky);
+  if (m.wrist) A.wrist.push(m.wrist);
+}
+function calFinish() {
+  const A = CAL.acc, len = {};
+  for (const k in A.len) len[k] = +median(A.len[k]).toFixed(3);
+  const r = Array(21).fill(0);
+  let got = 0;
+  for (const [, j] of MEAS_BONES) { const v = A.r[j]; if (v && v.length >= 5) { r[j] = +clamp(median(v), DEF_R(j) * 0.6, DEF_R(j) * 1.4).toFixed(3); got++; } }
+  for (const b of [5, 9, 13, 17]) if (r[b + 1]) r[b] = +(r[b + 1] * 1.08).toFixed(3);
+  if (r[3]) r[2] = +(r[3] * 1.12).toFixed(3);
+  const ok = a => a.length >= 5 ? median(a) : 0;
+  const mIdx = ok(A.mIdx), mPinky = ok(A.mPinky), wrist = ok(A.wrist);
+  const palmW = (len['5-17'] || 6.8) + (mIdx || 0.9) + (mPinky || 0.9);
+  CAL.data = { v: 1, t: Date.now(), len, r, got,
+    mIdx: mIdx ? +clamp(mIdx, 0.4, 1.6).toFixed(3) : 0, mPinky: mPinky ? +clamp(mPinky, 0.4, 2.0).toFixed(3) : 0,
+    arm: wrist ? +clamp(0.36 * wrist, 1.5, 2.6).toFixed(3) : 0, wrist: +wrist.toFixed(2),
+    half: +clamp(1.3 * palmW / 8.6, 1.0, 1.6).toFixed(3) };
+  store('tenori.hand', CAL.data);
+  applyHandDims(CAL.data); TR.fZ.reset();
+  CAL.active = false; CAL.show = 2.2;
+  $('calib').classList.add('done'); $('cSkip').style.display = 'none';
+  CAL.n = [CAL.need, CAL.need];
+  calUI(got >= 9 ? '採寸できた！この手に合わせたよ' : '採寸できた！（指の太さは標準のまま）');
+  updateStatus();
+}
+function calSkip() { CAL.active = false; CAL.skipped = true; CAL.show = 0; $('calib').style.display = 'none'; updateStatus(); }
+
+// カメラ映像（検知に渡したキャンバス）から、指・手のふち・手首の幅を肌色の切れ目で測る
+const _yc = { y: 0, cb: 0, cr: 0 };
+const ycc = (r, g, b, o) => { const y = 0.299 * r + 0.587 * g + 0.114 * b; o.y = y; o.cb = b - y; o.cr = r - y; return o; };
+const cdist = (a, b) => Math.hypot(a.cb - b.cb, a.cr - b.cr) + 0.3 * Math.abs(a.y - b.y);
+const SKIN_TH = 24;
+function rayHit(x, y, nx, ny, ax, ay, bx, by) {                // 半直線と線分の交わる距離（なければ Infinity）
+  const ex = bx - ax, ey = by - ay, den = nx * ey - ny * ex;
+  if (Math.abs(den) < 1e-6) return Infinity;
+  const t = ((ax - x) * ey - (ay - y) * ex) / den, u = ((ax - x) * ny - (ay - y) * nx) / den;
+  return t > 0 && u >= 0 && u <= 1 ? t : Infinity;
+}
+function measureHandImage(lm) {
+  const g = TR.ctx, cw = TR.can.width, ch = TR.can.height;
+  if (!g || !cw || !ch) return null;
+  let x0 = 1, x1 = 0, y0 = 1, y1 = 0;
+  for (const p of lm) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+  const mx = (x1 - x0) * 0.3 + 0.03, my = (y1 - y0) * 0.3 + 0.03;
+  const ox = Math.max(0, Math.floor((x0 - mx) * cw)), oy = Math.max(0, Math.floor((y0 - my) * ch));
+  const iw = Math.min(cw, Math.ceil((x1 + mx) * cw)) - ox, ih = Math.min(ch, Math.ceil((y1 + my) * ch)) - oy;
+  if (iw < 24 || ih < 24) return null;
+  let img;
+  try { img = g.getImageData(ox, oy, iw, ih).data; } catch (e) { return null; }
+  const P = lm.map(p => [p.x * cw - ox, p.y * ch - oy]);
+  const cpp = z => 100 * z / TR.f * TR.vw / cw;                // 奥行き z(m) での 1px の長さ(cm)
+  const avg = (x, y, rad, o) => {
+    let r = 0, gg = 0, b = 0, n = 0;
+    for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
+      const X = Math.round(x + dx), Y = Math.round(y + dy);
+      if (X < 0 || Y < 0 || X >= iw || Y >= ih) continue;
+      const k = (Y * iw + X) * 4; r += img[k]; gg += img[k + 1]; b += img[k + 2]; n++;
+    }
+    return n ? ycc(r / n, gg / n, b / n, o) : null;
+  };
+  const scan = (x, y, nx, ny, ref, capNb, capAbs) => {           // 肌色が切れるところまでの距離(px)。となりの指にぶつかるときは半分の所
+    const lim = Math.min(capNb, capAbs);
+    let miss = 0;
+    for (let t = 1; t <= lim; t++) {
+      const X = Math.round(x + nx * t), Y = Math.round(y + ny * t);
+      if (X < 0 || Y < 0 || X >= iw || Y >= ih) return -1;
+      const k = (Y * iw + X) * 4;
+      if (cdist(ycc(img[k], img[k + 1], img[k + 2], _yc), ref) > SKIN_TH) { if (++miss >= 2) return t - 1.5; } else miss = 0;
+    }
+    return capNb <= capAbs ? capNb : -1;
+  };
+  const nbCap = (x, y, nx, ny, fid) => {                         // ほかの指までの距離の半分
+    let best = Infinity;
+    for (const c of CHAINS) { if (fingerOf(c[0]) === fid) continue;
+      for (let n = 1; n < c.length; n++) { const a = P[c[n - 1]], b = P[c[n]]; best = Math.min(best, rayHit(x, y, nx, ny, a[0], a[1], b[0], b[1])); } }
+    return best / 2;
+  };
+  const pc = [0, 0]; for (const i of PALM5) { pc[0] += P[i][0] / 5; pc[1] += P[i][1] / 5; }
+  const palmRef = avg(pc[0], pc[1], 3, { y: 0, cb: 0, cr: 0 });
+  if (!palmRef) return null;
+  const out = { r: {}, mIdx: 0, mPinky: 0, wrist: 0 }, loc = { y: 0, cb: 0, cr: 0 };
+  for (const [i, j] of MEAS_BONES) {
+    const a = P[i], b = P[j], x = (a[0] + b[0]) / 2, y = (a[1] + b[1]) / 2;
+    let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 4) continue;
+    dx /= L; dy /= L;
+    if (!avg(x, y, 1, loc) || cdist(loc, palmRef) > SKIN_TH * 1.5) continue;    // 点が指の上にない
+    const c = cpp((TR.Z[i] + TR.Z[j]) / 2), cap = 1.7 / c, fid = fingerOf(j);
+    const t1 = scan(x, y, -dy, dx, loc, nbCap(x, y, -dy, dx, fid), cap), t2 = scan(x, y, dy, -dx, loc, nbCap(x, y, dy, -dx, fid), cap);
+    if (t1 < 0.5 || t2 < 0.5) continue;
+    const r = (t1 + t2) / 2 * c;
+    if (r > 0.35 && r < 1.6) out.r[j] = r;
+  }
+  // 手のふち：人差し指と小指の付け根から外へ
+  {
+    const a = P[5], b = P[17]; let ux = a[0] - b[0], uy = a[1] - b[1]; const L = Math.hypot(ux, uy);
+    if (L > 6) {
+      ux /= L; uy /= L;
+      if (avg(a[0], a[1], 1, loc) && cdist(loc, palmRef) < SKIN_TH * 1.5) { const c = cpp(TR.Z[5]), t = scan(a[0], a[1], ux, uy, loc, nbCap(a[0], a[1], ux, uy, 1), 2.0 / c); if (t > 0) out.mIdx = t * c; }
+      if (avg(b[0], b[1], 1, loc) && cdist(loc, palmRef) < SKIN_TH * 1.5) { const c = cpp(TR.Z[17]), t = scan(b[0], b[1], -ux, -uy, loc, Infinity, 2.2 / c); if (t > 0) out.mPinky = t * c; }
+    }
+  }
+  // 手首：手首から少し腕の方へ下がったところの幅
+  {
+    const a = P[0], b = P[9]; let ux = a[0] - b[0], uy = a[1] - b[1]; const L = Math.hypot(ux, uy);
+    if (L > 6) {
+      ux /= L; uy /= L;
+      const x = a[0] + ux * L * 0.22, y = a[1] + uy * L * 0.22;
+      if (avg(x, y, 1, loc) && cdist(loc, palmRef) < SKIN_TH * 1.5) {
+        const c = cpp(TR.Z[0]), cap = 4.5 / c, t1 = scan(x, y, -uy, ux, loc, Infinity, cap), t2 = scan(x, y, uy, -ux, loc, Infinity, cap);
+        if (t1 > 0 && t2 > 0) { const w = (t1 + t2) * c; if (w > 3.5 && w < 9) out.wrist = w; }
+      }
+    }
+  }
+  return out;
+}
+
 /* ---------- UI ---------- */
 function status(text, kind) { $('sTxt').textContent = text; $('sDot').className = 'd' + (kind ? ' ' + kind : ''); }
 function updateStatus() {
   const m = S.mode;
+  if (CAL.active && TR.running) { status('手の形を測っています', 'fly'); return; }
   if (m === 'wait') {
     if (!TR.running) { if (TR.stageMsg) status(TR.stageMsg, TR.stageMsg.startsWith('エラー') ? '' : 'fly'); }
     else if (TR.seen) status('そのまま手をかざしていて…', 'on');
@@ -952,11 +1361,13 @@ async function boot() {
   if (booting || TR.running) return;
   booting = true;
   try { if (window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === 'function') DeviceOrientationEvent.requestPermission().catch(() => {}); } catch (e) {}
+  try { if (window.DeviceMotionEvent && typeof DeviceMotionEvent.requestPermission === 'function') DeviceMotionEvent.requestPermission().catch(() => {}); } catch (e) {}
   $('start').style.display = 'none'; $('status').style.display = 'flex'; $('bar').style.display = 'flex';
   S.respawn = 1.2; setMode('wait');
   try {
     await TR.start(msg => { TR.stageMsg = msg; status(msg, 'fly'); });
     TR.stageMsg = ''; updateProjection(); updateStatus();
+    if (!CAL.data && !CAL.skipped) calBegin();
   } catch (e) {
     console.error(e);
     TR.stageMsg = 'エラー：' + String((e && e.message) || e).slice(0, 60) + '（ここをタップでやり直す）';
@@ -978,6 +1389,9 @@ canvas.addEventListener('pointerdown', () => openSheet(''));
   sz.oninput = () => { SET.size = +sz.value; show(); persist(); };
   fv.oninput = () => { SET.fov = +fv.value; show(); persist(); TR.reset(); updateProjection(); };
   const tg = (id, k, fn) => { const el = $(id); el.checked = !!SET[k]; el.onchange = () => { SET[k] = el.checked; persist(); fn && fn(); }; };
+  tg('sGyro', 'gyro');
+  $('bCal').onclick = () => { openSheet(''); if (TR.running) calBegin(); };
+  $('cSkip').onclick = calSkip;
   tg('sShadow', 'shadow'); tg('sFlip', 'flip'); tg('sDebug', 'debug', () => { $('tnDebug').style.display = SET.debug ? 'block' : 'none'; });
   $('tnDebug').style.display = SET.debug ? 'block' : 'none';
 })();
@@ -1008,47 +1422,88 @@ const MOCK_HAND = [[0, 0, 0], [2.2, 1.5, 0.8], [3.6, 3.0, 1.4], [4.6, 4.3, 1.8],
   [0.3, 8.8, 0], [0.3, 11.8, 0.2], [0.3, 13.8, 0.2], [0.3, 15.5, 0.1], [-1.6, 8.4, 0], [-1.8, 11.0, 0.2], [-1.9, 12.9, 0.2], [-2.0, 14.4, 0.1],
   [-3.3, 7.6, 0], [-3.7, 9.6, 0.2], [-3.9, 11.0, 0.2], [-4.1, 12.3, 0.1]];
 let mockAcc = 0;
+const MOCK_LAT = 60;                                 // 疑似カメラ：撮ってから画面に出るまで(ms)
+const MOCK_R = [1.0, 1.0, 1.0, 1.0, 1.0, 0.85, 0.85, 0.85, 0.85, 0.9, 0.9, 0.9, 0.9, 0.82, 0.82, 0.82, 0.82, 0.7, 0.7, 0.7, 0.7];   // 疑似の手の指の太さ(cm)
+const _mq = new THREE.Quaternion();
+function mockPts(M, tCap) {                         // 手は部屋に固定。スマホ（カメラ）が回っていれば、撮った時刻の向きで見え方が変わる
+  const camInv = window.__mockCam ? gyroRawAt(tCap, _mq).invert() : _mq.identity();
+  const R = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(M.rx, M.ry, M.rz, 'YXZ'));
+  return MOCK_HAND.map((p, i) => {
+    const v = new THREE.Vector3(...p);
+    if (M.fist && i > 5 && i % 4 !== 1) { const base = new THREE.Vector3(...MOCK_HAND[i - ((i - 1) % 4)]); v.lerp(base, 0.85); v.y -= 2.5; v.z += 3; }
+    if (M.curl && i >= 1 && i <= 4) v.z += M.curl * (i - 1) * 0.9;        // 親指を手のひらから立てる
+    return v.applyMatrix4(R).add(new THREE.Vector3(M.x, M.y, M.z)).applyQuaternion(camInv);
+  });
+}
+function mockTruth(i) {                               // テスト用：いま画面に出ている映像での手の点
+  const M = Object.assign({ x: 0, y: -6, z: -34, rx: -0.35, ry: 0, rz: 0, fist: false, show: true }, window.__mockHand || {});
+  const p = mockPts(M, NOW - MOCK_LAT)[i]; return [p.x, p.y, p.z];
+}
 function mockFeed(dt) {
   if ((mockAcc += dt) < 1 / 30) return; mockAcc = 0;
   const M = Object.assign({ x: 0, y: -6, z: -34, rx: -0.35, ry: 0, rz: 0, fist: false, show: true }, window.__mockHand || {});
   const vw = innerWidth > innerHeight ? 1280 : 720, vh = innerWidth > innerHeight ? 720 : 1280;
-  if (!M.show) { TR.process({ landmarks: [], worldLandmarks: [] }, performance.now() / 1000, vw, vh); return; }
-  const R = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(M.rx, M.ry, M.rz, 'YXZ'));
-  const pts = MOCK_HAND.map((p, i) => {
-    const v = new THREE.Vector3(...p);
-    if (M.fist && i > 5 && i % 4 !== 1) { const base = new THREE.Vector3(...MOCK_HAND[i - ((i - 1) % 4)]); v.lerp(base, 0.85); v.y -= 2.5; v.z += 3; }
-    return v.applyMatrix4(R).add(new THREE.Vector3(M.x, M.y, M.z));
-  });
+  const tCap = NOW - MOCK_LAT;
+  GYRO.lat = MOCK_LAT + GYRO.Ls;
+  if (!M.show) { TR.process({ landmarks: [], worldLandmarks: [] }, NOW / 1000, vw, vh, tCap); return; }
+  const pts = mockPts(M, tCap);
   const c = pts.reduce((a, p) => a.add(p), new THREE.Vector3()).multiplyScalar(1 / 21);
   const f = SET.fov * Math.max(vw, vh);
   const zw = -pts[0].z;
   const lm = pts.map(p => ({ x: (vw / 2 + f * p.x / -p.z) / vw, y: (vh / 2 - f * p.y / -p.z) / vh, z: ((-p.z) - zw) * f / zw / vw }));
   const wl = pts.map(p => ({ x: (p.x - c.x) / 100, y: -(p.y - c.y) / 100, z: -(p.z - c.z) / 100 }));
-  TR.process({ landmarks: [lm], worldLandmarks: [wl], handedness: [[{ categoryName: 'Left', score: 0.95 }]] }, performance.now() / 1000, vw, vh);
+  if (CAL.active) mockDrawHand(lm, pts, vw, vh, f);
+  TR.process({ landmarks: [lm], worldLandmarks: [wl], handedness: [[{ categoryName: 'Left', score: 0.95 }]] }, NOW / 1000, vw, vh, tCap);
+}
+// 採寸のテスト用：疑似の手を「カメラ映像」としてキャンバスに描く（肌色の手、青灰色の背景）
+function mockDrawHand(lm, pts, vw, vh, f) {
+  const sc = Math.min(1, 720 / Math.max(vw, vh)), cw = Math.round(vw * sc), ch = Math.round(vh * sc);
+  if (TR.can.width !== cw || TR.can.height !== ch) { TR.can.width = cw; TR.can.height = ch; }
+  if (!TR.ctx) TR.ctx = TR.can.getContext('2d', { willReadFrequently: true });
+  const g = TR.ctx, P = lm.map(p => [p.x * cw, p.y * ch]), ppc = i => f / -pts[i].z * sc;
+  g.fillStyle = 'rgb(96,118,150)'; g.fillRect(0, 0, cw, ch);
+  g.fillStyle = g.strokeStyle = 'rgb(224,178,148)'; g.lineCap = 'round'; g.lineJoin = 'round';
+  const pc = [0, 0]; for (const i of PALM5) { pc[0] += P[i][0] / 5; pc[1] += P[i][1] / 5; }
+  g.beginPath();
+  RING.forEach((i, k) => { const dx = P[i][0] - pc[0], dy = P[i][1] - pc[1], L = Math.hypot(dx, dy) || 1, m = (i === 17 ? 1.1 : 0.9) * ppc(i); const x = P[i][0] + dx / L * m, y = P[i][1] + dy / L * m; k ? g.lineTo(x, y) : g.moveTo(x, y); });
+  g.closePath(); g.fill();
+  for (const c of CHAINS) for (let n = 0; n < c.length; n++) {
+    const i = n ? c[n - 1] : 0, j = c[n];
+    g.lineWidth = 2 * MOCK_R[j] * ppc(j); g.beginPath(); g.moveTo(P[i][0], P[i][1]); g.lineTo(P[j][0], P[j][1]); g.stroke();
+  }
+  const a = P[0], b = P[9], L = Math.hypot(a[0] - b[0], a[1] - b[1]);
+  g.lineWidth = 5.6 * ppc(0); g.lineCap = 'butt'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(a[0] + (a[0] - b[0]) / L * 400, a[1] + (a[1] - b[1]) / L * 400); g.stroke();
 }
 
 /* ---------- ループ ---------- */
 function render() { renderer.render(scene, camera); }
-let last = performance.now(), dbgT = 0;
+let last = performance.now(), dbgT = 0, NOW = performance.now(), MANUAL = false, simT = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
-  step(dt, now);
+  if (!MANUAL) step(dt, now);
   render();
 }
+const _mE = new THREE.Euler();
 function step(dt, now) {
+  NOW = now;
   if (TR.poll && TR.running && now - (TR.lastPoll || 0) > 30) { TR.lastPoll = now; TR.detect(now); }
+  if (MOCK && window.__mockCam) gyroPushQ(now, _gTmp.setFromEuler(_mE.set(...window.__mockCam, 'YXZ')));
   if (MOCK && TR.running) mockFeed(dt);
   if (TR.running && (Math.abs(camera.aspect - TR.vw / TR.vh) > 0.01)) updateProjection();
   estimateLight(dt);
   if (window.__mockGrav) GRAV.tgt.set(...window.__mockGrav).normalize();
   GRAV.up.lerp(GRAV.tgt, 1 - Math.exp(-8 * dt)).normalize();
   UNI.seed.value = (UNI.seed.value + 17.3) % 1000;
+  gyroUpdate(now);
+  if (GYRO.on && (S.mode === 'enter' || S.mode === 'leave' || S.mode === 'land' || S.mode === 'wait')) worldFix(GYRO.dq);
+  if (TR.running) TR.refresh();
   update(dt, now);
+  calTick(dt);
   uiTick(dt);
   if (SET.debug && (dbgT += dt) > 0.25) {
     dbgT = 0;
-    $('tnDebug').textContent = `mode ${S.mode}  side ${S.side}\n${TR.delegate} frames ${TR.frames} hits ${TR.hits} errs ${TR.errs}\n${TR.err.slice(0, 50)}\nhand ${TR.seen ? 'yes' : 'no'}  det ${TR.detMs.toFixed(1)}ms\nO ${HF.O.x.toFixed(1)} ${HF.O.y.toFixed(1)} ${HF.O.z.toFixed(1)}cm\nfacing ${HF.facing}  chi ${TR.chi.toFixed(2)}\nfist ${TR.fist.toFixed(2)}  speed ${HF.speed.toFixed(0)}\nvideo ${TR.vw}x${TR.vh}`;
+    $('tnDebug').textContent = `mode ${S.mode}  side ${S.side}\n${TR.delegate} frames ${TR.frames} hits ${TR.hits} errs ${TR.errs}\n${TR.err.slice(0, 50)}\nhand ${TR.seen ? 'yes' : 'no'}  det ${TR.detMs.toFixed(1)}ms\ngyro ${GYRO.on ? 'on' : GYRO.has ? 'off' : 'none'} lag ${gyroLag().toFixed(0)}ms${GYRO.capT ? ' (cap)' : ''}\ncal ${CAL.data ? 'yes r' + CAL.data.got : 'no'}  lift ${BF.wings.map(w => w.lift.toFixed(2)).join(' ')}\nO ${HF.O.x.toFixed(1)} ${HF.O.y.toFixed(1)} ${HF.O.z.toFixed(1)}cm\nfacing ${HF.facing}  chi ${TR.chi.toFixed(2)}\nfist ${TR.fist.toFixed(2)}  speed ${HF.speed.toFixed(0)}\nvideo ${TR.vw}x${TR.vh}`;
   }
 }
 requestAnimationFrame(frame);
@@ -1056,7 +1511,7 @@ function pose(o) {                         // テスト用：決めた姿勢で�
   S.mode = 'pose'; S.pos.set(...o.pos); basisQuat(tD.set(...o.fwd), tE.set(...o.up), S.q);
   S.theta = S.thetaH = o.theta; S.omega = o.omega || 0; S.prob = o.prob || 0; S.probWig = 0; S.posePerch = !!o.perch; S.glide = 0;
 }
-window.__tenori = { pose, GRAV, BF, S, TR, HF, SET, step: (sec) => { const n = Math.round(sec / 0.02); for (let i = 0; i < n; i++) step(0.02, performance.now()); }, render, startMock: () => $('go').click() };
+window.__tenori = { pose, GRAV, BF, S, TR, HF, SET, GYRO, CAL, HDIM, HSPH, calBegin, wingClear, handToLocal, mockTruth, step: (sec) => { MANUAL = true; simT = Math.max(simT, performance.now()); const n = Math.round(sec / 0.02); for (let i = 0; i < n; i++) { simT += 20; step(0.02, simT); } }, render, startMock: () => $('go').click() };
 </script>
 </body>
 </html>
