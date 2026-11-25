@@ -115,7 +115,7 @@ input[type=range]{width:100%;accent-color:var(--blue)}
     <h1>てのり蝶</h1>
     <div class="lead">手をかざすと、モルフォ蝶がとまりにくる</div>
     <ul class="how">
-      <li><b>1</b>スマホを持っていない方の手を、うしろのカメラに映す（はじめに数秒、手の形を測ります）</li>
+      <li><b>1</b>スマホを持っていない方の手を、うしろのカメラに映す（はじめに10秒ほど、手の形を測ります）</li>
       <li><b>2</b>じっとしていると、画面の外からひらひら飛んでくる</li>
       <li><b>3</b>そっと手を返すと、とまった蝶は手の向こう側に隠れる</li>
     </ul>
@@ -191,7 +191,6 @@ const ATLAS = { top: 'morpho4_top.webp', under: 'morpho4_under.webp', w: 886, h:
   LH: { x0: 88, x1: 433, y0: 415, y1: 736, rx: 415, ry: 427, span: 327 },
   RH: { x0: 455, x1: 799, y0: 415, y1: 736, rx: 469, ry: 429, span: 329 } } };
 const WINGSPAN = 12;               // 実際の大きさ(cm)
-let HANDH = 1.3;                   // 手の厚みの半分(cm)（採寸で手の大きさに合わせる）
 let PERCH_H = 0.96;                // とまっているときの胴体の高さ(cm)（脚の形から計算しなおす）
 
 /* ---------- renderer ---------- */
@@ -215,10 +214,10 @@ const hemi = new THREE.HemisphereLight('#ffffff', '#d9cfc4', 1.6);
 scene.add(hemi);
 const key = new THREE.DirectionalLight('#fff8ee', 2.2);
 key.castShadow = true;
-key.shadow.mapSize.set(1024, 1024);
+key.shadow.mapSize.set(512, 512);
 Object.assign(key.shadow.camera, { left: -9, right: 9, top: 9, bottom: -9, near: 1, far: 70 });
 key.shadow.camera.updateProjectionMatrix();
-key.shadow.bias = -0.0006; key.shadow.normalBias = 0.04; key.shadow.radius = 3;
+key.shadow.bias = -0.0008; key.shadow.normalBias = 0.05; key.shadow.radius = 5;     // radius：影のぼかし（シャドウマップの画素数）
 scene.add(key, key.target);
 const LIGHT_DIR = new THREE.Vector3(-0.35, 1, 0.45).normalize();
 
@@ -452,21 +451,51 @@ function wingDist(w, x, z) {                  // 羽の面の上の点 (x,z) か
 WINGS = BF.wings; buildWingMasks();
 
 /* ---------- 手の見えない板（奥行きだけ書く）と影受け ---------- */
-const HAND = { valid: false };
+const HAND = { valid: false, was: false };
 const MAT_DEPTH = new THREE.MeshBasicMaterial({ colorWrite: false });
 const MAT_SKIN = new THREE.MeshStandardMaterial({ color: '#e9b99c', roughness: 0.7 });
 const MAT_DEBUG = new THREE.MeshBasicMaterial({ color: '#46a0ff', transparent: true, opacity: 0.28, depthWrite: true });
 const MAT_CAL = new THREE.MeshBasicMaterial({ color: '#3d9bff', transparent: true, opacity: 0.34, depthWrite: false, depthFunc: THREE.EqualDepth });   // 手前の面だけ1枚に塗る
-const MAT_SHADOW = new THREE.ShadowMaterial({ opacity: 0.34, transparent: true, depthWrite: false });
-const RING = [0, 1, 2, 5, 9, 13, 17], PALM5 = [0, 5, 9, 13, 17];
+// 影受け：やわらかい影（5か所をずらして重ねる）。蝶の側を向いた面にだけ落とす（手を通りぬけて反対側に影が出ないように）
+const SH_UNI = { caster: { value: new THREE.Vector3() }, strength: { value: 1 } };
+const MAT_SHADOW = new THREE.ShadowMaterial({ opacity: 0.3, transparent: true, depthWrite: false });
+MAT_SHADOW.onBeforeCompile = sh => {
+  sh.uniforms.uCaster = SH_UNI.caster; sh.uniforms.uStrength = SH_UNI.strength;
+  sh.vertexShader = 'varying vec3 vTnP;\n' + sh.vertexShader
+    .replace('#include <project_vertex>', '#include <project_vertex>\n  vTnP = mvPosition.xyz;');
+  sh.fragmentShader = 'uniform vec3 uCaster;\nuniform float uStrength;\nvarying vec3 vTnP;\n' + sh.fragmentShader
+    .replace('gl_FragColor = vec4( color, opacity * ( 1.0 - getShadowMask() ) );', `
+  float tnLit = 1.0;
+  #if defined( USE_SHADOWMAP ) && NUM_DIR_LIGHT_SHADOWS > 0
+  {
+    DirectionalLightShadow tnL = directionalLightShadows[ 0 ];
+    vec2 tnTx = tnL.shadowRadius / tnL.shadowMapSize;
+    float tnA = fract( sin( dot( gl_FragCoord.xy, vec2( 12.9898, 78.233 ) ) ) * 43758.5453 ) * 6.2832;
+    vec2 tnU = vec2( cos( tnA ), sin( tnA ) ) * tnTx, tnV = vec2( -tnU.y * tnTx.x / tnTx.y, tnU.x * tnTx.y / tnTx.x );
+    vec4 tnC = vDirectionalShadowCoord[ 0 ];
+    tnLit = getShadow( directionalShadowMap[ 0 ], tnL.shadowMapSize, tnL.shadowIntensity, tnL.shadowBias, 0.0, tnC );
+    tnLit += getShadow( directionalShadowMap[ 0 ], tnL.shadowMapSize, tnL.shadowIntensity, tnL.shadowBias, 0.0, tnC + vec4( tnU, 0.0, 0.0 ) );
+    tnLit += getShadow( directionalShadowMap[ 0 ], tnL.shadowMapSize, tnL.shadowIntensity, tnL.shadowBias, 0.0, tnC - vec4( tnU, 0.0, 0.0 ) );
+    tnLit += getShadow( directionalShadowMap[ 0 ], tnL.shadowMapSize, tnL.shadowIntensity, tnL.shadowBias, 0.0, tnC + vec4( tnV, 0.0, 0.0 ) );
+    tnLit += getShadow( directionalShadowMap[ 0 ], tnL.shadowMapSize, tnL.shadowIntensity, tnL.shadowBias, 0.0, tnC - vec4( tnV, 0.0, 0.0 ) );
+    tnLit /= 5.0;
+  }
+  #endif
+  vec3 tnFN = normalize( cross( dFdx( vTnP ), dFdy( vTnP ) ) );       // 面そのものの向き（なめらかにした法線ではなく）
+  float tnFace = smoothstep( -0.05, 0.3, dot( tnFN, normalize( uCaster - vTnP ) ) );
+  gl_FragColor = vec4( color, opacity * uStrength * tnFace * ( 1.0 - tnLit ) );`);
+};
+MAT_SHADOW.customProgramCacheKey = () => 'tn-shadow';
+// 手のひらの輪郭：手首・親指の付け根2点・4本の指の付け根・小指側のふちの中ほど（21番として扱う）
+const OUTLINE = [0, 1, 2, 5, 9, 13, 17, 21], PALM5 = [0, 5, 9, 13, 17];
 const palmGeo = new THREE.BufferGeometry();
 {
-  const n = RING.length, pos = new Float32Array((n * 2 + 2) * 3), idx = [];
+  const n = OUTLINE.length, pos = new Float32Array((n * 2 + 2) * 3), idx = [];
   const T0 = 0, B0 = n, CT = 2 * n, CB = 2 * n + 1;
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    idx.push(CT, T0 + i, T0 + j);          // 表
-    idx.push(CB, B0 + j, B0 + i);          // 裏
+    idx.push(CT, T0 + i, T0 + j);          // 上の面
+    idx.push(CB, B0 + j, B0 + i);          // 下の面
     idx.push(T0 + i, B0 + i, B0 + j, T0 + i, B0 + j, T0 + j);   // 側面
   }
   palmGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -475,17 +504,20 @@ const palmGeo = new THREE.BufferGeometry();
 const SEGS = [[1, 2], [2, 3], [3, 4], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12], [13, 14], [14, 15], [15, 16], [17, 18], [18, 19], [19, 20], [0, -1]];
 const JOINTS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
 // 手の寸法(cm)：採寸があればその人の手、なければ平均的な手
+//  r：骨の途中の太さ（その骨の先の番号に入れる）、rj：関節の太さ、margin：輪郭の点から手のふちまで、hp/hb：手のひら側/手の甲側の厚み
 const DEF_R = i => i <= 4 ? 1.05 : i <= 8 ? 0.92 : i <= 12 ? 0.95 : i <= 16 ? 0.88 : 0.76;
-const HDIM = { r: Array.from({ length: 21 }, (_, i) => DEF_R(i)), margin: { 0: 0.9, 1: 0.9, 2: 0.9, 5: 0.9, 9: 0.9, 13: 0.9, 17: 0.9 }, arm: 2.0, len: null };
+const DEF_MARGIN = { 0: 0.5, 1: 1.0, 2: 0.9, 5: 0.9, 9: 0.9, 13: 0.9, 17: 0.9, 21: 1.4 };
+const HDIM = { r: Array.from({ length: 21 }, (_, i) => DEF_R(i)), rj: Array.from({ length: 21 }, (_, i) => DEF_R(i)), margin: Object.assign({}, DEF_MARGIN), arm: 2.0, hp: 1.5, hb: 1.0, len: null };
 function applyHandDims(cal) {
-  for (let i = 0; i < 21; i++) HDIM.r[i] = DEF_R(i);
-  HDIM.margin[5] = HDIM.margin[17] = 0.9; HDIM.arm = 2.0; HDIM.len = null; HANDH = 1.3;
+  for (let i = 0; i < 21; i++) HDIM.r[i] = HDIM.rj[i] = DEF_R(i);
+  Object.assign(HDIM.margin, DEF_MARGIN); HDIM.arm = 2.0; HDIM.hp = 1.5; HDIM.hb = 1.0; HDIM.len = null;
   if (!cal) return;
-  if (cal.r) for (let i = 0; i < 21; i++) if (cal.r[i]) HDIM.r[i] = cal.r[i];
-  if (cal.mIdx) HDIM.margin[5] = cal.mIdx;
-  if (cal.mPinky) HDIM.margin[17] = cal.mPinky;
+  for (let i = 0; i < 21; i++) { if (cal.r && cal.r[i]) HDIM.r[i] = HDIM.rj[i] = cal.r[i]; }
+  for (let i = 0; i < 21; i++) { if (cal.rj && cal.rj[i]) HDIM.rj[i] = cal.rj[i]; }
+  if (cal.margin) for (const k in cal.margin) if (cal.margin[k]) HDIM.margin[k] = cal.margin[k];
   if (cal.arm) HDIM.arm = cal.arm;
-  if (cal.half) HANDH = cal.half;
+  if (cal.hp) HDIM.hp = cal.hp;
+  if (cal.hb) HDIM.hb = cal.hb;
   HDIM.len = cal.len || null;
 }
 // 手の当たり判定用の球（指・関節・腕）。羽が手を突き抜けないようにするのに使う
@@ -510,25 +542,36 @@ function applyHandMaterial(occ) {
   for (const m of HS.list) { m.material = calV ? MAT_CAL : MAT_SHADOW; m.visible = HAND.valid && (SET.shadow || calV); }
 }
 
+const _pc = new THREE.Vector3(), _ob = new THREE.Vector3(), _od = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _s = new THREE.Vector3(), YUP = new THREE.Vector3(0, 1, 0);
 function updateHandMeshes(P, N, O) {
-  // 手のひらの板：輪郭を少し外に広げ（採寸した手のふちまで）、法線方向に厚みをつける
-  const pos = palmGeo.attributes.position, n = RING.length;
-  let cx = 0, cy = 0, cz = 0;
-  for (const i of PALM5) { cx += P[i].x; cy += P[i].y; cz += P[i].z; }
-  cx /= 5; cy /= 5; cz /= 5;
-  HF.slabOff = (cx - O.x) * N.x + (cy - O.y) * N.y + (cz - O.z) * N.z;      // 板の中心面が手の座標の原点からどれだけずれているか
+  // 手のひらの板：輪郭の点を手のふちまで外へ出し、手のひら側 hp・手の甲側 hb の厚みをつける
+  const pos = palmGeo.attributes.position, n = OUTLINE.length;
+  const c = _pc.set(0, 0, 0);
+  for (const i of PALM5) c.add(P[i]);
+  c.multiplyScalar(0.2);
+  HF.slabOff = _v.subVectors(c, O).dot(N);                  // 板の中心面が手の座標の原点からどれだけずれているか
+  // 三角形の向き（外向き）が輪郭のまわる向きで決まるので、表になる側を合わせる（左手で裏返しになっていたのを直す）
+  const tOff = HF.wind > 0 ? HDIM.hp : -HDIM.hb, bOff = HF.wind > 0 ? -HDIM.hb : HDIM.hp;
   for (let k = 0; k < n; k++) {
-    const p = P[RING[k]];
-    let dx = p.x - cx, dy = p.y - cy, dz = p.z - cz;
-    const dn = dx * N.x + dy * N.y + dz * N.z; dx -= N.x * dn; dy -= N.y * dn; dz -= N.z * dn;   // 平面に落とす
-    const len = Math.hypot(dx, dy, dz) || 1, grow = HDIM.margin[RING[k]] / len + 1.0;
-    const x = cx + dx * grow, y = cy + dy * grow, z = cz + dz * grow;
-    pos.setXYZ(k, x + N.x * HANDH, y + N.y * HANDH, z + N.z * HANDH);
-    pos.setXYZ(n + k, x - N.x * HANDH, y - N.y * HANDH, z - N.z * HANDH);
+    const id = OUTLINE[k];
+    if (id === 21) _ob.addVectors(P[0], P[17]).multiplyScalar(0.5); else _ob.copy(P[id]);
+    let away = false;
+    if (id === 0) _od.subVectors(P[0], P[9]);
+    else if (id === 5) _od.subVectors(P[5], P[17]);
+    else if (id === 17) _od.subVectors(P[17], P[5]);
+    else if (id === 1 || id === 2) { _od.subVectors(P[2], P[1]).cross(N); away = true; }
+    else if (id === 21) { _od.subVectors(P[0], P[17]).cross(N); away = true; }
+    else _od.subVectors(_ob, c);
+    _od.addScaledVector(N, -_od.dot(N)).normalize();
+    _ob.addScaledVector(N, -_v.subVectors(_ob, c).dot(N));    // 板の中心面に落とす
+    if (away && _od.dot(_v.subVectors(_ob, c)) < 0) _od.negate();
+    _ob.addScaledVector(_od, HDIM.margin[id]);
+    pos.setXYZ(k, _ob.x + N.x * tOff, _ob.y + N.y * tOff, _ob.z + N.z * tOff);
+    pos.setXYZ(n + k, _ob.x + N.x * bOff, _ob.y + N.y * bOff, _ob.z + N.z * bOff);
   }
-  pos.setXYZ(2 * n, cx + N.x * HANDH, cy + N.y * HANDH, cz + N.z * HANDH);
-  pos.setXYZ(2 * n + 1, cx - N.x * HANDH, cy - N.y * HANDH, cz - N.z * HANDH);
+  pos.setXYZ(2 * n, c.x + N.x * tOff, c.y + N.y * tOff, c.z + N.z * tOff);
+  pos.setXYZ(2 * n + 1, c.x + N.x * bOff, c.y + N.y * bOff, c.z + N.z * bOff);
   pos.needsUpdate = true; palmGeo.computeVertexNormals();
   // 指（円柱）と関節（球）。同じ形を当たり判定用の球の列にもする
   HSPH.n = 0;
@@ -544,7 +587,7 @@ function updateHandMeshes(P, N, O) {
     _v.addVectors(a, b).multiplyScalar(0.5);
     HD.cyl.setMatrixAt(k, _m.compose(_v, _q, _s.set(r, len, r)));
   });
-  JOINTS.forEach((i, k) => { const r = HDIM.r[i]; HD.sph.setMatrixAt(k, _m.compose(P[i], _q.identity(), _s.set(r, r, r))); addSph(P[i].x, P[i].y, P[i].z, r); });
+  JOINTS.forEach((i, k) => { const r = HDIM.rj[i]; HD.sph.setMatrixAt(k, _m.compose(P[i], _q.identity(), _s.set(r, r, r))); addSph(P[i].x, P[i].y, P[i].z, r); });
   const wr = HDIM.arm * 0.9;
   HD.sph.setMatrixAt(JOINTS.length, _m.compose(P[0], _q.identity(), _s.set(wr, wr, wr))); addSph(P[0].x, P[0].y, P[0].z, wr);
   HD.cyl.instanceMatrix.needsUpdate = true; HD.sph.instanceMatrix.needsUpdate = true;
@@ -628,7 +671,7 @@ const TR = {
   P: Array.from({ length: 21 }, () => new THREE.Vector3()),
   SW: Array.from({ length: 21 }, () => new THREE.Vector3()),     // 部屋の向きに直した手の点（なめらか済み）
   Z: new Float64Array(21), f: 1, lmRaw: null, wlRaw: null, fresh: false,
-  seen: false, seenT: 0, lostT: 99, stableT: 0, chi: 0, speed: 0, fist: 0, prevWrist: null,
+  hand: 0, chiOff: 0, seen: false, seenT: 0, lostT: 99, stableT: 0, chi: 0, speed: 0, fist: 0, prevWrist: null,
   async create(d) {
     return this.vision.HandLandmarker.createFromOptions(this.fs, { baseOptions: { modelAssetPath: HAND_MODEL, delegate: d }, runningMode: 'VIDEO', numHands: 2,
       minHandDetectionConfidence: 0.4, minHandPresenceConfidence: 0.4, minTrackingConfidence: 0.4 });
@@ -673,7 +716,7 @@ const TR = {
       GYRO.lat = lerp(GYRO.lat, shown - meta.captureTime, 0.05); GYRO.capT = true; tg = meta.captureTime + GYRO.Ls;
     } else tg = shown - gyroLag();
     // dance ページと同じく、いったんキャンバスに描いてから渡す（iPhoneのGPU検知で安定する）
-    const vw = v.videoWidth, vh = v.videoHeight, sc = Math.min(1, 720 / Math.max(vw, vh));
+    const vw = v.videoWidth, vh = v.videoHeight, sc = Math.min(1, (CAL.active ? 1920 : 720) / Math.max(vw, vh));   // 採寸中は映像をそのままの細かさで
     const cw = Math.round(vw * sc), ch = Math.round(vh * sc);
     if (this.can.width !== cw || this.can.height !== ch) { this.can.width = cw; this.can.height = ch; }
     this.ctx.drawImage(v, 0, 0, cw, ch);
@@ -722,11 +765,11 @@ const TR = {
     this.seen = true; this.seenT = t;
   },
   refresh() { for (let i = 0; i < 21; i++) this.P[i].copy(this.SW[i]).applyQuaternion(GYRO.qdi); },   // 今の画面の向きに戻す
-  reset() { this.fZ.reset(); this.fP.forEach(f => f.reset()); this.chi = 0; this.prevWrist = null; },
+  reset() { this.fZ.reset(); this.fP.forEach(f => f.reset()); this.chi = 0; this.hand = 0; this.prevWrist = null; },
 };
 
 /* 手の座標系 */
-const HF = { slabOff: 0, O: new THREE.Vector3(), X: new THREE.Vector3(), Y: new THREE.Vector3(), N: new THREE.Vector3(), M: new THREE.Matrix4(), q: new THREE.Quaternion(), prevQ: null, angVel: 0, palmLen: 9, facing: 1, prevO: null, speed: 0, fastT: 0 };
+const HF = { wind: 1, slabOff: 0, O: new THREE.Vector3(), X: new THREE.Vector3(), Y: new THREE.Vector3(), N: new THREE.Vector3(), M: new THREE.Matrix4(), q: new THREE.Quaternion(), prevQ: null, angVel: 0, palmLen: 9, facing: 1, prevO: null, speed: 0, fastT: 0 };
 const _hw = new THREE.Vector3(), _hq = new THREE.Quaternion();
 function computeHandFrame(dt) {
   const P = TR.P;
@@ -736,9 +779,19 @@ function computeHandFrame(dt) {
   if (HF.prevO && dt > 0) { const sp = HF.prevO.distanceTo(_hw) / dt; HF.speed = lerp(HF.speed, sp, 1 - Math.exp(-10 * dt)); }
   HF.prevO = (HF.prevO || new THREE.Vector3()).copy(_hw);
   HF.Y.subVectors(P[9], P[0]); HF.palmLen = HF.Y.length(); HF.Y.normalize();
-  _a.subVectors(P[5], P[0]); _b.subVectors(P[17], P[0]);
-  HF.N.crossVectors(_a, _b).normalize();
-  const isRight = (TR.chi >= 0) !== SET.flip;
+  // 手のひらの面の向き：手首と4本の付け根の5点をまわる多角形から（3点より安定）
+  let nx = 0, ny = 0, nz = 0;
+  for (let k = 0; k < 5; k++) { const a = P[PALM5[k]], b = P[PALM5[(k + 1) % 5]]; nx += (a.y - b.y) * (a.z + b.z); ny += (a.z - b.z) * (a.x + b.x); nz += (a.x - b.x) * (a.y + b.y); }
+  HF.N.set(nx, ny, nz).normalize();
+  // 右手か左手か：いったん決めたら、とまっている間は変えない（手を返したときの見まちがいで蝶が反対側へ飛ばないように）
+  const cand = TR.chi >= 0 ? 1 : -1;
+  if (!TR.hand) { TR.hand = cand; TR.chiOff = 0; }
+  else if (cand !== TR.hand) {
+    TR.chiOff += dt;
+    if (TR.chiOff > 1.2 && S.mode !== 'perch' && S.mode !== 'land' && Math.abs(TR.chi) > 1.5) { TR.hand = cand; TR.chiOff = 0; }
+  } else TR.chiOff = 0;
+  const isRight = (TR.hand > 0) !== SET.flip;
+  HF.wind = isRight ? 1 : -1;                           // 手のひらの板の表になる側
   if (!isRight) HF.N.negate();                          // N = 手のひらから外へ向く向き
   HF.X.crossVectors(HF.Y, HF.N).normalize();
   HF.N.crossVectors(HF.X, HF.Y).normalize();
@@ -843,7 +896,7 @@ function basisQuat(fwd, up, out) {          // 前向き・上向きから姿勢
 }
 const _pf = new THREE.Vector3(), _pu = new THREE.Vector3(), _pql = new THREE.Quaternion();
 function perchWorld(outP, outQ) {           // 手の上のとまり位置（手の座標）→ カメラ空間
-  outP.set(S.px, S.py, HF.slabOff + S.side * (HANDH + PERCH_H)).applyMatrix4(HF.M);
+  outP.set(S.px, S.py, HF.slabOff + S.side * ((S.side > 0 ? HDIM.hp : HDIM.hb) + PERCH_H)).applyMatrix4(HF.M);
   basisQuat(_pf.set(Math.sin(S.yaw), Math.cos(S.yaw), 0), _pu.set(0, 0, S.side), _pql);
   outQ.copy(HF.q).multiply(_pql);
 }
@@ -893,17 +946,19 @@ function flap(dt, freq, amp = 1) {
 function update(dt, now) {
   S.t += dt;
   const hand = TR.seen;
-  if (hand) { TR.lostT = 0; computeHandFrame(dt); } else { TR.lostT += dt; HF.prevO = null; HF.speed = 0; HF.angVel = 0; }
+  if (hand) { TR.lostT = 0; computeHandFrame(dt); }
+  else { TR.lostT += dt; HF.prevO = null; HF.speed = 0; HF.angVel = 0; if (TR.lostT > 0.6 && S.mode !== 'perch') TR.hand = 0; }
   TR.stableT = hand && HF.speed < 25 && TR.fist > 0.75 ? TR.stableT + dt : 0;
-  HAND.valid = hand;
-  if (hand) updateHandMeshes(TR.P, HF.N, HF.O);
-  setHandVisible(hand);
+  // 検知が一瞬とぎれても、隠す板は少しの間その場に残す（とぎれた瞬間に、手の向こうの蝶が透けて見えないように）
+  HAND.valid = hand || (HAND.was && TR.lostT < 0.3);
+  if (hand) { updateHandMeshes(TR.P, HF.N, HF.O); HAND.was = true; } else if (TR.lostT >= 0.3) HAND.was = false;
+  setHandVisible(HAND.valid);
   // 止まっている面がこちらを向いている間は「隠す板」を使わない（見えている蝶が欠けないように）。
   // 面が向こうを向いたら隠しはじめる。真横あたりで切りかえ、ちらつかないよう少し幅をもたせる。
   if ((S.mode === 'perch' || S.mode === 'land') && hand) {
     const d = S.side * HF.N.dot(tP.copy(HF.O).negate().normalize());
     if (S.occ && d > 0.12) S.occ = false; else if (!S.occ && d < 0.04) S.occ = true;
-  } else S.occ = true;
+  } else if (S.mode !== 'perch' && S.mode !== 'land') S.occ = true;
   applyHandMaterial(S.occ);
   const prevTheta = S.theta;
   let visible = true, flying = false, walking = false, perched = false;
@@ -1030,8 +1085,14 @@ function update(dt, now) {
   BF.root.scale.setScalar(SET.size);
   BF.root.visible = visible;
   BF.blob.visible = perched && visible;
-  // 影のライトを蝶に合わせて動かす
+  // 光は部屋の上（重力の逆）から少し手前・左寄りに。影のライトは蝶に合わせて動かす
+  LIGHT_DIR.copy(GRAV.up).add(tA.set(-0.4, 0.1, 0.25)).normalize();
   key.target.position.copy(S.pos); key.position.copy(S.pos).addScaledVector(LIGHT_DIR, 30);
+  // 影の濃さ：とまっていれば普通、飛んで手から離れるほど薄く
+  let shS = perched ? 1 : 0;
+  if (!perched && HAND.valid) { const h = Math.abs(tA.subVectors(S.pos, HF.O).dot(HF.N) - HF.slabOff) - 1.2; shS = 0.85 * clamp(1 - (h - 1.5) / 8, 0, 1); }
+  SH_UNI.strength.value = lerp(SH_UNI.strength.value, shS, 1 - Math.exp(-8 * dt));
+  SH_UNI.caster.value.copy(S.pos);
   key.target.updateMatrixWorld();
   key.castShadow = SET.shadow;
   UNI.lightDir.value.copy(LIGHT_DIR);
@@ -1161,94 +1222,137 @@ function estimateLight(dt) {
 }
 
 /* ---------- 手の採寸 ---------- */
-// パーにした手を、手のひら→手の甲の順に見せてもらい、その人の手の寸法を測ってスマホに保存する。
+// パーにした手を「手のひら → 手の甲 → 横（小指側）」の順に見せてもらい、その人の手の寸法を測ってスマホに保存する。
 //  ・骨の長さ（MediaPipe の3Dの点から）→ 奥行きと手の大きさが安定する
-//  ・指や手首の太さ、手のふち（カメラ映像の肌色の幅から）→ 隠れ方と当たり判定が手の形に合う
-const CAL = { active: false, skipped: false, phase: 0, face0: 0, n: [0, 0], need: 14, lastT: 0, show: 0, acc: null, data: load('tenori.hand', null), note: '' };
-if (CAL.data && CAL.data.v !== 1) CAL.data = null;
+//  ・指の太さ（骨の途中と関節）、手のふち（5か所）、手首の幅（カメラ映像の肌色の幅から）
+//  ・手のひら側と手の甲側の厚み（横から見た映像から）
+// 測るあいだは検知に渡す映像を最大の細かさにし、肌色の切れ目を画素より細かく読む。何十回ぶんの真ん中あたりの平均を使う
+const CAL_V = 2;
+const CAL = { active: false, skipped: false, phase: 0, face0: 0, n: [0, 0, 0], need: [26, 26, 18], lastT: 0, show: 0, acc: null, data: load('tenori.hand', null) };
+if (CAL.data && CAL.data.v !== CAL_V) CAL.data = null;                    // 前の版の採寸は測りなおしてもらう
 applyHandDims(CAL.data);
 const MEAS_BONES = [[2, 3], [3, 4], [5, 6], [6, 7], [7, 8], [9, 10], [10, 11], [11, 12], [13, 14], [14, 15], [15, 16], [17, 18], [18, 19], [19, 20]];
+const MEAS_JOINTS = [[2, 1, 3], [3, 2, 4], [5, 0, 6], [6, 5, 7], [7, 6, 8], [9, 0, 10], [10, 9, 11], [11, 10, 12], [13, 0, 14], [14, 13, 15], [15, 14, 16], [17, 0, 18], [18, 17, 19], [19, 18, 20]];   // [関節, 手前, 先]
 const fingerOf = i => i === 0 ? -1 : (i - 1) >> 2;
-const median = a => { if (!a || !a.length) return null; const v = [...a].sort((x, y) => x - y); return v[v.length >> 1]; };
+const PROX = new Set([2, 5, 9, 13, 17]);
+const trimMean = a => {                                       // 外れ値を落とした平均（真ん中 60%）
+  if (!a || !a.length) return 0;
+  const v = [...a].sort((x, y) => x - y), k = Math.floor(v.length * 0.2), m = v.slice(k, v.length - k);
+  return m.reduce((x, y) => x + y, 0) / m.length;
+};
+const push = (o, k, v) => (o[k] || (o[k] = [])).push(v);
 
 function calBegin() {
-  CAL.active = true; CAL.phase = 0; CAL.face0 = 0; CAL.n = [0, 0]; CAL.show = 0; CAL.lastT = 0;
-  CAL.acc = { len: {}, r: {}, mIdx: [], mPinky: [], wrist: [] };
+  CAL.active = true; CAL.phase = 0; CAL.face0 = 0; CAL.okT = 0; CAL.n = [0, 0, 0]; CAL.show = 0; CAL.lastT = 0;
+  CAL.acc = { len: {}, r: {}, rj: {}, m: {}, wrist: [], hp: [], hb: [] };
   const box = $('calib'); box.classList.remove('done'); box.style.display = 'flex'; $('cSkip').style.display = '';
   if (S.mode === 'enter' || S.mode === 'land' || S.mode === 'perch') startLeave(false);
-  calUI('指を広げて、手のひらをカメラに');
+  calUI(calWant());
   updateStatus();
 }
+function calWant() {
+  if (CAL.phase === 0) return '指を広げて、手のひらをまっすぐカメラに';
+  if (CAL.phase === 1) return CAL.face0 > 0 ? '次は手を返して、手の甲をまっすぐカメラに' : '次は手を返して、手のひらをまっすぐカメラに';
+  return '最後に手を横に向けて、小指側をまっすぐカメラに（親指はとじて）';
+}
 function calUI(msg) {
-  const p = clamp((CAL.n[0] + CAL.n[1]) / (CAL.need * 2), 0, 1);
+  const tot = CAL.need[0] + CAL.need[1] + CAL.need[2], p = clamp((CAL.n[0] + CAL.n[1] + CAL.n[2]) / tot, 0, 1);
   $('cArc').style.strokeDashoffset = (125.7 * (1 - p)).toFixed(1);
-  $('cStep').textContent = CAL.active ? (CAL.phase + 1) + '/2' : '✓';
+  $('cStep').textContent = CAL.active ? (CAL.phase + 1) + '/3' : '✓';
   $('cMsg').textContent = msg;
 }
 function calTick(dt) {
   if (CAL.show > 0 && (CAL.show -= dt) <= 0) { $('calib').style.display = 'none'; updateStatus(); }
   if (!CAL.active || !TR.running) return;
-  const ph = CAL.phase;
-  let msg;
+  const ph = CAL.phase, want = calWant();
+  let msg = want;
   if (!TR.seen) msg = 'スマホを持っていない方の手を映してね';
   else {
     const face = Math.abs(HF.N.dot(tA.copy(HF.O).negate().normalize()));
-    const want = ph === 0 ? '指を広げて、手のひらをカメラに' : CAL.face0 > 0 ? '次は手を返して、手の甲をカメラに' : '次は手を返して、手のひらをカメラに';
-    if (TR.fist < 1.0) msg = '指をぱっと広げてね';
-    else if (face < 0.6) msg = want;
-    else if (ph === 1 && HF.facing === CAL.face0) msg = want;
-    else if (HF.speed > 25) msg = '手を止めて、そのまま…';
-    else {
+    let ok = false;
+    if (ph < 2) {
+      if (TR.fist < 1.0) msg = '指をぱっと広げてね';
+      else if (face < 0.72) msg = want;
+      else if (ph === 1 && HF.facing === CAL.face0) msg = want;
+      else if (HF.speed > 12) msg = '手を止めて、そのまま…';
+      else ok = true;
+    } else {
+      if (face > 0.22) msg = want;
+      else if (HF.speed > 12) msg = '手を止めて、そのまま…';
+      else ok = true;
+    }
+    if (ok) {
       msg = '測っています…そのまま';
-      if (TR.fresh && NOW - CAL.lastT > 60) {
+      CAL.okT += dt;
+      if (ph === 2 && CAL.okT > 7 && CAL.n[2] < CAL.need[2]) { calFinish(); return; }   // 横からの厚みがどうしても測れないときは標準の厚みで終える
+      if (TR.fresh && NOW - CAL.lastT > 55) {
         TR.fresh = false; CAL.lastT = NOW;
         if (ph === 0 && !CAL.face0) CAL.face0 = HF.facing;
-        calSample(); CAL.n[ph]++;
-        if (CAL.n[ph] >= CAL.need) { if (ph === 0) { CAL.phase = 1; msg = CAL.face0 > 0 ? '次は手を返して、手の甲をカメラに' : '次は手を返して、手のひらをカメラに'; } else { calFinish(); return; } }
+        if (calSample(ph)) CAL.n[ph]++;
+        if (CAL.n[ph] >= CAL.need[ph]) {
+          if (ph < 2) { CAL.phase++; CAL.okT = 0; msg = calWant(); } else { calFinish(); return; }
+        }
       }
     }
   }
   calUI(msg);
 }
-function calSample() {
+function calSample(ph) {
   const A = CAL.acc, wl = TR.wlRaw, lm = TR.lmRaw;
-  if (wl && wl.length === 21) for (const [i, j] of LEN_PAIRS) {
-    const a = wl[i], b = wl[j], k = i + '-' + j;
-    (A.len[k] || (A.len[k] = [])).push(Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * 100);
+  if (!lm) return false;
+  if (ph < 2 && wl && wl.length === 21) for (const [i, j] of LEN_PAIRS) { const a = wl[i], b = wl[j]; push(A.len, i + '-' + j, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) * 100); }
+  const m = measureHandImage(lm, ph);
+  if (!m) return ph < 2;                                     // 映像が読めなくても、骨の長さは測れている
+  if (ph < 2) {
+    for (const j in m.r) push(A.r, j, m.r[j]);
+    for (const j in m.rj) push(A.rj, j, m.rj[j]);
+    for (const k in m.m) push(A.m, k, m.m[k]);
+    if (m.wrist) A.wrist.push(m.wrist);
+    return true;
   }
-  const m = lm && measureHandImage(lm);
-  if (!m) return;
-  for (const j in m.r) (A.r[j] || (A.r[j] = [])).push(m.r[j]);
-  if (m.mIdx) A.mIdx.push(m.mIdx);
-  if (m.mPinky) A.mPinky.push(m.mPinky);
-  if (m.wrist) A.wrist.push(m.wrist);
+  if (m.hp && m.hb) { A.hp.push(m.hp); A.hb.push(m.hb); return true; }
+  return false;
 }
 function calFinish() {
-  const A = CAL.acc, len = {};
-  for (const k in A.len) len[k] = +median(A.len[k]).toFixed(3);
-  const r = Array(21).fill(0);
-  let got = 0;
-  for (const [, j] of MEAS_BONES) { const v = A.r[j]; if (v && v.length >= 5) { r[j] = +clamp(median(v), DEF_R(j) * 0.6, DEF_R(j) * 1.4).toFixed(3); got++; } }
-  for (const b of [5, 9, 13, 17]) if (r[b + 1]) r[b] = +(r[b + 1] * 1.08).toFixed(3);
-  if (r[3]) r[2] = +(r[3] * 1.12).toFixed(3);
-  const ok = a => a.length >= 5 ? median(a) : 0;
-  const mIdx = ok(A.mIdx), mPinky = ok(A.mPinky), wrist = ok(A.wrist);
-  const palmW = (len['5-17'] || 6.8) + (mIdx || 0.9) + (mPinky || 0.9);
-  CAL.data = { v: 1, t: Date.now(), len, r, got,
-    mIdx: mIdx ? +clamp(mIdx, 0.4, 1.6).toFixed(3) : 0, mPinky: mPinky ? +clamp(mPinky, 0.4, 2.0).toFixed(3) : 0,
-    arm: wrist ? +clamp(0.36 * wrist, 1.5, 2.6).toFixed(3) : 0, wrist: +wrist.toFixed(2),
-    half: +clamp(1.3 * palmW / 8.6, 1.0, 1.6).toFixed(3) };
+  const A = CAL.acc, len = {}, r = Array(21).fill(0), rj = Array(21).fill(0), margin = {};
+  for (const k in A.len) len[k] = +trimMean(A.len[k]).toFixed(3);
+  let got = 0, tot = 0;
+  for (const [, j] of MEAS_BONES) { tot++; const v = A.r[j]; if (v && v.length >= 8) { r[j] = +clamp(trimMean(v), DEF_R(j) * 0.55, DEF_R(j) * 1.45).toFixed(3); got++; } }
+  for (const [j] of MEAS_JOINTS) { tot++; const v = A.rj[j]; if (v && v.length >= 8) { rj[j] = +clamp(trimMean(v), DEF_R(j) * 0.55, DEF_R(j) * 1.6).toFixed(3); got++; } }
+  for (const j of [4, 8, 12, 16, 20]) if (!rj[j] && r[j]) rj[j] = +(r[j] * 0.92).toFixed(3);     // 指先は先の骨より少し細い
+  for (const j of [5, 9, 13, 17]) if (rj[j] && r[j + 1]) rj[j] = +Math.min(rj[j], r[j + 1] * 1.25).toFixed(3);   // 付け根の関節は、手のふちまで含めて測ってしまうことがある
+  // 厚み：横向きの手が少し傾いていると帯が太く見えるので、いちばん細く見えた 3 割を使う
+  tot += 2;
+  let hp = 0, hb = 0;
+  if (A.hp.length >= 6) {
+    const idx = A.hp.map((v, i) => i).sort((a, b) => (A.hp[a] + A.hb[a]) - (A.hp[b] + A.hb[b])).slice(0, Math.max(3, Math.round(A.hp.length * 0.3)));
+    hp = +clamp(idx.reduce((s, i) => s + A.hp[i], 0) / idx.length, 0.7, 2.6).toFixed(3);
+    hb = +clamp(idx.reduce((s, i) => s + A.hb[i], 0) / idx.length, 0.4, 2.0).toFixed(3); got += 2;
+  }
+  const hpE = hp || 1.5, hbE = hb || 1.0;
+  // 手のふち：手の側面を丸い形とみなし、斜めに見えていた分を差し引く
+  const Rr = (hpE + hbE) / 2, oc = (hpE - hbE) / 2;
+  const LIM = { 1: [0.4, 2.2], 2: [0.4, 2.0], 5: [0.4, 1.8], 17: [0.4, 2.2], 21: [0.6, 2.6] };
+  for (const k in LIM) {
+    tot++; const v = A.m[k];
+    if (v && v.length >= 8) { margin[k] = +clamp(trimMean(v.map(([t, ad, an]) => (t - oc * an - Rr * Math.hypot(ad, an)) / ad + Rr)), LIM[k][0], LIM[k][1]).toFixed(3); got++; }
+  }
+  tot++; const wrist = A.wrist.length >= 8 ? trimMean(A.wrist) : 0; if (wrist) got++;
+  if (!hp) { const k = ((len['5-17'] || 6.8) + (margin[5] || 0.9) + (margin[17] || 0.9)) / 8.6; hp = +clamp(1.5 * k, 1.0, 2.2).toFixed(3); hb = +clamp(1.0 * k, 0.6, 1.5).toFixed(3); }
+  CAL.data = { v: CAL_V, t: Date.now(), len, r, rj, margin, hp, hb, got, tot,
+    arm: wrist ? +clamp(0.36 * wrist, 1.5, 2.6).toFixed(3) : 0, wrist: +wrist.toFixed(2) };
   store('tenori.hand', CAL.data);
   applyHandDims(CAL.data); TR.fZ.reset();
-  CAL.active = false; CAL.show = 2.2;
+  CAL.active = false; CAL.show = 2.6;
   $('calib').classList.add('done'); $('cSkip').style.display = 'none';
-  CAL.n = [CAL.need, CAL.need];
-  calUI(got >= 9 ? '採寸できた！この手に合わせたよ' : '採寸できた！（指の太さは標準のまま）');
+  CAL.n = CAL.need.slice();
+  const q = got / tot;
+  calUI(q > 0.85 ? '採寸できた！この手の形に合わせたよ' : q > 0.5 ? '採寸できた！（一部は標準の形）' : '採寸できた（明るい所・無地の背景だと、もっと正確に測れます）');
   updateStatus();
 }
 function calSkip() { CAL.active = false; CAL.skipped = true; CAL.show = 0; $('calib').style.display = 'none'; updateStatus(); }
 
-// カメラ映像（検知に渡したキャンバス）から、指・手のふち・手首の幅を肌色の切れ目で測る
+// カメラ映像（検知に渡したキャンバス）から、指・手のふち・手首の幅と手の厚みを、肌色の切れ目で測る
 const _yc = { y: 0, cb: 0, cr: 0 };
 const ycc = (r, g, b, o) => { const y = 0.299 * r + 0.587 * g + 0.114 * b; o.y = y; o.cb = b - y; o.cr = r - y; return o; };
 const cdist = (a, b) => Math.hypot(a.cb - b.cb, a.cr - b.cr) + 0.3 * Math.abs(a.y - b.y);
@@ -1259,19 +1363,36 @@ function rayHit(x, y, nx, ny, ax, ay, bx, by) {                // 半直線と�
   const t = ((ax - x) * ey - (ay - y) * ex) / den, u = ((ax - x) * ny - (ay - y) * nx) / den;
   return t > 0 && u >= 0 && u <= 1 ? t : Infinity;
 }
-function measureHandImage(lm) {
+function measureHandImage(lm, ph) {
   const g = TR.ctx, cw = TR.can.width, ch = TR.can.height;
   if (!g || !cw || !ch) return null;
   let x0 = 1, x1 = 0, y0 = 1, y1 = 0;
   for (const p of lm) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
-  const mx = (x1 - x0) * 0.3 + 0.03, my = (y1 - y0) * 0.3 + 0.03;
+  const mx = (x1 - x0) * 0.35 + 0.04, my = (y1 - y0) * 0.35 + 0.04;
   const ox = Math.max(0, Math.floor((x0 - mx) * cw)), oy = Math.max(0, Math.floor((y0 - my) * ch));
   const iw = Math.min(cw, Math.ceil((x1 + mx) * cw)) - ox, ih = Math.min(ch, Math.ceil((y1 + my) * ch)) - oy;
   if (iw < 24 || ih < 24) return null;
   let img;
   try { img = g.getImageData(ox, oy, iw, ih).data; } catch (e) { return null; }
+  // その瞬間の3Dの手（m、x右・y下・z奥）と、画面（このキャンバスの切り出し）への写し方
+  const vw = TR.vw, vh = TR.vh, f = TR.f, sx = cw / vw, sy = ch / vh;
+  const R3 = lm.map((p, i) => { const Z = TR.Z[i]; return [(p.x - 0.5) * vw * Z / f, (p.y - 0.5) * vh * Z / f, Z]; });
+  const proj = p => [(f * p[0] / p[2] + vw / 2) * sx - ox, (f * p[1] / p[2] + vh / 2) * sy - oy];
+  const along = (B, D) => {                                  // 点 B から3Dの向き D(単位) に 1cm 進むと画面で何px、どちら向きか
+    const a = proj(B), b = proj([B[0] + D[0] * 0.01, B[1] + D[1] * 0.01, B[2] + D[2] * 0.01]);
+    const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1e-6;
+    return { a, L, dx: dx / L, dy: dy / L };
+  };
+  const cppAt = z => 100 * z / (f * sx);                      // 奥行き z(m) での 1px の長さ(cm)
   const P = lm.map(p => [p.x * cw - ox, p.y * ch - oy]);
-  const cpp = z => 100 * z / TR.f * TR.vw / cw;                // 奥行き z(m) での 1px の長さ(cm)
+  const col = (x, y, o) => {                                  // 画素のあいだも補間して読む
+    if (x < 0 || y < 0 || x > iw - 1.001 || y > ih - 1.001) return null;
+    const xi = x | 0, yi = y | 0, fx = x - xi, fy = y - yi, k = (yi * iw + xi) * 4, k2 = k + iw * 4;
+    const w0 = (1 - fx) * (1 - fy), w1 = fx * (1 - fy), w2 = (1 - fx) * fy, w3 = fx * fy;
+    return ycc(img[k] * w0 + img[k + 4] * w1 + img[k2] * w2 + img[k2 + 4] * w3,
+      img[k + 1] * w0 + img[k + 5] * w1 + img[k2 + 1] * w2 + img[k2 + 5] * w3,
+      img[k + 2] * w0 + img[k + 6] * w1 + img[k2 + 2] * w2 + img[k2 + 6] * w3, o);
+  };
   const avg = (x, y, rad, o) => {
     let r = 0, gg = 0, b = 0, n = 0;
     for (let dy = -rad; dy <= rad; dy++) for (let dx = -rad; dx <= rad; dx++) {
@@ -1281,46 +1402,96 @@ function measureHandImage(lm) {
     }
     return n ? ycc(r / n, gg / n, b / n, o) : null;
   };
-  const scan = (x, y, nx, ny, ref, capNb, capAbs) => {           // 肌色が切れるところまでの距離(px)。となりの指にぶつかるときは半分の所
+  // 肌色が切れるところまでの距離(px, 画素より細かく)。となりの指にぶつかるときはその半分の所を切れ目とみなす
+  const scan = (x, y, dx, dy, ref, capNb, capAbs) => {
     const lim = Math.min(capNb, capAbs);
-    let miss = 0;
-    for (let t = 1; t <= lim; t++) {
-      const X = Math.round(x + nx * t), Y = Math.round(y + ny * t);
-      if (X < 0 || Y < 0 || X >= iw || Y >= ih) return -1;
-      const k = (Y * iw + X) * 4;
-      if (cdist(ycc(img[k], img[k + 1], img[k + 2], _yc), ref) > SKIN_TH) { if (++miss >= 2) return t - 1.5; } else miss = 0;
+    let prev = 0, miss = 0, first = 0, fPrev = 0, fCur = 0;
+    for (let t = 0.5; t <= lim; t += 0.5) {
+      const c = col(x + dx * t, y + dy * t, _yc);
+      if (!c) return -1;
+      const d = cdist(c, ref);
+      if (d > SKIN_TH) { if (!miss) { first = t; fPrev = prev; fCur = d; } if (++miss >= 3) return first - 0.5 + 0.5 * clamp((SKIN_TH - fPrev) / Math.max(1e-3, fCur - fPrev), 0, 1); }
+      else miss = 0;
+      prev = d;
     }
     return capNb <= capAbs ? capNb : -1;
   };
-  const nbCap = (x, y, nx, ny, fid) => {                         // ほかの指までの距離の半分
+  const nbCap = (x, y, dx, dy, fid) => {                       // ほかの指までの距離の半分
     let best = Infinity;
     for (const c of CHAINS) { if (fingerOf(c[0]) === fid) continue;
-      for (let n = 1; n < c.length; n++) { const a = P[c[n - 1]], b = P[c[n]]; best = Math.min(best, rayHit(x, y, nx, ny, a[0], a[1], b[0], b[1])); } }
+      for (let n = 1; n < c.length; n++) { const a = P[c[n - 1]], b = P[c[n]]; best = Math.min(best, rayHit(x, y, dx, dy, a[0], a[1], b[0], b[1])); } }
     return best / 2;
   };
   const pc = [0, 0]; for (const i of PALM5) { pc[0] += P[i][0] / 5; pc[1] += P[i][1] / 5; }
   const palmRef = avg(pc[0], pc[1], 3, { y: 0, cb: 0, cr: 0 });
   if (!palmRef) return null;
-  const out = { r: {}, mIdx: 0, mPinky: 0, wrist: 0 }, loc = { y: 0, cb: 0, cr: 0 };
+  const loc = { y: 0, cb: 0, cr: 0 };
+  const onSkin = (x, y) => avg(x, y, 1, loc) && cdist(loc, palmRef) < SKIN_TH * 1.5;
+  // 手のひらの面の向き（3D、手のひらの外向き）と中心
+  const C3 = [0, 0, 0]; for (const i of PALM5) for (let a = 0; a < 3; a++) C3[a] += R3[i][a] / 5;
+  let nx = 0, ny = 0, nz = 0;
+  for (let k = 0; k < 5; k++) { const a = R3[PALM5[k]], b = R3[PALM5[(k + 1) % 5]]; nx += (a[1] - b[1]) * (a[2] + b[2]); ny += (a[2] - b[2]) * (a[0] + b[0]); nz += (a[0] - b[0]) * (a[1] + b[1]); }
+  const nl = Math.hypot(nx, ny, nz) || 1, s = ((TR.hand >= 0) !== SET.flip) ? 1 : -1;
+  const N3 = [nx / nl * s, ny / nl * s, nz / nl * s];
+  const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+  const crs = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+  const unit = a => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+  const inPlane = a => { const d = a[0] * N3[0] + a[1] * N3[1] + a[2] * N3[2]; return unit([a[0] - N3[0] * d, a[1] - N3[1] * d, a[2] - N3[2] * d]); };
+  const out = { r: {}, rj: {}, m: {}, wrist: 0, hp: 0, hb: 0 };
+
+  if (ph === 2) {                                             // 横から：手のひら側と手の甲側の厚み
+    // 横向きの手は細い帯に見える。帯の向き（手首→中指の付け根）に直角に、手のひらの中心から両側へ測る
+    const c0 = proj(C3), A = along(C3, N3);
+    let ux = P[9][0] - P[0][0], uy = P[9][1] - P[0][1]; const L = Math.hypot(ux, uy);
+    if (L < 6 || !onSkin(c0[0], c0[1])) return null;
+    let dx = -uy / L, dy = ux / L;
+    if (dx * A.dx + dy * A.dy < 0) { dx = -dx; dy = -dy; }  // +側が手のひら側
+    const ref = { y: loc.y, cb: loc.cb, cr: loc.cr }, c = cppAt(C3[2]), cap = 3.2 / c;
+    const tp = scan(c0[0], c0[1], dx, dy, ref, Infinity, cap), tb = scan(c0[0], c0[1], -dx, -dy, ref, Infinity, cap);
+    if (tp > 0 && tb > 0) { out.hp = tp * c; out.hb = tb * c; }
+    return out;
+  }
+  // 指の太さ：骨の途中
   for (const [i, j] of MEAS_BONES) {
-    const a = P[i], b = P[j], x = (a[0] + b[0]) / 2, y = (a[1] + b[1]) / 2;
+    const u = PROX.has(i) ? 0.62 : 0.5;                      // 付け根の骨は、指のあいだの水かきをよけて少し先で測る
+    const a = P[i], b = P[j], x = a[0] + (b[0] - a[0]) * u, y = a[1] + (b[1] - a[1]) * u;
     let dx = b[0] - a[0], dy = b[1] - a[1]; const L = Math.hypot(dx, dy); if (L < 4) continue;
     dx /= L; dy /= L;
-    if (!avg(x, y, 1, loc) || cdist(loc, palmRef) > SKIN_TH * 1.5) continue;    // 点が指の上にない
-    const c = cpp((TR.Z[i] + TR.Z[j]) / 2), cap = 1.7 / c, fid = fingerOf(j);
-    const t1 = scan(x, y, -dy, dx, loc, nbCap(x, y, -dy, dx, fid), cap), t2 = scan(x, y, dy, -dx, loc, nbCap(x, y, dy, -dx, fid), cap);
-    if (t1 < 0.5 || t2 < 0.5) continue;
-    const r = (t1 + t2) / 2 * c;
-    if (r > 0.35 && r < 1.6) out.r[j] = r;
+    if (!onSkin(x, y)) continue;
+    const ref = { y: loc.y, cb: loc.cb, cr: loc.cr }, c = cppAt((R3[i][2] + R3[j][2]) / 2), cap = 1.8 / c, fid = fingerOf(j);
+    const t1 = scan(x, y, -dy, dx, ref, nbCap(x, y, -dy, dx, fid), cap), t2 = scan(x, y, dy, -dx, ref, nbCap(x, y, dy, -dx, fid), cap);
+    if (t1 > 0.5 && t2 > 0.5) { const r = (t1 + t2) / 2 * c; if (r > 0.3 && r < 1.7) out.r[j] = r; }
   }
-  // 手のふち：人差し指と小指の付け根から外へ
-  {
-    const a = P[5], b = P[17]; let ux = a[0] - b[0], uy = a[1] - b[1]; const L = Math.hypot(ux, uy);
-    if (L > 6) {
-      ux /= L; uy /= L;
-      if (avg(a[0], a[1], 1, loc) && cdist(loc, palmRef) < SKIN_TH * 1.5) { const c = cpp(TR.Z[5]), t = scan(a[0], a[1], ux, uy, loc, nbCap(a[0], a[1], ux, uy, 1), 2.0 / c); if (t > 0) out.mIdx = t * c; }
-      if (avg(b[0], b[1], 1, loc) && cdist(loc, palmRef) < SKIN_TH * 1.5) { const c = cpp(TR.Z[17]), t = scan(b[0], b[1], -ux, -uy, loc, Infinity, 2.2 / c); if (t > 0) out.mPinky = t * c; }
+  // 関節の太さ：前後の骨の向きの平均に直角
+  for (const [j, i, k] of MEAS_JOINTS) {
+    const p = P[j]; let dx = P[k][0] - P[i][0], dy = P[k][1] - P[i][1]; const L = Math.hypot(dx, dy); if (L < 6) continue;
+    dx /= L; dy /= L;
+    if (!onSkin(p[0], p[1])) continue;
+    const ref = { y: loc.y, cb: loc.cb, cr: loc.cr }, c = cppAt(R3[j][2]), cap = 1.9 / c, fid = fingerOf(j);
+    const t1 = scan(p[0], p[1], -dy, dx, ref, nbCap(p[0], p[1], -dy, dx, fid), cap), t2 = scan(p[0], p[1], dy, -dx, ref, nbCap(p[0], p[1], dy, -dx, fid), cap);
+    if (t1 > 0.5 && t2 > 0.5) { const r = (t1 + t2) / 2 * c; if (r > 0.3 && r < 1.9) out.rj[j] = r; }
+  }
+  // 手のふち：手の板の輪郭と同じ向きに、手の面に沿って外へ（斜めに見えている分も直す）
+  const edges = [
+    [5, R3[5], inPlane(sub(R3[5], R3[17])), 1],
+    [17, R3[17], inPlane(sub(R3[17], R3[5])), -1],
+    [21, R3[0].map((v, a) => (v + R3[17][a]) / 2), null, -1],
+    [1, R3[1], null, -1],
+    [2, R3[2], null, -1],
+  ];
+  for (const [id, B, D0, fid] of edges) {
+    let D = D0;
+    if (!D) {
+      D = inPlane(crs(id === 21 ? sub(R3[0], R3[17]) : sub(R3[2], R3[1]), N3));
+      const w = sub(B, C3); if (D[0] * w[0] + D[1] * w[1] + D[2] * w[2] < 0) D = D.map(v => -v);
     }
+    const A = along(B, D);
+    if (A.L < 2 || !onSkin(A.a[0], A.a[1])) continue;
+    const ref = { y: loc.y, cb: loc.cb, cr: loc.cr };
+    const t = scan(A.a[0], A.a[1], A.dx, A.dy, ref, fid >= 0 ? nbCap(A.a[0], A.a[1], A.dx, A.dy, fid) : Infinity, 2.8 * A.L);
+    // 斜めに見ていると、手の側面（厚み）の分だけふちが外に見える。厚みが分かってから直すので、生の値を残す
+    const Bn = proj([B[0] + N3[0] * 0.01, B[1] + N3[1] * 0.01, B[2] + N3[2] * 0.01]), an = (Bn[0] - A.a[0]) * A.dx + (Bn[1] - A.a[1]) * A.dy;
+    if (t > 0) out.m[id] = [t, A.L, an];
   }
   // 手首：手首から少し腕の方へ下がったところの幅
   {
@@ -1328,8 +1499,9 @@ function measureHandImage(lm) {
     if (L > 6) {
       ux /= L; uy /= L;
       const x = a[0] + ux * L * 0.22, y = a[1] + uy * L * 0.22;
-      if (avg(x, y, 1, loc) && cdist(loc, palmRef) < SKIN_TH * 1.5) {
-        const c = cpp(TR.Z[0]), cap = 4.5 / c, t1 = scan(x, y, -uy, ux, loc, Infinity, cap), t2 = scan(x, y, uy, -ux, loc, Infinity, cap);
+      if (onSkin(x, y)) {
+        const ref = { y: loc.y, cb: loc.cb, cr: loc.cr }, c = cppAt(R3[0][2]), cap = 4.5 / c;
+        const t1 = scan(x, y, -uy, ux, ref, Infinity, cap), t2 = scan(x, y, uy, -ux, ref, Infinity, cap);
         if (t1 > 0 && t2 > 0) { const w = (t1 + t2) * c; if (w > 3.5 && w < 9) out.wrist = w; }
       }
     }
@@ -1430,7 +1602,8 @@ function mockPts(M, tCap) {                         // 手は部屋に固定。�
   const R = new THREE.Matrix4().makeRotationFromEuler(new THREE.Euler(M.rx, M.ry, M.rz, 'YXZ'));
   return MOCK_HAND.map((p, i) => {
     const v = new THREE.Vector3(...p);
-    if (M.fist && i > 5 && i % 4 !== 1) { const base = new THREE.Vector3(...MOCK_HAND[i - ((i - 1) % 4)]); v.lerp(base, 0.85); v.y -= 2.5; v.z += 3; }
+    if (M.left) v.x = -v.x;                                               // 左手（鏡うつし）
+    if (M.fist && i > 5 && i % 4 !== 1) { const base = new THREE.Vector3(...MOCK_HAND[i - ((i - 1) % 4)]); if (M.left) base.x = -base.x; v.lerp(base, 0.85); v.y -= 2.5; v.z += 3; }
     if (M.curl && i >= 1 && i <= 4) v.z += M.curl * (i - 1) * 0.9;        // 親指を手のひらから立てる
     return v.applyMatrix4(R).add(new THREE.Vector3(M.x, M.y, M.z)).applyQuaternion(camInv);
   });
@@ -1453,26 +1626,44 @@ function mockFeed(dt) {
   const lm = pts.map(p => ({ x: (vw / 2 + f * p.x / -p.z) / vw, y: (vh / 2 - f * p.y / -p.z) / vh, z: ((-p.z) - zw) * f / zw / vw }));
   const wl = pts.map(p => ({ x: (p.x - c.x) / 100, y: -(p.y - c.y) / 100, z: -(p.z - c.z) / 100 }));
   if (CAL.active) mockDrawHand(lm, pts, vw, vh, f);
-  TR.process({ landmarks: [lm], worldLandmarks: [wl], handedness: [[{ categoryName: 'Left', score: 0.95 }]] }, NOW / 1000, vw, vh, tCap);
+  TR.process({ landmarks: [lm], worldLandmarks: [wl], handedness: [[{ categoryName: (window.__mockHand && window.__mockHand.left) ? 'Right' : 'Left', score: 0.95 }]] }, NOW / 1000, vw, vh, tCap);
 }
-// 採寸のテスト用：疑似の手を「カメラ映像」としてキャンバスに描く（肌色の手、青灰色の背景）
+// 採寸のテスト用：疑似の手を「カメラ映像」としてキャンバスに描く（肌色の手、青灰色の背景）。
+// 手のふちと厚みは決まった値（MOCK_M, 手のひら側1.5cm・手の甲側0.9cm）で描くので、測った値と比べられる
+const MOCK_M = { 0: 0.5, 1: 1.1, 2: 0.9, 5: 0.8, 9: 0.9, 13: 0.9, 17: 1.0, 21: 1.6 }, MOCK_HP = 1.5, MOCK_HB = 0.9;
 function mockDrawHand(lm, pts, vw, vh, f) {
-  const sc = Math.min(1, 720 / Math.max(vw, vh)), cw = Math.round(vw * sc), ch = Math.round(vh * sc);
+  const sc = Math.min(1, 1920 / Math.max(vw, vh)), cw = Math.round(vw * sc), ch = Math.round(vh * sc);
   if (TR.can.width !== cw || TR.can.height !== ch) { TR.can.width = cw; TR.can.height = ch; }
   if (!TR.ctx) TR.ctx = TR.can.getContext('2d', { willReadFrequently: true });
-  const g = TR.ctx, P = lm.map(p => [p.x * cw, p.y * ch]), ppc = i => f / -pts[i].z * sc;
+  const g = TR.ctx, pr = p => [(vw / 2 + f * p.x / -p.z) * sc, (vh / 2 - f * p.y / -p.z) * sc], ppc = i => f / -pts[i].z * sc;
   g.fillStyle = 'rgb(96,118,150)'; g.fillRect(0, 0, cw, ch);
   g.fillStyle = g.strokeStyle = 'rgb(224,178,148)'; g.lineCap = 'round'; g.lineJoin = 'round';
-  const pc = [0, 0]; for (const i of PALM5) { pc[0] += P[i][0] / 5; pc[1] += P[i][1] / 5; }
-  g.beginPath();
-  RING.forEach((i, k) => { const dx = P[i][0] - pc[0], dy = P[i][1] - pc[1], L = Math.hypot(dx, dy) || 1, m = (i === 17 ? 1.1 : 0.9) * ppc(i); const x = P[i][0] + dx / L * m, y = P[i][1] + dy / L * m; k ? g.lineTo(x, y) : g.moveTo(x, y); });
-  g.closePath(); g.fill();
-  for (const c of CHAINS) for (let n = 0; n < c.length; n++) {
-    const i = n ? c[n - 1] : 0, j = c[n];
+  // 手のひらの板（アプリと同じ輪郭の決め方）を、手の甲側から手のひら側まで何枚も重ねて塗る
+  const V = THREE.Vector3, c = new V(); for (const i of PALM5) c.add(pts[i]); c.multiplyScalar(0.2);
+  const N = new V(); for (let k = 0; k < 5; k++) { const a = pts[PALM5[k]], b = pts[PALM5[(k + 1) % 5]]; N.x += (a.y - b.y) * (a.z + b.z); N.y += (a.z - b.z) * (a.x + b.x); N.z += (a.x - b.x) * (a.y + b.y); }
+  N.normalize(); if (window.__mockHand && window.__mockHand.left) N.negate();
+  const outline = OUTLINE.map(id => {
+    const B = id === 21 ? pts[0].clone().add(pts[17]).multiplyScalar(0.5) : pts[id].clone(), D = new V();
+    let away = false;
+    if (id === 0) D.subVectors(pts[0], pts[9]); else if (id === 5) D.subVectors(pts[5], pts[17]); else if (id === 17) D.subVectors(pts[17], pts[5]);
+    else if (id === 1 || id === 2) { D.subVectors(pts[2], pts[1]).cross(N); away = true; } else if (id === 21) { D.subVectors(pts[0], pts[17]).cross(N); away = true; } else D.subVectors(B, c);
+    D.addScaledVector(N, -D.dot(N)).normalize(); B.addScaledVector(N, -B.clone().sub(c).dot(N));
+    if (away && D.dot(B.clone().sub(c)) < 0) D.negate();
+    return { id, B, D };
+  });
+  // 手の側面は丸い（断面は両端が半円の形）。厚みの各高さで、ふちを丸みの分だけ内側に寄せて塗り重ねる
+  const R = (MOCK_HP + MOCK_HB) / 2, oc = (MOCK_HP - MOCK_HB) / 2;
+  for (let l = 0; l <= 24; l++) {
+    const o = -MOCK_HB + (MOCK_HP + MOCK_HB) * l / 24, sh = R - Math.sqrt(Math.max(0, R * R - (o - oc) * (o - oc)));
+    g.beginPath(); outline.forEach((p, k) => { const q = pr(p.B.clone().addScaledVector(p.D, MOCK_M[p.id] - sh).addScaledVector(N, o)); k ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); }); g.closePath(); g.fill();
+  }
+  const P = pts.map(pr);
+  for (const ch of CHAINS) for (let n = 0; n < ch.length; n++) {
+    const i = n ? ch[n - 1] : 0, j = ch[n];
     g.lineWidth = 2 * MOCK_R[j] * ppc(j); g.beginPath(); g.moveTo(P[i][0], P[i][1]); g.lineTo(P[j][0], P[j][1]); g.stroke();
   }
   const a = P[0], b = P[9], L = Math.hypot(a[0] - b[0], a[1] - b[1]);
-  g.lineWidth = 5.6 * ppc(0); g.lineCap = 'butt'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(a[0] + (a[0] - b[0]) / L * 400, a[1] + (a[1] - b[1]) / L * 400); g.stroke();
+  g.lineWidth = 5.6 * ppc(0); g.lineCap = 'butt'; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(a[0] + (a[0] - b[0]) / L * 600, a[1] + (a[1] - b[1]) / L * 600); g.stroke();
 }
 
 /* ---------- ループ ---------- */
@@ -1511,7 +1702,7 @@ function pose(o) {                         // テスト用：決めた姿勢で�
   S.mode = 'pose'; S.pos.set(...o.pos); basisQuat(tD.set(...o.fwd), tE.set(...o.up), S.q);
   S.theta = S.thetaH = o.theta; S.omega = o.omega || 0; S.prob = o.prob || 0; S.probWig = 0; S.posePerch = !!o.perch; S.glide = 0;
 }
-window.__tenori = { pose, GRAV, BF, S, TR, HF, SET, GYRO, CAL, HDIM, HSPH, calBegin, wingClear, handToLocal, mockTruth, step: (sec) => { MANUAL = true; simT = Math.max(simT, performance.now()); const n = Math.round(sec / 0.02); for (let i = 0; i < n; i++) { simT += 20; step(0.02, simT); } }, render, startMock: () => $('go').click() };
+window.__tenori = { pose, GRAV, BF, S, TR, HF, SET, GYRO, CAL, HDIM, HSPH, SH_UNI, MAT_SHADOW, key, HS, renderer, calBegin, wingClear, handToLocal, mockTruth, step: (sec) => { MANUAL = true; simT = Math.max(simT, performance.now()); const n = Math.round(sec / 0.02); for (let i = 0; i < n; i++) { simT += 20; step(0.02, simT); } }, render, startMock: () => $('go').click() };
 </script>
 </body>
 </html>
