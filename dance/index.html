@@ -95,6 +95,7 @@ select{font:inherit;font-size:16px;color:var(--ink);background:var(--panel);bord
  <section class="panel">
   <ol class="steps">
    <li><h2>動画を選ぶ</h2>
+    <select id="pre" hidden aria-label="解析済みのダンス"></select>
     <label class="btn" for="file">動画ファイルを選ぶ</label>
     <input type="file" id="file" accept="video/*" hidden>
     <p class="muted" id="fileinfo">画面録画した動画（mp4など）。全身が映っているほど正確です。</p>
@@ -1954,7 +1955,17 @@ function toWorld(raw) {
     const mix = (x, y) => Float64Array.from(x, (q, k) => q + (y[k] - q) * t);
     W.push(mix(A.w, B.w)); P2.push(mix(A.p, B.p)); V.push(Float64Array.from(mix(A.v, B.v), q => q * .4));
   }
-  const fpx = raw.focalK * raw.crop.w, T = []; let last = [0, 0, 3];
+  // レンズの画角（焦点距離）を推定: 3D点を画面の点に重ねたときの残差がいちばん小さいものを選ぶ
+  const side = Math.max(raw.crop.w, raw.crop.h), cost = fk => {
+    const f = fk * side; let c = 0, m = 0;
+    for (let i = 0; i < n; i += 3) { const T = solveRoot(W[i], P2[i], V[i], raw.crop, f); if (!T) continue;
+      for (const j of ROOTI) { const v = V[i][j]; if (v < .5) continue; const z = W[i][3 * j + 2] + T[2]; if (z < .2) continue;
+        const du = f * (W[i][3 * j] + T[0]) / z - (P2[i][2 * j] - .5) * raw.crop.w, dv = f * (W[i][3 * j + 1] + T[1]) / z - (P2[i][2 * j + 1] - .5) * raw.crop.h;
+        c += v * (du * du + dv * dv); m += v; } }
+    return m ? c / m : 1e18; };
+  let bestK = raw.focalK || .85, bestC = Infinity;
+  for (let fk = .45; fk <= 2.01; fk += .05) { const c = cost(fk); if (c < bestC) { bestC = c; bestK = fk; } }
+  const fpx = bestK * side, T = []; let last = [0, 0, 3];
   for (let i = 0; i < n; i++) { const r = solveRoot(W[i], P2[i], V[i], raw.crop, fpx); if (r) last = r; T.push(Float64Array.from(last)); }
   const Ws = gaussSmooth(W, V, .8), Ts = gaussSmooth(T, null, 3);
   const C = Ws.map((w, i) => { const o = new Float64Array(99); for (let j = 0; j < 33; j++) for (let k = 0; k < 3; k++) o[3 * j + k] = w[3 * j + k] + Ts[i][k]; return o; });
@@ -1983,8 +1994,9 @@ function toWorld(raw) {
   const toW = p => { const q = sub(p, O); return [dot(Xw, q), dot(up, q), dot(Zw, q)]; }, R = v => [dot(Xw, v), dot(up, v), dot(Zw, v)];
   const Wd = C.map(f => { const o = new Float64Array(99); for (let j = 0; j < 33; j++) s3(o, j, toW(g3(f, j))); return o; });
   for (const f of Wd) for (let k = 0; k < 99; k++) if (!Number.isFinite(f[k])) throw new Error('骨格の座標に異常な値がありました');
-  return { n, fps: raw.fps, Wd, V, img: P2, crop: raw.crop, vw: raw.vw, vh: raw.vh,
-    cam: { pos: toW([0, 0, 0]), fwd: R([0, 0, 1]), up: R([0, -1, 0]), fovY: 2 * Math.atan(raw.crop.h / 2 / fpx), aspect: raw.crop.w / raw.crop.h } };
+  const cpos = toW([0, 0, 0]), cfwd = R([0, 0, 1]), cup = R([0, -1, 0]);
+  return { n, fps: raw.fps, Wd, V, img: P2, crop: raw.crop, vw: raw.vw, vh: raw.vh, fpx, focalK: bestK,
+    cam: { pos: cpos, fwd: cfwd, up: cup, right: cross(cfwd, cup), fpx, fovY: 2 * Math.atan(raw.crop.h / 2 / fpx), aspect: raw.crop.w / raw.crop.h } };
 }
 
 /* ---------- 2. 体の寸法を動画の骨の長さに合わせる ---------- */
@@ -1996,7 +2008,7 @@ function fitBody(Wd) {
   setBody({ h: 1, leg: 1, arm: 1 });
   const { p } = fk(zeroPose()), torso0 = len(sub(mid3(p.shL, p.shR), mid3(p.hipL, p.hipR)));
   const h = clampN(med('torso') / torso0, .8, 1.25);
-  const leg = clampN(med('leg') / ((DIM0.thigh + DIM0.shank) * h), .85, 1.15), arm = clampN(med('arm') / ((DIM0.uarm + DIM0.farm) * h), .85, 1.15);
+  const leg = clampN(med('leg') / ((DIM0.thigh + DIM0.shank) * h), .8, 1.2), arm = clampN(med('arm') / ((DIM0.uarm + DIM0.farm) * h), .8, 1.2);
   setBody({ h, leg, arm });
   return { h, leg, arm };
 }
@@ -2043,10 +2055,17 @@ function priors(dofs, prev) {
   if (dofs.some(d => d.j === 'root' && d.k === 'pitch')) out.push({ f: st => st.P.root.pitch - .45 * st.P.spine.flex, w: .0025 });
   return out;
 }
+// OBS: いま合わせているコマの画面上の点とカメラ（なければ 3D だけで合わせる）
+let OBS = null;
+const W3D = .4;
 function resid(st, pts, tg, vis, pri) {
-  const m = mpts(st.P), r = [], T = st.T;
-  for (const i of pts) { const w = (W_PT[i] || 1) * Math.max(.15, Math.min(1, vis[i])), q = m[i];
-    r.push(w * (q[0] + T[0] - tg[3 * i]), w * (q[1] + T[1] - tg[3 * i + 1]), w * (q[2] + T[2] - tg[3 * i + 2])); }
+  const m = mpts(st.P), r = [], T = st.T, O = OBS;
+  for (const i of pts) { const w = (W_PT[i] || 1) * Math.max(.15, Math.min(1, vis[i])), q = m[i], x = q[0] + T[0], y = q[1] + T[1], z = q[2] + T[2];
+    const w3 = O ? w * W3D : w;
+    r.push(w3 * (x - tg[3 * i]), w3 * (y - tg[3 * i + 1]), w3 * (z - tg[3 * i + 2]));
+    if (O) { const c = O.cam, d = [x - c.pos[0], y - c.pos[1], z - c.pos[2]], zc = Math.max(.2, dot(c.fwd, d));
+      const u = c.fpx * dot(c.right, d) / zc, v = -c.fpx * dot(c.up, d) / zc, ou = (O.img[2 * i] - .5) * O.cw, ov = (O.img[2 * i + 1] - .5) * O.ch;
+      r.push(w * (u - ou) / c.fpx * zc, w * (v - ov) / c.fpx * zc); } }
   for (const p of pri) r.push(p.w * (p.f ? p.f(st) : getV(st, p.d) - p.v));
   return r;
 }
@@ -2112,11 +2131,17 @@ async function fitAll(wd, prog) {
   const st = { P: zeroPose(), T: [0, 0, 0] }; let prev = null;
   for (let i = 0; i < wd.n; i++) {
     const keep = { P: copyPose(st.P), T: st.T.slice() };
+    OBS = wd.cam && wd.cam.fpx ? { cam: wd.cam, img: wd.img[i], cw: wd.crop.w, ch: wd.crop.h } : null;
     try { fitFrame(st, wd.Wd[i], wd.V[i], prev); } catch (e) { st.T = [NaN]; }
+    OBS = null;
     const bad = !st.T.every(Number.isFinite) || DOFS.some(([j, k]) => !Number.isFinite(st.P[j][k]));
     if (bad) { st.P = i ? keep.P : zeroPose(); st.T = keep.T.every(Number.isFinite) ? keep.T : [0, 0, 0]; }
     Ps.push(copyPose(st.P)); Ts.push(st.T.slice()); prev = Ps[i];
-    errs.push(limbErr(st, ALLPTS, wd.Wd[i]));
+    // 画面上のずれ: 元のカメラから見た人形の関節と、動画の骨格の点の距離（画面の高さに対する%）
+    const c = wd.cam, m = mpts(st.P); let e2 = 0;
+    for (const j of [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) { const d = sub(add(m[j], st.T), c.pos), zc = Math.max(.2, dot(c.fwd, d));
+      e2 += Math.hypot(c.fpx * dot(c.right, d) / zc - (wd.img[i][2 * j] - .5) * wd.crop.w, -c.fpx * dot(c.up, d) / zc - (wd.img[i][2 * j + 1] - .5) * wd.crop.h); }
+    errs.push(e2 / 12 / wd.crop.h);
     if (i % 6 === 5) { prog && prog(i + 1, wd.n); await tick0(); }
   }
   return { Ps, Ts, errs, body };
@@ -2216,6 +2241,42 @@ async function buildAnim() {
   return e;
 }
 
+// 解析済みデータ: data/index.json に一覧、data/*.json に骨格（アプリの解析結果と同じ形）
+let preList = null;
+async function getPreList() {
+  if (preList) return preList;
+  try { const r = await fetch('data/index.json', { cache: 'no-cache' }); preList = r.ok ? await r.json() : []; } catch (_) { preList = []; }
+  return preList;
+}
+async function loadPre(ent) {
+  const r = await fetch('data/' + ent.file, { cache: 'no-cache' });
+  if (!r.ok) throw new Error('解析済みデータを読み込めませんでした（' + r.status + '）');
+  raw = unpack(await r.json());
+  return buildAnim();
+}
+function matchPre(list, f) {
+  return list.find(x => x.size === f.size) ||
+    list.find(x => Math.abs(x.duration - video.duration) < .12 && x.vw === video.videoWidth && x.vh === video.videoHeight);
+}
+const clock = { on: false, t: 0, last: 0 };
+(async () => {
+  const list = await getPreList(), sel = $id('pre');
+  if (!list.length) return;
+  sel.innerHTML = '<option value="">解析済みのダンスから選ぶ</option>' + list.map((x, i) => `<option value="${i}">${x.label}</option>`).join('');
+  sel.hidden = false;
+  sel.onchange = async () => {
+    const ent = list[+sel.value]; if (!ent) return;
+    if (analyzing) cancelReq = true;
+    video.pause(); video.removeAttribute('src'); video.load(); vidReady = false; pip.classList.add('off');
+    anim = null; raw = null; fit = null; clock.on = false; clock.t = 0;
+    try {
+      const e = await loadPre(ent); setView('orig');
+      $id('play').disabled = false; $id('seek').disabled = false; $id('run').disabled = true;
+      $id('fileinfo').textContent = ent.label + '（解析済み）。音楽と元動画も出すには、同じ動画ファイルを選んでください。';
+      status(`解析済みデータを読み込みました（画面上のずれ 中央値 ${e.toFixed(1)}%）。▶で再生します（音なし）。`);
+    } catch (err) { status(err.message); }
+  };
+})();
 $id('file').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   if (analyzing) cancelReq = true;
@@ -2228,10 +2289,17 @@ $id('file').onchange = async e => {
   vidReady = true; pip.classList.toggle('off', !$id('showVid').checked);
   pip.style.aspectRatio = video.videoWidth + '/' + video.videoHeight;
   $id('run').disabled = false; $id('play').disabled = false; $id('seek').disabled = false;
+  clock.on = false;
+  const pre = matchPre(await getPreList(), f);
+  if (pre) {
+    $id('run').textContent = '解析し直す';
+    try { const e = await loadPre(pre); setView('orig'); status(`解析済みデータを使いました（画面上のずれ 中央値 ${e.toFixed(1)}%）。▶で元動画と一緒に再生します。`); return; }
+    catch (err) { status(err.message + '。この端末で解析します。'); raw = null; }
+  }
   let cached = null; try { cached = JSON.parse(localStorage.getItem(fileKey) || 'null'); } catch (_) {}
   if (cached && cached.frames) {
     raw = unpack(cached); $id('run').textContent = '解析し直す';
-    try { const e = await buildAnim(); setView('orig'); status(`前回の解析結果から作りました（関節のずれ 中央値 ${e.toFixed(1)}cm）。▶で再生できます。`); }
+    try { const e = await buildAnim(); setView('orig'); status(`前回の解析結果から作りました（画面上のずれ 中央値 ${e.toFixed(1)}%）。▶で再生できます。`); }
     catch (err) { status(err.message); }
   } else if (loadPart()) { $id('run').textContent = '続きから解析'; status('前回の途中まで読み取った結果があります。「続きから解析」で再開できます。'); }
   else { $id('run').textContent = '解析する'; status('解析を始めます…'); $id('run').click(); }
@@ -2318,7 +2386,7 @@ $id('run').onclick = async () => {
     try { localStorage.setItem(fileKey, JSON.stringify(pack(raw))); localStorage.removeItem(partKey()); } catch (_) {}
     previewPts = null;
     const e = await buildAnim();
-    setView('orig'); status(`完了：${found} / ${n} コマで人を検出${skipped ? `（読み取れず飛ばしたコマ ${skipped}）` : ''}、関節のずれ 中央値 ${e.toFixed(1)}cm。▶で元動画と一緒に再生します。`);
+    setView('orig'); status(`完了：${found} / ${n} コマで人を検出${skipped ? `（読み取れず飛ばしたコマ ${skipped}）` : ''}、画面上のずれ 中央値 ${e.toFixed(1)}%。▶で元動画と一緒に再生します。`);
     video.pause(); video.currentTime = 0; video.muted = false;
   } catch (e) {
     const msg = (e && e.message) || '解析に失敗しました';
@@ -2342,9 +2410,16 @@ function startPlay() {
       video.play().then(() => { if (id === playReq) status('音を出せなかったので音なしで再生しています。'); }).catch(e => { if (id === playReq) status('再生できませんでした: ' + (e && e.message || '')); });
     });
 }
-$id('play').onclick = () => { if (!vidReady) return; if (video.paused) startPlay(); else { playReq++; video.pause(); } };
+$id('play').onclick = () => {
+  if (!vidReady) { if (anim) clock.on = !clock.on; return; }
+  if (video.paused) startPlay(); else { playReq++; video.pause(); }
+};
 let seeking = false;
-$id('seek').addEventListener('input', e => { if (!vidReady || analyzing) return; seeking = true; video.currentTime = e.target.value / 1000 * (video.duration || 0); });
+$id('seek').addEventListener('input', e => {
+  if (analyzing) return; seeking = true;
+  if (vidReady) video.currentTime = e.target.value / 1000 * (video.duration || 0);
+  else if (anim) clock.t = e.target.value / 1000 * anim.n / anim.fps;
+});
 $id('seek').addEventListener('change', () => { seeking = false; });
 
 // 視点の操作
@@ -2417,7 +2492,10 @@ function loop(now) {
   requestAnimationFrame(loop);
   try {
     resize();
-    const tm = forceTime != null ? forceTime : video.currentTime, playing = anim && !analyzing && !busy && (vidReady || forceTime != null);
+    const durA = anim ? anim.n / anim.fps : 0;
+    if (!vidReady && clock.on && anim) { clock.t += Math.min(.1, (now - (clock.last || now)) / 1000) * (+$id('speed').value); if (clock.t >= durA) clock.t = 0; }
+    clock.last = now;
+    const tm = forceTime != null ? forceTime : vidReady ? video.currentTime : clock.t, playing = anim && !analyzing && !busy;
     // 解析・計算中は描画を1秒に4回に減らして、計算を早く終わらせる
     const draw = !noRender && !analyzing && R && (playing || !busy || now - lastDraw > 250);
     if (playing) {
@@ -2427,18 +2505,18 @@ function loop(now) {
       renderPose(place(idlePose(now / 1000), 'both'), null, null);
       drawOverlay(previewPts && previewPts.p, previewPts && previewPts.crop); lastDraw = now;
     }
-    const d = video.duration || 0;
-    if (!seeking && d && !analyzing) $id('seek').value = Math.round(video.currentTime / d * 1000);
-    $id('time').textContent = fmt(analyzing ? 0 : video.currentTime) + ' / ' + fmt(d);
-    $id('playIcon').setAttribute('d', video.paused ? 'M7 4.5v15l12.5-7.5z' : 'M6 4.5h4.5v15H6zM13.5 4.5H18v15h-4.5z');
-    $id('play').setAttribute('aria-label', video.paused ? '再生' : '一時停止');
+    const d = vidReady ? video.duration || 0 : durA, cur = vidReady ? video.currentTime : clock.t, paused = vidReady ? video.paused : !clock.on;
+    if (!seeking && d && !analyzing) $id('seek').value = Math.round(cur / d * 1000);
+    $id('time').textContent = fmt(analyzing ? 0 : cur) + ' / ' + fmt(d);
+    $id('playIcon').setAttribute('d', paused ? 'M7 4.5v15l12.5-7.5z' : 'M6 4.5h4.5v15H6zM13.5 4.5H18v15h-4.5z');
+    $id('play').setAttribute('aria-label', paused ? '再生' : '一時停止');
   } catch (e) { console.error(e); showErr('描画 ' + e.message); }
 }
 if (!R) status('この端末では3D表示（WebGL2）が使えません。' + glErr);
 requestAnimationFrame(loop);
 
 // 自己テスト用
-window.DC = { get MPC() { return MPC; }, get lastFi() { return lastFi; }, set noRender(v) { noRender = v; }, fitFrame, toWorld, fitAll, finish, fitBody, mpts, zeroPose, clampPose, fk, place, setBody, BODY, anchorOf, computeActs, physics, staticOpt, placeAt, idlePose, JOINTS, limits,
+window.DC = { FOCAL: c => DC.anim.wd.fpx, get MPC() { return MPC; }, get lastFi() { return lastFi; }, set noRender(v) { noRender = v; }, fitFrame, toWorld, fitAll, finish, fitBody, mpts, zeroPose, clampPose, fk, place, setBody, BODY, anchorOf, computeActs, physics, staticOpt, placeAt, idlePose, JOINTS, limits,
   async load(r) { raw = r; await buildAnim(); setView('orig'); return anim; }, setTime(t) { forceTime = t; }, view: setView, mode: m => { bodyMode = m; },
   get anim() { return anim; }, get fit() { return fit; } };
 
