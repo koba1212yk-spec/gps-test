@@ -2112,7 +2112,7 @@ async function fitAll(wd, prog) {
   const st = { P: zeroPose(), T: [0, 0, 0] }; let prev = null;
   for (let i = 0; i < wd.n; i++) {
     const keep = { P: copyPose(st.P), T: st.T.slice() };
-    fitFrame(st, wd.Wd[i], wd.V[i], prev);
+    try { fitFrame(st, wd.Wd[i], wd.V[i], prev); } catch (e) { st.T = [NaN]; }
     const bad = !st.T.every(Number.isFinite) || DOFS.some(([j, k]) => !Number.isFinite(st.P[j][k]));
     if (bad) { st.P = i ? keep.P : zeroPose(); st.T = keep.T.every(Number.isFinite) ? keep.T : [0, 0, 0]; }
     Ps.push(copyPose(st.P)); Ts.push(st.T.slice()); prev = Ps[i];
@@ -2173,8 +2173,11 @@ function idlePose(t) {
 /* ---------- 画面 ---------- */
 const stage = $id('stage'), glc = $id('gl'), video = $id('vid'), pip = $id('pip'), ov = $id('ov');
 let R = null, body = null, glErr = '';
-try { R = makeRenderer(glc); if (!R) throw new Error('webgl2'); body = makeBody(R); }
-catch (e) { R = null; glErr = e.message; }
+let W = 1, H = 1;
+function initGL() { try { R = makeRenderer(glc); if (!R) throw new Error('webgl2'); body = makeBody(R); W = H = 1; } catch (e) { R = null; glErr = e.message; } }
+initGL();
+glc.addEventListener('webglcontextlost', e => { e.preventDefault(); R = null; });
+glc.addEventListener('webglcontextrestored', () => initGL());
 let busy = false, raw = null, wd = null, fit = null, anim = null, analyzing = false, cancelReq = false, fileKey = '', vidReady = false, forceTime = null, previewPts = null, actsBusy = false;
 const status = t => { $id('status').textContent = t; };
 const fmt = s => { s = Math.max(0, s || 0); return Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0'); };
@@ -2230,22 +2233,31 @@ $id('file').onchange = async e => {
     raw = unpack(cached); $id('run').textContent = '解析し直す';
     try { const e = await buildAnim(); setView('orig'); status(`前回の解析結果から作りました（関節のずれ 中央値 ${e.toFixed(1)}cm）。▶で再生できます。`); }
     catch (err) { status(err.message); }
-  } else { $id('run').textContent = '解析する'; status('解析を始めます…'); $id('run').click(); }
+  } else if (loadPart()) { $id('run').textContent = '続きから解析'; status('前回の途中まで読み取った結果があります。「続きから解析」で再開できます。'); }
+  else { $id('run').textContent = '解析する'; status('解析を始めます…'); $id('run').click(); }
 };
 const pack = r => ({ fps: r.fps, crop: r.crop, vw: r.vw, vh: r.vh, focalK: r.focalK, frames: r.frames.map(f => f && [f.w.map(x => +x.toFixed(4)), f.p.map(x => +x.toFixed(5)), f.v.map(x => +x.toFixed(2))]) });
 const unpack = c => ({ ...c, frames: c.frames.map(f => f && { w: f[0], p: f[1], v: f[2] }) });
 function seekTo(t) { return new Promise(res => { let done = false; const fin = () => { if (done) return; done = true; video.removeEventListener('seeked', fin); res(); }; video.addEventListener('seeked', fin); video.currentTime = t; setTimeout(fin, 3000); }); }
+// 画面録画の上下左右の帯だけを切る。帯 = 行（列）全体がほぼ同じ色（ムラ3未満）で暗く、内容との境目で急に明るさが変わるもの。
+// 暗い天井や床のように、ムラがあったり境目がなだらかなものは切らない
 async function detectCrop() {
   await seekTo(Math.min(video.duration * .4, video.duration - .05));
   const vw = video.videoWidth, vh = video.videoHeight, cw = 160, ch = Math.max(16, Math.round(160 * vh / vw));
   const c = document.createElement('canvas'); c.width = cw; c.height = ch; const x = c.getContext('2d', { willReadFrequently: true });
   x.drawImage(video, 0, 0, cw, ch); const d = x.getImageData(0, 0, cw, ch).data;
-  const dark = (n, at) => { let s = 0, q = 0; for (let k = 0; k < n; k++) { const i = at(k) * 4, l = .3 * d[i] + .59 * d[i + 1] + .11 * d[i + 2]; s += l; q += l * l; } const m = s / n; return m < 75 && Math.sqrt(Math.max(q / n - m * m, 0)) < 22; };
-  let t = 0, b = ch - 1, l = 0, r = cw - 1;
-  while (t < ch * .35 && dark(cw, k => t * cw + k)) t++; while (b > ch * .65 && dark(cw, k => b * cw + k)) b--;
-  while (l < cw * .35 && dark(b - t + 1, k => (t + k) * cw + l)) l++; while (r > cw * .65 && dark(b - t + 1, k => (t + k) * cw + r)) r--;
-  if (t < ch * .02) t = 0; if (b > ch * .98) b = ch - 1; if (l < cw * .02) l = 0; if (r > cw * .98) r = cw - 1;
-  const y0 = (t > 0 ? t + 1 : t) / ch * vh, y1 = (b + 1 - (b < ch - 1 ? 1 : 0)) / ch * vh, x0 = (l > 0 ? l + 1 : l) / cw * vw, x1 = (r + 1 - (r < cw - 1 ? 1 : 0)) / cw * vw;
+  const lum = i => .3 * d[i * 4] + .59 * d[i * 4 + 1] + .11 * d[i * 4 + 2];
+  const stat = (n, at) => { let s = 0, q = 0; for (let k = 0; k < n; k++) { const l = lum(at(k)); s += l; q += l * l; } const m = s / n; return [m, Math.sqrt(Math.max(q / n - m * m, 0))]; };
+  const band = (lim, get) => { // get(k) → [mean, std] of line k from the edge inward
+    let k = 0; while (k < lim) { const [m, sd] = get(k); if (m > 90 || sd > 3) break; k++; }
+    if (k < 3 || k >= lim) return 0;
+    const [mb] = get(k - 1), [mi] = get(Math.min(k + 1, lim));
+    return Math.abs(mi - mb) > 40 ? k : 0;
+  };
+  const t = band(Math.floor(ch * .3), k => stat(cw, j => k * cw + j)), bt = band(Math.floor(ch * .3), k => stat(cw, j => (ch - 1 - k) * cw + j));
+  const rows = ch - t - bt;
+  const l = band(Math.floor(cw * .3), k => stat(rows, j => (t + j) * cw + k)), rt = band(Math.floor(cw * .3), k => stat(rows, j => (t + j) * cw + cw - 1 - k));
+  const pad = v => v ? v + 1 : 0, y0 = pad(t) / ch * vh, y1 = (ch - pad(bt)) / ch * vh, x0 = pad(l) / cw * vw, x1 = (cw - pad(rt)) / cw * vw;
   return { x: Math.round(x0), y: Math.round(y0), w: Math.round(x1 - x0), h: Math.round(y1 - y0) };
 }
 let landmarker = null;
@@ -2255,43 +2267,66 @@ async function getLandmarker(kind, delegate) {
   return vision.PoseLandmarker.createFromOptions(fs, { baseOptions: { modelAssetPath: MODEL_URL(kind), delegate }, runningMode: 'VIDEO', numPoses: 1,
     minPoseDetectionConfidence: .5, minPosePresenceConfidence: .5, minTrackingConfidence: .5 });
 }
+const partKey = () => fileKey + ':part';
+function loadPart() { try { const p = JSON.parse(localStorage.getItem(partKey()) || 'null'); return p && p.frames ? { ...p, frames: unpack(p).frames } : null; } catch (_) { return null; } }
+function savePart(o) { try { localStorage.setItem(partKey(), JSON.stringify(pack(o))); } catch (_) {} }
 $id('run').onclick = async () => {
   if (analyzing) { cancelReq = true; return; }
   if (!vidReady) return;
+  if (raw) { raw = null; try { localStorage.removeItem(partKey()); } catch (_) {} }
   analyzing = true; cancelReq = false; const btn = $id('run'); btn.textContent = '中止'; $id('play').disabled = true; $id('badge').hidden = false; $id('badge').textContent = '解析中…';
+  let frames = [], crop = null, i = 0, n = 0;
   try {
     video.pause(); video.muted = true; await video.play().catch(() => {}); video.pause();
     const kind = $id('model').value; let delegate = 'GPU';
     status('骨格検知の部品を読み込み中…（初回は30MBほど）');
     if (landmarker) { try { landmarker.close(); } catch (_) {} landmarker = null; }
     try { landmarker = await getLandmarker(kind, 'GPU'); } catch (e) { delegate = 'CPU'; landmarker = await getLandmarker(kind, 'CPU'); }
-    status('画面の黒い帯を確認中…');
-    const crop = await detectCrop();
+    const part = raw ? null : loadPart();
+    if (part && part.frames.length) { crop = part.crop; frames = part.frames; }
+    else { status('画面の帯を確認中…'); crop = await detectCrop(); }
     const sc = Math.min(1, 960 / Math.max(crop.w, crop.h)), can = document.createElement('canvas');
     can.width = Math.round(crop.w * sc); can.height = Math.round(crop.h * sc); const cx = can.getContext('2d');
-    const dur = video.duration, n = Math.max(1, Math.floor(dur * FPS)), frames = []; let found = 0; const t0 = performance.now();
-    for (let i = 0; i < n; i++) {
+    const dur = video.duration; n = Math.max(1, Math.floor(dur * FPS));
+    let found = frames.filter(Boolean).length, fails = 0, skipped = 0; const start = frames.length, t0 = performance.now();
+    const mk = () => ({ fps: FPS, crop, vw: video.videoWidth, vh: video.videoHeight, focalK: FOCAL_K, frames });
+    for (i = start; i < n; i++) {
       if (cancelReq) throw new Error('中止しました');
       await seekTo(Math.min((i + .5) / FPS, dur - .001));
       cx.drawImage(video, crop.x, crop.y, crop.w, crop.h, 0, 0, can.width, can.height);
-      const ts = Math.round((i + .5) * 1000 / FPS); let res;
-      try { res = landmarker.detectForVideo(can, ts); }
-      catch (e) { if (delegate !== 'GPU') throw e; delegate = 'CPU'; landmarker.close(); landmarker = await getLandmarker(kind, 'CPU'); res = landmarker.detectForVideo(can, ts + 1); }
+      const ts = Math.round((i + .5) * 1000 / FPS); let res = null;
+      for (let attempt = 0; attempt < 3 && !res; attempt++) {
+        try { res = landmarker.detectForVideo(can, ts + attempt); }
+        catch (e) { // 検知が落ちたら作り直す（2回目以降はCPUで）
+          if (attempt === 2) break;
+          try { landmarker.close(); } catch (_) {}
+          if (attempt === 1) delegate = 'CPU';
+          landmarker = await getLandmarker(kind, delegate);
+        }
+      }
+      if (!res) { fails++; skipped++; if (fails >= 15) throw new Error(`骨格検知が続けて失敗しました（${i + 1}コマ目）`); frames.push(null); continue; }
+      fails = 0;
       const wl = res.worldLandmarks && res.worldLandmarks[0], il = res.landmarks && res.landmarks[0];
-      if (wl && il) { found++; frames.push({ w: wl.flatMap(q => [q.x, q.y, q.z]), p: il.flatMap(q => [q.x, q.y]), v: il.map(q => q.visibility ?? 1) }); previewPts = { p: frames[i].p, crop }; }
+      if (wl && il && wl.length === 33 && il.length === 33) { found++; frames.push({ w: wl.flatMap(q => [q.x, q.y, q.z]), p: il.flatMap(q => [q.x, q.y]), v: il.map(q => q.visibility ?? 1) }); previewPts = { p: frames[i].p, crop }; }
       else { frames.push(null); previewPts = null; }
+      if (i % 30 === 29) savePart(mk());
       $id('barfill').style.width = ((i + 1) / n * 100).toFixed(1) + '%';
-      const el = (performance.now() - t0) / 1000;
-      status(`骨格を読み取り中 ${i + 1} / ${n} コマ（人を検出 ${found}）残り約${Math.ceil(el / (i + 1) * (n - i - 1))}秒`);
+      const el = (performance.now() - t0) / 1000, done = i + 1 - start;
+      status(`骨格を読み取り中 ${i + 1} / ${n} コマ（人を検出 ${found}）残り約${Math.ceil(el / done * (n - i - 1))}秒`);
     }
-    raw = { fps: FPS, crop, vw: video.videoWidth, vh: video.videoHeight, focalK: FOCAL_K, frames };
-    try { localStorage.setItem(fileKey, JSON.stringify(pack(raw))); } catch (_) {}
+    raw = mk();
+    try { localStorage.setItem(fileKey, JSON.stringify(pack(raw))); localStorage.removeItem(partKey()); } catch (_) {}
     previewPts = null;
     const e = await buildAnim();
-    setView('orig'); status(`完了：${found} / ${n} コマで人を検出、関節のずれ 中央値 ${e.toFixed(1)}cm。▶で元動画と一緒に再生します。`);
+    setView('orig'); status(`完了：${found} / ${n} コマで人を検出${skipped ? `（読み取れず飛ばしたコマ ${skipped}）` : ''}、関節のずれ 中央値 ${e.toFixed(1)}cm。▶で元動画と一緒に再生します。`);
     video.pause(); video.currentTime = 0; video.muted = false;
-  } catch (e) { status((e && e.message) || '解析に失敗しました'); if (!anim) $id('badge').textContent = '見本の動き'; }
-  finally { analyzing = false; previewPts = null; btn.textContent = raw ? '解析し直す' : '解析する'; $id('play').disabled = !vidReady; }
+  } catch (e) {
+    const msg = (e && e.message) || '解析に失敗しました';
+    if (!raw && frames.length && crop) { savePart({ fps: FPS, crop, vw: video.videoWidth, vh: video.videoHeight, focalK: FOCAL_K, frames }); status(`${msg}（${frames.length} / ${n} コマまで保存しました。もう一度押すと続きから解析します）`); }
+    else status(msg);
+    if (!anim) $id('badge').textContent = '見本の動き';
+  }
+  finally { analyzing = false; previewPts = null; btn.textContent = raw ? '解析し直す' : loadPart() ? '続きから解析' : '解析する'; $id('play').disabled = !vidReady; }
 };
 // 再生: 音ありで始め、ブラウザに止められたら音なしで再生して案内する
 // 再生は▶を押したときだけ（自動再生はブラウザに止められやすいため）。音が許されなければ音なしで続ける
@@ -2344,7 +2379,7 @@ function readTheme() { const cs = getComputedStyle(document.documentElement), g 
 readTheme();
 if (matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change', readTheme);
 new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
-let VPm = null, W = 1, H = 1;
+let VPm = null;
 function resize() { const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.round(glc.clientWidth * dpr), h = Math.round(glc.clientHeight * dpr); if (w && h && (w !== W || h !== H)) { W = w; H = h; if (R) R.resize(w, h); } }
 function camera(pc) {
   const asp = W / H;
@@ -2384,7 +2419,7 @@ function loop(now) {
     resize();
     const tm = forceTime != null ? forceTime : video.currentTime, playing = anim && !analyzing && !busy && (vidReady || forceTime != null);
     // 解析・計算中は描画を1秒に4回に減らして、計算を早く終わらせる
-    const draw = !noRender && (playing || !(analyzing || busy) || now - lastDraw > 250);
+    const draw = !noRender && !analyzing && R && (playing || !busy || now - lastDraw > 250);
     if (playing) {
       const fi = clampN(tm * anim.fps - .5, 0, anim.n - 1); lastFi = fi;
       if (draw) { const f = frameAt(fi); renderPose(f.pl, f.acts, f.tgt); drawOverlay(anim.wd.img[f.ia], anim.wd.crop); lastDraw = now; }
