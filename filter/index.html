@@ -3,90 +3,81 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#f6ece0">
+<meta name="theme-color" content="#f8ecdf">
 <title>フィルターさがし</title>
 <style>
 :root{
-  --ink:#4a3426; --ink2:#8d6d58; --ink3:#b39883; --card:rgba(255,251,246,.78); --line:rgba(255,255,255,.8);
-  --warm1:#f7b26e; --warm2:#ec7f45; --bg:#f4e9dc;
+  --ink:#4a3426; --ink2:#8d6d58; --ink3:#b39883; --card:rgba(255,251,246,.8); --line:rgba(255,255,255,.85);
+  --warm1:#f7b26e; --warm2:#ec7f45; --bg:#f8ecdf;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;background:radial-gradient(120% 60% at 50% 0%,#fff8ef,#f4e9dc 60%,#efdcc6);color:var(--ink);
-  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;min-height:100%}
+html,body{margin:0;background:var(--bg);color:var(--ink);min-height:100%;
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif}
 body{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
 button{font:inherit;color:inherit;cursor:pointer;border:none;-webkit-user-select:none;user-select:none}
-.wrap{max-width:520px;margin:0 auto;padding:0 12px}
+.wrap{max-width:560px;margin:0 auto;padding:0 12px}
 
-header{display:flex;align-items:center;justify-content:space-between;padding:calc(10px + env(safe-area-inset-top)) 2px 8px}
+header{display:flex;align-items:center;justify-content:space-between;padding:calc(10px + env(safe-area-inset-top)) 2px 6px}
 header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;font-size:19px;font-weight:600;letter-spacing:.14em;
   text-shadow:0 0 14px rgba(255,180,110,.7)}
 .hbtns{display:flex;gap:6px}
-.pill{height:34px;padding:0 14px;border-radius:17px;background:rgba(255,255,255,.7);font-size:12.5px;font-weight:700;
-  box-shadow:0 2px 10px rgba(120,70,30,.1)}
+.pill{height:34px;padding:0 14px;border-radius:17px;background:rgba(255,255,255,.75);font-size:12.5px;font-weight:700;box-shadow:0 2px 10px rgba(120,70,30,.1)}
 .pill:active{transform:scale(.96)}
 
-.stage{position:sticky;top:0;z-index:5;padding:6px 0 8px;background:linear-gradient(#f8ecdf 85%,rgba(248,236,223,0))}
-.view{position:relative;height:min(52vh,560px);display:grid;place-items:center}
-#c{display:block;border-radius:14px;box-shadow:0 10px 34px rgba(120,70,30,.22);touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
-.badge{position:absolute;left:50%;transform:translateX(-50%);top:8px;padding:5px 12px;border-radius:14px;font-size:11.5px;font-weight:700;
-  background:rgba(255,250,244,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
-.badge.show{opacity:1}
-#score{top:auto;bottom:8px}
-#dna{display:block;width:100%;height:30px;margin-top:8px}
+.lead{display:flex;justify-content:space-between;align-items:baseline;margin:4px 2px 8px;font-size:12px;color:var(--ink2)}
+.lead b{font-size:13px;color:var(--ink)}
+#gridBox{position:relative;display:flex;justify-content:center}
+#gridIn{position:relative;transition:opacity .16s}
+#gridIn.fade{opacity:.25}
+#c{display:block}
+.tile{position:absolute;padding:0;background:transparent;border-radius:12px;box-shadow:0 0 0 4px var(--bg);
+  -webkit-touch-callout:none;touch-action:manipulation;transition:transform .12s}
+.tile::after{content:"";position:absolute;inset:0;border-radius:12px;box-shadow:inset 0 0 0 0 rgba(236,127,69,0);transition:box-shadow .15s}
+.tile.picked::after{box-shadow:inset 0 0 0 4px #ec7f45}
+.tile:active{transform:scale(.985)}
+.tile .inc{position:absolute;left:6px;top:6px;padding:3px 8px;border-radius:10px;background:rgba(255,250,244,.88);font-size:10.5px;font-weight:800;
+  color:#d8692e;display:none}
+.tile.isInc .inc{display:block}
 
-.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;margin-top:10px;
-  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 6px 24px rgba(120,70,30,.1)}
+.tools{display:flex;gap:8px;margin-top:12px}
+.tool{flex:1;height:46px;border-radius:23px;background:#fff;font-size:13.5px;font-weight:800;box-shadow:0 3px 12px rgba(120,70,30,.1)}
+.tool.like{background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff;box-shadow:0 8px 20px rgba(236,127,69,.32)}
+.tool:disabled{opacity:.4}
+.tool:active{transform:scale(.97)}
+#dna{display:block;width:100%;height:26px;margin-top:10px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;margin-top:12px;box-shadow:0 6px 24px rgba(120,70,30,.08)}
 .card h2{margin:0 0 10px;font-size:12px;letter-spacing:.14em;color:var(--ink2);font-weight:700;display:flex;justify-content:space-between;align-items:center}
 .card h2 small{font-weight:600;letter-spacing:.02em;color:var(--ink3)}
-
-.play{display:flex;align-items:center;gap:10px}
-#run{flex:none;width:112px;height:52px;border-radius:26px;color:#fff;font-size:15px;font-weight:800;letter-spacing:.08em;
-  background:linear-gradient(135deg,var(--warm1),var(--warm2));box-shadow:0 8px 22px rgba(236,127,69,.35)}
-#run.stop{background:linear-gradient(135deg,#8d6d58,#5c4232);box-shadow:0 8px 22px rgba(90,60,40,.3)}
-#run:active{transform:scale(.97)}
-.nav{flex:1;display:flex;align-items:center;justify-content:center;gap:4px}
-.nav button{width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,.75);font-size:16px;font-weight:800}
-.nav button:disabled{opacity:.35}
-#pos{min-width:52px;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink2)}
-.acts{display:flex;gap:8px;margin-top:10px}
-.act{flex:1;height:44px;border-radius:22px;background:#fff;font-size:14px;font-weight:800;box-shadow:0 3px 12px rgba(120,70,30,.1)}
-.act.like{color:#d8692e}
-.act.nope{color:#8d6d58}
-.act:active{transform:scale(.97)}
-
-.seg{display:flex;padding:3px;border-radius:18px;background:rgba(255,255,255,.55);gap:2px}
-.seg button{flex:1;height:32px;border-radius:15px;background:transparent;font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap}
-.seg button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(150,90,40,.15)}
-.srow{display:flex;gap:8px;align-items:center;margin-top:8px}
-.srow .seg{flex:1}
-#aiBtn{flex:none;height:38px;padding:0 14px;border-radius:19px;background:rgba(255,255,255,.55);font-size:12.5px;font-weight:800;color:var(--ink2)}
-#aiBtn.on{background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff}
-#aiBtn:disabled{opacity:.4}
-.hint{margin-top:8px;font-size:11.5px;color:var(--ink2);min-height:1em}
-
 .favs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}
 .favs::-webkit-scrollbar{display:none}
-.fav{position:relative;flex:none;width:66px;height:66px;border-radius:14px;background:#ddd center/cover no-repeat;
-  box-shadow:0 3px 10px rgba(120,70,30,.15);outline:2px solid transparent;outline-offset:2px;transition:outline-color .2s}
-.fav.sel{outline-color:#ec7f45}
-.fav.sel2{outline-color:#8d6d58}
+.fav{position:relative;flex:none;width:66px;height:66px;border-radius:14px;background:#ddd center/cover no-repeat;box-shadow:0 3px 10px rgba(120,70,30,.15)}
 .fav span{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:8px;background:rgba(255,250,244,.85);font-size:10px;font-weight:800}
-.fav .del{position:absolute;right:-5px;top:-5px;width:22px;height:22px;border-radius:11px;background:#fff;font-size:11px;font-weight:900;color:#b4462c;
-  display:none;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.18)}
-.fav.sel .del{display:grid}
-.fav .del.sure{width:auto;padding:0 7px;background:#b4462c;color:#fff}
+.fav .del{position:absolute;right:-5px;top:-5px;min-width:22px;height:22px;padding:0 6px;border-radius:11px;background:#fff;font-size:11px;font-weight:900;color:#b4462c;
+  display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.18);font-style:normal}
+.fav .del.sure{background:#b4462c;color:#fff}
 .empty{font-size:12px;color:var(--ink3);padding:6px 2px}
-
-.ai{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
-.stats{font-size:12px;color:var(--ink2);line-height:1.7}
+.stats{font-size:12px;color:var(--ink2);line-height:1.8}
 .stats b{color:var(--ink)}
-#loss{width:110px;height:40px}
-.aiacts{display:flex;gap:8px;margin-top:10px}
-.aiacts button{flex:1;height:40px;border-radius:20px;background:#fff;font-size:12.5px;font-weight:800;box-shadow:0 3px 10px rgba(120,70,30,.1)}
-.aiacts button.main{background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff}
-.aiacts button:disabled{opacity:.4}
-.legend{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px;font-size:10.5px;color:var(--ink3)}
+.range{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--ink3);margin-top:2px}
+.bar{flex:1;height:6px;border-radius:3px;background:rgba(120,80,50,.14);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:3px;background:linear-gradient(90deg,#f8cfa2,#ee8a4a);transition:width .3s}
+.subacts{display:flex;gap:8px;margin-top:10px}
+.subacts button{flex:1;height:38px;border-radius:19px;background:#fff;font-size:12.5px;font-weight:800;box-shadow:0 3px 10px rgba(120,70,30,.1)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:8px;font-size:10.5px;color:var(--ink3)}
 .legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:0}
+
+#big{position:fixed;inset:0;z-index:30;display:none;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+  padding:calc(16px + env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom));background:rgba(248,236,223,.94);
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#big.open{display:flex}
+#bigImg{position:relative;max-width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+#bigImg canvas{max-width:100%;max-height:100%;border-radius:16px;box-shadow:0 14px 40px rgba(120,70,30,.25)}
+.bbtns{display:flex;gap:8px;width:100%;max-width:460px}
+.bbtns button{flex:1;height:48px;border-radius:24px;background:#fff;font-size:14px;font-weight:800;box-shadow:0 3px 12px rgba(120,70,30,.12);
+  -webkit-touch-callout:none}
+.bbtns .main{background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff}
+
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
   padding:10px 18px;border-radius:20px;background:rgba(74,52,38,.92);color:#fff;font-size:13px;font-weight:700;opacity:0;
   transition:opacity .25s,transform .25s;pointer-events:none;z-index:50;white-space:nowrap}
@@ -104,61 +95,27 @@ input[type=file]{display:none}
     </div>
   </header>
 
-  <div class="stage">
-    <div class="view" id="view">
-      <canvas id="c"></canvas>
-      <div class="badge" id="orig">元の画像</div>
-      <div class="badge" id="score"></div>
-    </div>
-    <canvas id="dna"></canvas>
+  <div class="lead"><span>いちばん好きな1枚をタップ（長押しで大きく）</span><b id="roundNo">1回目</b></div>
+  <div id="gridBox"><div id="gridIn"><canvas id="c"></canvas><div id="tiles"></div></div></div>
+
+  <div class="tools">
+    <button class="tool" id="undo">↶ 戻る</button>
+    <button class="tool like" id="like">☆ ベストを登録</button>
+    <button class="tool" id="wide">↻ 広く探す</button>
   </div>
+  <canvas id="dna"></canvas>
 
   <section class="card">
-    <div class="play">
-      <button id="run">▶ スタート</button>
-      <div class="nav">
-        <button id="prev" aria-label="前へ">‹</button>
-        <div id="pos">0/0</div>
-        <button id="next" aria-label="次へ">›</button>
-      </div>
-    </div>
-    <div class="acts">
-      <button class="act like" id="like">☆ 登録</button>
-      <button class="act nope" id="nope">✕ いまいち</button>
-    </div>
-  </section>
-
-  <section class="card">
-    <h2>探し方</h2>
-    <div class="seg" id="mode">
-      <button data-v="all" class="on">全体</button>
-      <button data-v="near">★のまわり</button>
-      <button data-v="mix">★を混ぜる</button>
-    </div>
-    <div class="srow">
-      <div class="seg" id="width">
-        <button data-v="near">近く</button>
-        <button data-v="mid" class="on">ふつう</button>
-        <button data-v="far">遠く</button>
-      </div>
-      <button id="aiBtn" disabled>AI</button>
-    </div>
-    <div class="hint" id="modeHint">画面全体からランダムに探します</div>
-  </section>
-
-  <section class="card">
-    <h2>登録 <small id="favCount">0</small></h2>
+    <h2>登録 <small id="favCount">0件</small></h2>
     <div class="favs" id="favs"></div>
   </section>
 
   <section class="card">
-    <h2>AI（好み予測）<small id="aiState">データ待ち</small></h2>
-    <div class="ai">
-      <div class="stats" id="stats"></div>
-      <canvas id="loss"></canvas>
-    </div>
-    <div class="aiacts">
-      <button class="main" id="bestBtn" disabled>AIのベスト</button>
+    <h2>AIの様子 <small>選好ベイズ最適化</small></h2>
+    <div class="stats" id="stats"></div>
+    <div class="range"><span>狭い</span><div class="bar"><i id="rangeBar"></i></div><span>広い</span></div>
+    <div class="subacts">
+      <button id="resetBtn">最初から</button>
       <button id="expBtn">書き出し</button>
       <button id="impBtn">読み込み</button>
     </div>
@@ -168,6 +125,16 @@ input[type=file]{display:none}
     </div>
   </section>
 </div>
+
+<div id="big">
+  <div id="bigImg"></div>
+  <div class="bbtns">
+    <button id="bigClose">閉じる</button>
+    <button id="bigOrig">押して元の画像</button>
+    <button class="main" id="bigPick">これを選ぶ</button>
+  </div>
+</div>
+
 <input type="file" id="file" accept="image/*">
 <input type="file" id="impFile" accept="application/json,.json">
 <div id="toast"></div>
@@ -264,7 +231,7 @@ function buildLUT(curves) {
    WebGL
    ===================================================================== */
 const canvas = $('#c');
-const gl = canvas.getContext('webgl2', { antialias:false, alpha:false, depth:false, stencil:false, premultipliedAlpha:false, preserveDrawingBuffer:false });
+const gl = canvas.getContext('webgl2', { antialias:false, alpha:true, depth:false, stencil:false, premultipliedAlpha:false, preserveDrawingBuffer:false });
 if (!gl) { document.body.innerHTML = '<p style="padding:40px;text-align:center">この端末ではWebGL2が使えないため動かせません</p>'; return; }
 const LV = 6;           // 細かさの帯域の数
 const BL = 7;           // 滲みの段数
@@ -421,7 +388,7 @@ gl.bindTexture(gl.TEXTURE_2D, lutTex); texParams(gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
 function bindTex(unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); }
-function render(z, S, fbo, bypass, seed) {
+function render(z, S, fbo, bypass, seed, vx = 0, vy = 0) {
   const F = decode(z);
   buildLUT(F.curves);
   gl.bindTexture(gl.TEXTURE_2D, lutTex);
@@ -464,7 +431,7 @@ function render(z, S, fbo, bypass, seed) {
   }
   gl.disable(gl.BLEND);
   // 合成
-  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(0, 0, S.w, S.h);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(vx, vy, S.w, S.h);
   const U = P.comp.u; gl.useProgram(P.comp.p);
   bindTex(0, R[0].tex); bindTex(1, G[3].tex); bindTex(2, B[0].tex); bindTex(3, lutTex); bindTex(4, imgTex);
   gl.uniform1i(U.uR0, 0); gl.uniform1i(U.uLow, 1); gl.uniform1i(U.uBloom, 2); gl.uniform1i(U.uLut, 3); gl.uniform1i(U.uImg, 4);
@@ -548,34 +515,57 @@ $('#file').addEventListener('change', e => {
 });
 
 /* =====================================================================
-   表示
+   2×2 の表示
    ===================================================================== */
-let live = null, dirty = true;
+let dirty = true, tileSet = null, geo = null;
+const tilesBox = $('#tiles');
 function layout() {
   if (!imgW) return;
-  const v = $('#view'), vw = v.clientWidth, vh = v.clientHeight, a = imgW / imgH;
-  let cw = vw, ch = vw / a; if (ch > vh) { ch = vh; cw = vh * a; }
+  const W = $('#gridBox').clientWidth, maxH = Math.min(window.innerHeight * .64, 680), gap = 8, a = imgW / imgH;
+  let tw = (W - gap) / 2, th = tw / a;
+  if (th * 2 + gap > maxH) { th = (maxH - gap) / 2; tw = th * a; }
+  const cw = tw * 2 + gap, ch = th * 2 + gap, dpr = Math.min(window.devicePixelRatio || 1, 2);
   canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  let pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
-  const m = Math.max(pw, ph); if (m > 1400) { pw = Math.round(pw * 1400 / m); ph = Math.round(ph * 1400 / m); }
-  if (!live || live.w !== pw || live.h !== ph) { canvas.width = pw; canvas.height = ph; freeSet(live); live = makeSet(pw, ph); }
+  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  const ptw = Math.round(tw * dpr), pth = Math.round(th * dpr);
+  if (!tileSet || tileSet.w !== ptw || tileSet.h !== pth) { freeSet(tileSet); tileSet = makeSet(ptw, pth); }
+  geo = { tw, th, gap, ptw, pth, sx: canvas.width / cw, sy: canvas.height / ch };
+  $('#gridIn').style.width = cw + 'px'; $('#gridIn').style.height = ch + 'px';
+  $$('.tile').forEach((el, i) => {
+    const col = i % 2, row = i >> 1;
+    Object.assign(el.style, { left: col * (tw + gap) + 'px', top: row * (th + gap) + 'px', width: tw + 'px', height: th + 'px' });
+  });
   dirty = true;
 }
 window.addEventListener('resize', layout);
 
-// DNA（遺伝子の帯）
+function drawGrid() {
+  if (!imgTex || !geo || tiles.length < 4) return;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  tiles.forEach((t, i) => {
+    const col = i % 2, row = i >> 1;
+    const x = Math.round(col * (geo.tw + geo.gap) * geo.sx);
+    const yTop = Math.round(row * (geo.th + geo.gap) * geo.sy);
+    const vy = canvas.height - yTop - tileSet.h;
+    render(t.z, tileSet, null, false, t.seed, x, vy);
+  });
+  drawDNA(S.best);
+}
+
+// DNA（ベストの遺伝子）
 const dna = $('#dna'), dctx = dna.getContext('2d');
 function drawDNA(z) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2), w = dna.clientWidth, h = dna.clientHeight;
+  if (!w) return;
   if (dna.width !== Math.round(w * dpr)) { dna.width = Math.round(w * dpr); dna.height = Math.round(h * dpr); }
   dctx.setTransform(dpr, 0, 0, dpr, 0, 0); dctx.clearRect(0, 0, w, h);
   const bw = w / D, mid = h / 2;
   dctx.fillStyle = 'rgba(120,80,50,.15)'; dctx.fillRect(0, mid - .5, w, 1);
   for (let i = 0; i < D; i++) {
     const v = z[i] - GENES[i].n, bh = Math.max(1.5, Math.abs(v) * (h - 2));
-    dctx.fillStyle = GROUP_COLOR[GENES[i].g];
-    dctx.globalAlpha = .35 + .65 * Math.min(1, Math.abs(v) * 2.2);
+    dctx.fillStyle = GROUP_COLOR[GENES[i].g]; dctx.globalAlpha = .35 + .65 * Math.min(1, Math.abs(v) * 2.2);
     const x = i * bw + 1.5;
     if (v >= 0) dctx.fillRect(x, mid - bh, bw - 3, bh); else dctx.fillRect(x, mid, bw - 3, bh);
   }
@@ -583,305 +573,307 @@ function drawDNA(z) {
 }
 
 /* =====================================================================
-   探索：ランダム・履歴・登録
+   選好ガウス過程（ラプラス近似）
+   「選んだ1枚 ＞ ほかの3枚」という比較から、見えない「好き度」f(x) を推定する
    ===================================================================== */
-const STORE_KEY = 'filtlab-v1';
-let store = { favs: [], dis: [], seen: [] };
-try { const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); if (s && s.favs) store = { favs: s.favs, dis: s.dis || [], seen: s.seen || [] }; } catch (e) {}
-const persist = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast('端末の保存領域がいっぱいです'); } };
-let nextId = store.favs.reduce((m, f) => Math.max(m, f.id), 0) + 1;
-
-let cur = NEUTRAL.slice(), from = NEUTRAL.slice(), to = NEUTRAL.slice(), tStart = 0, seed = 0;
-const TRANS = 300;
-const history = []; let hPos = -1, shownAt = 0;
-let running = false, timer = 0;
-let mode = 'all', width = 'mid', ai = false, axisId = null, mixIds = [];
-const SIG = { near: .05, mid: .12, far: .25 };
-
-function show(z, instant) {
-  from = cur.slice(); to = z.slice(); tStart = instant ? -1e9 : performance.now(); seed = Math.random() * 100;
-  shownAt = performance.now(); dirty = true; updateScore();
-}
-function randomZ() { return GENES.map(g => Math.random() < .45 ? clamp(g.n + gauss() * .06, 0, 1) : Math.random()); }
-function around(base, s) { return base.map(v => clamp(v + gauss() * s, 0, 1)); }
-function mixZ(a, b, s) { return a.map((v, i) => clamp(v + (b[i] - v) * Math.random() + gauss() * s * .4, 0, 1)); }
-const favById = id => store.favs.find(f => f.id === id);
-function generate() {
-  if (mode === 'near' && favById(axisId)) return around(favById(axisId).z, SIG[width]);
-  if (mode === 'mix' && mixIds.length === 2) return mixZ(favById(mixIds[0]).z, favById(mixIds[1]).z, SIG[width]);
-  if (mode !== 'all' && store.favs.length && mode === 'near') return around(store.favs[store.favs.length - 1].z, SIG[width]);
-  return randomZ();
-}
-function candidate() {
-  if (ai && model.ready) {
-    let best = null, bs = -1;
-    const pool = []; for (let i = 0; i < 200; i++) pool.push(generate());
-    if (Math.random() < .25) return pool[0];        // 冒険枠
-    for (const z of pool) { const s = model.predict(z); if (s > bs) { bs = s; best = z; } }
-    return best;
+const GP = {
+  X: [], C: [], ell: .5, s: .4, jitter: 1e-4,
+  f: null, alpha: null, Kinv: null, M: null,
+  kern(a, b) { let d = 0; for (let i = 0; i < D; i++) { const t = a[i] - b[i]; d += t * t; } return Math.exp(-d / (2 * this.ell * this.ell)); },
+  fit() {
+    const N = this.X.length;
+    if (!N) { this.f = null; return; }
+    const K = []; for (let i = 0; i < N; i++) { K.push(new Float64Array(N)); }
+    for (let i = 0; i < N; i++) for (let j = i; j < N; j++) { const v = this.kern(this.X[i], this.X[j]); K[i][j] = v; K[j][i] = v; }
+    let f = new Float64Array(N), g, Wm;
+    const grad = f => {
+      const g = new Float64Array(N), W = []; for (let i = 0; i < N; i++) W.push(new Float64Array(N));
+      for (const [w, l] of this.C) {
+        const z = (f[w] - f[l]) / this.s, p = 1 / (1 + Math.exp(-z)), h = p * (1 - p) / (this.s * this.s);
+        g[w] += (1 - p) / this.s; g[l] -= (1 - p) / this.s;
+        W[w][w] += h; W[l][l] += h; W[w][l] -= h; W[l][w] -= h;
+      }
+      return [g, W];
+    };
+    for (let it = 0; it < 40; it++) {
+      [g, Wm] = grad(f);
+      // f_new = K (I + W K)^-1 (W f + g)
+      const b = new Float64Array(N);
+      for (let i = 0; i < N; i++) { let s = g[i]; for (let j = 0; j < N; j++) s += Wm[i][j] * f[j]; b[i] = s; }
+      const B = matMul(Wm, K); for (let i = 0; i < N; i++) B[i][i] += 1;
+      const x = solve(B, b);
+      const fn = new Float64Array(N); let diff = 0;
+      for (let i = 0; i < N; i++) { let s = 0; for (let j = 0; j < N; j++) s += K[i][j] * x[j]; fn[i] = s; diff = Math.max(diff, Math.abs(s - f[i])); }
+      f = fn;
+      if (diff < 1e-5) break;
+    }
+    [g, Wm] = grad(f);
+    const Kj = K.map((r, i) => { const c = Float64Array.from(r); c[i] += this.jitter; return c; });
+    this.Kinv = inverse(Kj);
+    const IWK = matMul(Wm, K); for (let i = 0; i < N; i++) IWK[i][i] += 1;
+    this.M = inverse(IWK);
+    this.f = f;
+    this.alpha = new Float64Array(N);
+    for (let i = 0; i < N; i++) { let s = 0; for (let j = 0; j < N; j++) s += this.Kinv[i][j] * f[j]; this.alpha[i] = s; }
+  },
+  predict(x) {
+    const N = this.X.length;
+    if (!N || !this.f) return [0, 1];
+    const k = new Float64Array(N); for (let i = 0; i < N; i++) k[i] = this.kern(x, this.X[i]);
+    let mu = 0; for (let i = 0; i < N; i++) mu += k[i] * this.alpha[i];
+    const v = new Float64Array(N);
+    for (let i = 0; i < N; i++) { let s = 0; const r = this.Kinv[i]; for (let j = 0; j < N; j++) s += r[j] * k[j]; v[i] = s; }
+    let kv = 0, ku = 0;
+    for (let i = 0; i < N; i++) { kv += k[i] * v[i]; let s = 0; const r = this.M[i]; for (let j = 0; j < N; j++) s += r[j] * v[j]; ku += k[i] * s; }
+    return [mu, Math.sqrt(Math.max(1 - kv + ku, 1e-9))];
+  },
+  indexOf(z) { for (let i = 0; i < this.X.length; i++) if (dist(this.X[i], z) < 1e-6) return i; return -1; },
+  add(z) { const i = this.indexOf(z); if (i >= 0) return i; this.X.push(z.slice()); return this.X.length - 1; },
+};
+function matMul(A, B) {
+  const n = A.length, m = B[0].length, k = B.length, R = [];
+  for (let i = 0; i < n; i++) {
+    const r = new Float64Array(m), a = A[i];
+    for (let t = 0; t < k; t++) { const av = a[t]; if (av === 0) continue; const b = B[t]; for (let j = 0; j < m; j++) r[j] += av * b[j]; }
+    R.push(r);
   }
-  return generate();
+  return R;
 }
-function step() {
-  // 表示し終えた候補は「見ただけ」として記録
-  if (hPos >= 0 && performance.now() - shownAt > 800) addSeen(history[hPos].z);
-  const z = candidate();
-  history.push({ z }); if (history.length > 20) history.shift();
-  hPos = history.length - 1;
-  show(z); updateNav();
+function solve(A, b) {
+  const n = b.length, M = A.map(r => Float64Array.from(r)), x = Float64Array.from(b);
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]]; [x[c], x[p]] = [x[p], x[c]];
+    const d = M[c][c] || 1e-12;
+    for (let r = c + 1; r < n; r++) { const f = M[r][c] / d; if (!f) continue; for (let j = c; j < n; j++) M[r][j] -= f * M[c][j]; x[r] -= f * x[c]; }
+  }
+  for (let c = n - 1; c >= 0; c--) { let s = x[c]; for (let j = c + 1; j < n; j++) s -= M[c][j] * x[j]; x[c] = s / (M[c][c] || 1e-12); }
+  return x;
 }
-function addSeen(z) {
-  store.seen.push({ z: z.map(v => +v.toFixed(4)) });
-  if (store.seen.length > 300) store.seen.splice(0, store.seen.length - 300);
-  seenSince++; if (seenSince >= 15) { seenSince = 0; persist(); scheduleTrain(); }
+function inverse(A) {
+  const n = A.length, M = A.map(r => Float64Array.from(r)), I = [];
+  for (let i = 0; i < n; i++) { const r = new Float64Array(n); r[i] = 1; I.push(r); }
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    [M[c], M[p]] = [M[p], M[c]]; [I[c], I[p]] = [I[p], I[c]];
+    const d = M[c][c] || 1e-12;
+    for (let j = 0; j < n; j++) { M[c][j] /= d; I[c][j] /= d; }
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue; const f = M[r][c]; if (!f) continue;
+      for (let j = 0; j < n; j++) { M[r][j] -= f * M[c][j]; I[r][j] -= f * I[c][j]; }
+    }
+  }
+  return I;
 }
-let seenSince = 0;
-function setRunning(r) {
-  running = r;
-  $('#run').textContent = r ? '■ ストップ' : '▶ スタート';
-  $('#run').classList.toggle('stop', r);
-  clearInterval(timer);
-  if (r) { step(); timer = setInterval(step, 1000); }
-  else persist();
-  updateNav();
-}
-function updateNav() {
-  $('#pos').textContent = history.length ? `${hPos + 1}/${history.length}` : '0/0';
-  $('#prev').disabled = running || hPos <= 0;
-  $('#next').disabled = running || hPos >= history.length - 1;
-}
-$('#run').addEventListener('click', () => setRunning(!running));
-$('#prev').addEventListener('click', () => { if (hPos > 0) { hPos--; show(history[hPos].z); updateNav(); } });
-$('#next').addEventListener('click', () => { if (hPos < history.length - 1) { hPos++; show(history[hPos].z); updateNav(); } });
+const dist = (a, b) => { let s = 0; for (let i = 0; i < D; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s); };
 
-// 登録・いまいち（動いている最中は、反応の遅れを考えて直前の候補を対象にする）
-function targetZ() {
-  if (running && performance.now() - shownAt < 350 && hPos > 0) return history[hPos - 1].z;
-  return to;
+/* =====================================================================
+   探索の進め方
+   ===================================================================== */
+const SIG_MIN = .05, SIG_MAX = .3, MAX_PTS = 120;
+const S = { best: NEUTRAL.slice(), sigma: .22, round: 0 };
+let tiles = [], undoStack = [];
+let store = { favs: [] };
+try { const s = JSON.parse(localStorage.getItem('filtlab-v1') || 'null'); if (s && s.favs) store.favs = s.favs; } catch (e) {}
+try {
+  const g = JSON.parse(localStorage.getItem('filtlab-gp') || 'null');
+  if (g && g.X && g.C) { GP.X = g.X; GP.C = g.C; S.best = g.best || S.best; S.sigma = g.sigma || S.sigma; S.round = g.round || 0; }
+} catch (e) {}
+let nextId = store.favs.reduce((m, f) => Math.max(m, f.id), 0) + 1;
+const persist = () => {
+  try {
+    localStorage.setItem('filtlab-v1', JSON.stringify({ favs: store.favs, dis: [], seen: [] }));
+    localStorage.setItem('filtlab-gp', JSON.stringify({ X: GP.X.map(z => z.map(v => +v.toFixed(4))), C: GP.C, best: S.best, sigma: S.sigma, round: S.round }));
+  } catch (e) { toast('端末の保存領域がいっぱいです'); }
+};
+
+const r4 = v => Math.round(v * 1e4) / 1e4;
+function randomZ() { return GENES.map(g => r4(Math.random() < .45 ? clamp(g.n + gauss() * .06, 0, 1) : Math.random())); }
+function around(base, s) { return base.map(v => r4(clamp(v + gauss() * s, 0, 1))); }
+function mixZ(a, b) { return a.map((v, i) => r4(clamp(v + (b[i] - v) * Math.random() + gauss() * .03, 0, 1))); }
+
+// 次の4枚：ベスト＋「好きそう」と「まだわからない」のバランスがいい3枚（UCB）
+function makeRound() {
+  const inc = S.best, sg = S.sigma, rootD = Math.sqrt(D);
+  const pool = [];
+  for (let i = 0; i < 360; i++) pool.push(around(inc, sg));
+  for (let i = 0; i < 140; i++) pool.push(around(inc, Math.min(SIG_MAX * 1.5, sg * 2)));
+  for (let i = 0; i < 40 && store.favs.length; i++) pool.push(mixZ(inc, store.favs[(Math.random() * store.favs.length) | 0].z));
+  const minD = sg * rootD * .2;
+  const kappa = .5;
+  let cand = pool.filter(z => dist(z, inc) > minD).map(z => { const [mu, sd] = GP.predict(z); return { z, acq: GP.f ? mu + kappa * sd : Math.random() }; });
+  const picks = [];
+  const r = Math.max(.3, sg * rootD * .7);
+  for (let k = 0; k < 3 && cand.length; k++) {
+    cand.sort((a, b) => b.acq - a.acq);
+    const p = cand.shift(); picks.push(p.z);
+    // 選んだものの近くは点を下げて、似た候補が並ばないようにする
+    cand.forEach(c => { const d = dist(c.z, p.z); c.acq -= 1.5 * Math.exp(-d * d / (2 * r * r)); });
+  }
+  while (picks.length < 3) picks.push(around(inc, sg));
+  const set = [{ z: inc.slice(), inc: true }, ...picks.map(z => ({ z, inc: false }))];
+  for (let i = set.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [set[i], set[j]] = [set[j], set[i]]; }
+  tiles = set.map(t => ({ ...t, seed: Math.random() * 100 }));
+  updateTiles(); dirty = true; updateStats();
 }
+function trim() {
+  if (GP.X.length <= MAX_PTS) return;
+  // 古い点から捨てる（ベストは残す）
+  const drop = new Set(); const bi = GP.indexOf(S.best);
+  for (let i = 0; i < GP.X.length && GP.X.length - drop.size > MAX_PTS; i++) if (i !== bi) drop.add(i);
+  const map = new Map(); const nx = [];
+  GP.X.forEach((z, i) => { if (!drop.has(i)) { map.set(i, nx.length); nx.push(z); } });
+  GP.C = GP.C.filter(([w, l]) => map.has(w) && map.has(l)).map(([w, l]) => [map.get(w), map.get(l)]);
+  GP.X = nx; undoStack = [];
+}
+function choose(i) {
+  const win = tiles[i];
+  undoStack.push({ xLen: GP.X.length, cLen: GP.C.length, best: S.best.slice(), sigma: S.sigma, round: S.round, tiles: tiles.map(t => ({ ...t, z: t.z.slice() })) });
+  if (undoStack.length > 30) undoStack.shift();
+  const idxs = tiles.map(t => GP.add(t.z)), wi = idxs[i];
+  idxs.forEach((j, k) => { if (k !== i && j !== wi) GP.C.push([wi, j]); });
+  // ベストが残った＝近くを細かく、新しいのが勝った＝もう少し広く
+  S.sigma = clamp(win.inc ? S.sigma * .8 : S.sigma * 1.15, SIG_MIN, SIG_MAX);
+  S.best = win.z.slice(); S.round++;
+  trim();
+  GP.fit();
+  makeRound(); persist();
+}
+function undo() {
+  const u = undoStack.pop(); if (!u) return;
+  GP.X.length = u.xLen; GP.C.length = u.cLen;
+  S.best = u.best; S.sigma = u.sigma; S.round = u.round;
+  GP.fit();
+  tiles = u.tiles; updateTiles(); dirty = true; updateStats(); persist();
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+function buildTiles() {
+  tilesBox.innerHTML = '';
+  for (let i = 0; i < 4; i++) {
+    const b = document.createElement('button'); b.className = 'tile'; b.innerHTML = '<span class="inc">いまのベスト</span>';
+    let timer = 0, longed = false;
+    b.addEventListener('pointerdown', () => { longed = false; clearTimeout(timer); timer = setTimeout(() => { longed = true; openBig(i); }, 450); });
+    b.addEventListener('pointerup', () => { clearTimeout(timer); if (!longed) pick(i); });
+    b.addEventListener('pointerleave', () => clearTimeout(timer));
+    b.addEventListener('pointercancel', () => clearTimeout(timer));
+    b.addEventListener('contextmenu', e => e.preventDefault());
+    tilesBox.appendChild(b);
+  }
+}
+function updateTiles() { $$('.tile').forEach((el, i) => el.classList.toggle('isInc', !!(tiles[i] && tiles[i].inc))); }
+let busy = false;
+function pick(i) {
+  if (busy || !tiles[i]) return;
+  busy = true;
+  const el = $$('.tile')[i]; el.classList.add('picked');
+  setTimeout(() => {
+    $('#gridIn').classList.add('fade');
+    setTimeout(() => {
+      choose(i); el.classList.remove('picked');
+      requestAnimationFrame(() => { $('#gridIn').classList.remove('fade'); busy = false; });
+    }, 160);
+  }, 140);
+}
+function updateStats() {
+  $('#roundNo').textContent = (S.round + 1) + '回目';
+  $('#stats').innerHTML = `比較 <b>${GP.C.length}</b> 件（覚えている候補 <b>${GP.X.length}</b>）<br>探す範囲（ベストのまわり、どこまで離れた候補を出すか）`;
+  $('#rangeBar').style.width = Math.round((S.sigma - SIG_MIN) / (SIG_MAX - SIG_MIN) * 100) + '%';
+  $('#undo').disabled = !undoStack.length;
+}
+$('#undo').addEventListener('click', undo);
+$('#wide').addEventListener('click', () => { S.sigma = SIG_MAX; makeRound(); persist(); toast('広く探します'); });
+
+// 大きく見る
+let bigIdx = -1;
+const bigBox = $('#bigImg');
+function openBig(i) {
+  bigIdx = i;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const maxW = Math.min(window.innerWidth - 28, 900), maxH = window.innerHeight - 130, a = imgW / imgH;
+  let w = maxW, h = w / a; if (h > maxH) { h = maxH; w = h * a; }
+  let pw = Math.round(w * dpr), ph = Math.round(h * dpr); const m = Math.max(pw, ph); if (m > 1600) { pw = Math.round(pw * 1600 / m); ph = Math.round(ph * 1600 / m); }
+  const fc = renderToCanvas(tiles[i].z, pw, ph, tiles[i].seed), oc = renderToCanvas(tiles[i].z, pw, ph, 0, true);
+  [fc, oc].forEach(c => { c.style.width = w + 'px'; c.style.height = h + 'px'; });
+  oc.style.display = 'none';
+  bigBox.innerHTML = ''; bigBox.append(fc, oc);
+  $('#big').classList.add('open'); dirty = true;
+}
+const closeBig = () => { $('#big').classList.remove('open'); bigBox.innerHTML = ''; bigIdx = -1; };
+$('#bigClose').addEventListener('click', closeBig);
+$('#bigPick').addEventListener('click', () => { const i = bigIdx; closeBig(); if (i >= 0) pick(i); });
+const showOrig = on => { const cs = bigBox.querySelectorAll('canvas'); if (cs.length < 2) return; cs[0].style.display = on ? 'none' : ''; cs[1].style.display = on ? '' : 'none'; };
+$('#bigOrig').addEventListener('pointerdown', () => showOrig(true));
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('#bigOrig').addEventListener(ev, () => showOrig(false)));
+$('#bigOrig').addEventListener('contextmenu', e => e.preventDefault());
+
+// 登録
 function thumbOf(z) {
   const s = 132 / Math.max(imgW, imgH), w = Math.max(8, Math.round(imgW * s)), h = Math.max(8, Math.round(imgH * s));
-  const c = renderToCanvas(z, w, h, 1);
-  dirty = true;
+  const c = renderToCanvas(z, w, h, 1); dirty = true;
   return c.toDataURL('image/jpeg', .8);
 }
 $('#like').addEventListener('click', () => {
   if (!imgTex) return;
-  const z = targetZ().map(v => +v.toFixed(4));
-  if (store.favs.some(f => f.z.every((v, i) => Math.abs(v - z[i]) < 1e-3))) { toast('もう登録されています'); return; }
+  const z = S.best.map(v => +v.toFixed(4));
+  if (store.favs.some(f => dist(f.z, z) < 1e-3)) { toast('もう登録されています'); return; }
   const f = { id: nextId++, z, thumb: thumbOf(z), t: Date.now() };
-  store.favs.push(f);
-  store.seen = store.seen.filter(s => dist(s.z, z) > .02);
-  persist(); renderFavs(); scheduleTrain();
-  toast(`★${f.id} を登録しました`);
+  store.favs.push(f); persist(); renderFavs(); toast(`★${f.id} を登録しました`);
 });
-$('#nope').addEventListener('click', () => {
-  const z = targetZ().map(v => +v.toFixed(4));
-  store.dis.push({ z }); if (store.dis.length > 400) store.dis.shift();
-  persist(); scheduleTrain(); updateStats();
-  toast('いまいちを記録しました');
-  if (!running) { history.push({ z: candidate() }); if (history.length > 20) history.shift(); hPos = history.length - 1; show(history[hPos].z); updateNav(); }
-});
-const dist = (a, b) => { let s = 0; for (let i = 0; i < D; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s / D); };
-
-// 探し方
-const MODE_HINT = {
-  all: () => '画面全体からランダムに探します',
-  near: () => favById(axisId) ? `★${axisId} のまわりを探します` : '登録から軸にする★をタップしてください',
-  mix: () => mixIds.length === 2 ? `★${mixIds[0]} と ★${mixIds[1]} を混ぜて探します` : `混ぜる★を2つタップしてください（${mixIds.length}/2）`,
-};
-function setMode(m) {
-  mode = m;
-  $$('#mode button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
-  $('#modeHint').textContent = MODE_HINT[m]();
-  renderFavs();
-}
-$('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.v); });
-$('#width').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  width = b.dataset.v; $$('#width button').forEach(x => x.classList.toggle('on', x === b));
-});
-$('#aiBtn').addEventListener('click', () => { if (!model.ready) return; ai = !ai; $('#aiBtn').classList.toggle('on', ai); toast(ai ? 'AIが好みそうな候補を優先します' : 'AIをオフにしました'); });
-
-// 登録の一覧
 let delArmed = null;
 function renderFavs() {
   const box = $('#favs'); box.innerHTML = '';
   $('#favCount').textContent = store.favs.length + '件';
-  if (!store.favs.length) { box.innerHTML = '<div class="empty">気に入ったら「☆ 登録」。ここに残ります</div>'; return; }
+  if (!store.favs.length) { box.innerHTML = '<div class="empty">気に入ったら「☆ ベストを登録」。消すまで残ります。タップするとそこから探し直せます</div>'; return; }
   for (const f of store.favs.slice().reverse()) {
-    const b = document.createElement('button');
-    b.className = 'fav';
-    if (mode === 'mix' ? mixIds[0] === f.id : axisId === f.id) b.classList.add('sel');
-    if (mode === 'mix' && mixIds[1] === f.id) b.classList.add('sel2');
+    const b = document.createElement('button'); b.className = 'fav';
     b.style.backgroundImage = `url(${f.thumb})`;
     b.innerHTML = `<span>★${f.id}</span><i class="del${delArmed === f.id ? ' sure' : ''}">${delArmed === f.id ? '消す' : '✕'}</i>`;
     b.addEventListener('click', e => {
       if (e.target.classList.contains('del')) {
-        if (delArmed === f.id) {
-          store.favs = store.favs.filter(x => x.id !== f.id);
-          if (axisId === f.id) axisId = null; mixIds = mixIds.filter(x => x !== f.id);
-          delArmed = null; persist(); renderFavs(); scheduleTrain(); setMode(mode); toast(`★${f.id} を消しました`);
-        } else { delArmed = f.id; renderFavs(); }
+        if (delArmed === f.id) { store.favs = store.favs.filter(x => x.id !== f.id); delArmed = null; persist(); renderFavs(); toast(`★${f.id} を消しました`); }
+        else { delArmed = f.id; renderFavs(); }
         return;
       }
       delArmed = null;
-      if (mode === 'mix') {
-        mixIds = mixIds.includes(f.id) ? mixIds.filter(x => x !== f.id) : [...mixIds, f.id].slice(-2);
-        $('#modeHint').textContent = MODE_HINT.mix(); renderFavs(); return;
-      }
-      axisId = f.id;
-      if (mode === 'all') setMode('near'); else { $('#modeHint').textContent = MODE_HINT[mode](); renderFavs(); }
-      if (!running) { history.push({ z: f.z.slice() }); if (history.length > 20) history.shift(); hPos = history.length - 1; updateNav(); }
-      show(f.z);
+      S.best = f.z.slice(); S.sigma = .15; undoStack = [];
+      makeRound(); persist(); renderFavs(); toast(`★${f.id} から探します`);
     });
     box.appendChild(b);
   }
 }
 
-/* =====================================================================
-   AI：好み予測（小さなニューラルネット）
-   入力 31（遺伝子） → 16 → 8 → 1（好き度）
-   ===================================================================== */
-const model = {
-  sizes: [D, 16, 8, 1], W: [], b: [], mW: [], vW: [], mb: [], vb: [], t: 0, ready: false, losses: [],
-  init() {
-    this.W = []; this.b = []; this.mW = []; this.vW = []; this.mb = []; this.vb = []; this.t = 0;
-    for (let l = 0; l < this.sizes.length - 1; l++) {
-      const n = this.sizes[l], m = this.sizes[l + 1], s = Math.sqrt(2 / (n + m));
-      this.W.push(Float64Array.from({ length: n * m }, () => gauss() * s)); this.b.push(new Float64Array(m));
-      this.mW.push(new Float64Array(n * m)); this.vW.push(new Float64Array(n * m)); this.mb.push(new Float64Array(m)); this.vb.push(new Float64Array(m));
-    }
-  },
-  forward(x) {
-    const acts = [Float64Array.from(x, v => (v - .5) * 2)];
-    for (let l = 0; l < this.W.length; l++) {
-      const a = acts[l], n = this.sizes[l], m = this.sizes[l + 1], out = new Float64Array(m), W = this.W[l];
-      for (let j = 0; j < m; j++) { let s = this.b[l][j]; for (let i = 0; i < n; i++) s += W[j * n + i] * a[i]; out[j] = l === this.W.length - 1 ? 1 / (1 + Math.exp(-s)) : Math.tanh(s); }
-      acts.push(out);
-    }
-    return acts;
-  },
-  predict(x) { const a = this.forward(x); return a[a.length - 1][0]; },
-  epoch(X, Y, Wt, lr) {
-    const L = this.W.length, gW = this.W.map(w => new Float64Array(w.length)), gb = this.b.map(b => new Float64Array(b.length));
-    let loss = 0, wsum = 0;
-    for (let k = 0; k < X.length; k++) {
-      const acts = this.forward(X[k]), p = acts[L][0], y = Y[k], w = Wt[k];
-      loss += -w * (y * Math.log(p + 1e-7) + (1 - y) * Math.log(1 - p + 1e-7)); wsum += w;
-      let delta = new Float64Array([(p - y) * w]);
-      for (let l = L - 1; l >= 0; l--) {
-        const n = this.sizes[l], m = this.sizes[l + 1], a = acts[l], W = this.W[l];
-        const nd = new Float64Array(n);
-        for (let j = 0; j < m; j++) { gb[l][j] += delta[j]; for (let i = 0; i < n; i++) { gW[l][j * n + i] += delta[j] * a[i]; nd[i] += W[j * n + i] * delta[j]; } }
-        if (l > 0) for (let i = 0; i < n; i++) nd[i] *= 1 - a[i] * a[i];
-        delta = nd;
-      }
-    }
-    this.t++;
-    const b1 = .9, b2 = .999, lam = 1e-3;
-    for (let l = 0; l < L; l++) {
-      for (let i = 0; i < this.W[l].length; i++) {
-        const g = gW[l][i] / wsum + lam * this.W[l][i];
-        this.mW[l][i] = b1 * this.mW[l][i] + (1 - b1) * g; this.vW[l][i] = b2 * this.vW[l][i] + (1 - b2) * g * g;
-        this.W[l][i] -= lr * (this.mW[l][i] / (1 - b1 ** this.t)) / (Math.sqrt(this.vW[l][i] / (1 - b2 ** this.t)) + 1e-8);
-      }
-      for (let j = 0; j < this.b[l].length; j++) {
-        const g = gb[l][j] / wsum;
-        this.mb[l][j] = b1 * this.mb[l][j] + (1 - b1) * g; this.vb[l][j] = b2 * this.vb[l][j] + (1 - b2) * g * g;
-        this.b[l][j] -= lr * (this.mb[l][j] / (1 - b1 ** this.t)) / (Math.sqrt(this.vb[l][j] / (1 - b2 ** this.t)) + 1e-8);
-      }
-    }
-    return loss / wsum;
-  },
-};
-model.init();
-let training = false, trainAgain = false;
-function dataset() {
-  const X = [], Y = [], W = [];
-  const pos = store.favs.map(f => f.z), dis = store.dis.map(d => d.z);
-  const seen = store.seen.map(s => s.z).filter(z => pos.every(p => dist(p, z) > .03));
-  // 好き側と嫌い側の重みの合計をそろえる（「見ただけ」は弱い嫌いとして扱う）
-  const negW = dis.length + seen.length * .2;
-  pos.forEach(z => { X.push(z); Y.push(1); W.push(1 / Math.max(1, pos.length)); });
-  dis.forEach(z => { X.push(z); Y.push(0); W.push(1 / Math.max(1, negW)); });
-  seen.forEach(z => { X.push(z); Y.push(0); W.push(.2 / Math.max(1, negW)); });
-  return { X, Y, W, nPos: pos.length, nDis: dis.length, nSeen: seen.length };
-}
-function scheduleTrain() {
-  updateStats();
-  if (training) { trainAgain = true; return; }
-  const d = dataset();
-  if (d.nPos < 2 || d.nDis + d.nSeen < 5) { model.ready = false; updateStats(); return; }
-  training = true; $('#aiState').textContent = '学習中…';
-  let ep = 0; const total = 300; let loss = 0;
-  const chunk = () => {
-    for (let i = 0; i < 25 && ep < total; i++, ep++) loss = model.epoch(d.X, d.Y, d.W, .01);
-    if (ep < total) { setTimeout(chunk, 0); return; }
-    model.ready = true; model.losses.push(loss); if (model.losses.length > 40) model.losses.shift();
-    training = false; updateStats(); drawLoss(); updateScore();
-    if (trainAgain) { trainAgain = false; scheduleTrain(); }
-  };
-  setTimeout(chunk, 0);
-}
-function updateStats() {
-  const d = dataset();
-  $('#stats').innerHTML = `好き <b>${d.nPos}</b>　いまいち <b>${d.nDis}</b>　見ただけ <b>${d.nSeen}</b><br>` +
-    (model.ready ? `誤差 <b>${model.losses[model.losses.length - 1].toFixed(3)}</b>（小さいほど好みを覚えている）` : (d.nPos < 2 ? '★を2つ以上登録すると学習を始めます' : 'もう少し候補を見ると学習を始めます'));
-  if (!training) $('#aiState').textContent = model.ready ? '学習済み' : 'データ待ち';
-  $('#aiBtn').disabled = !model.ready; $('#bestBtn').disabled = !model.ready;
-  if (!model.ready && ai) { ai = false; $('#aiBtn').classList.remove('on'); }
-}
-function drawLoss() {
-  const c = $('#loss'), x = c.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 2), w = c.clientWidth, h = c.clientHeight;
-  c.width = w * dpr; c.height = h * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
-  const L = model.losses; if (L.length < 1) return;
-  const mx = Math.max(...L, .1);
-  x.strokeStyle = '#ec7f45'; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
-  L.forEach((v, i) => { const px = L.length === 1 ? w / 2 : i / (L.length - 1) * (w - 4) + 2, py = h - 3 - v / mx * (h - 8); i ? x.lineTo(px, py) : x.moveTo(px, py); });
-  x.stroke();
-  x.fillStyle = '#b39883'; x.font = '9px sans-serif'; x.fillText('誤差の推移', 2, 9);
-}
-function updateScore() {
-  const el = $('#score');
-  if (!model.ready) { el.classList.remove('show'); return; }
-  el.textContent = `AIの予想：${Math.round(model.predict(to) * 100)}点`; el.classList.add('show');
-}
-$('#bestBtn').addEventListener('click', () => {
-  if (!model.ready) return;
-  if (running) setRunning(false);
-  let best = null, bs = -1;
-  for (let i = 0; i < 3000; i++) {
-    const z = (store.favs.length && Math.random() < .6) ? around(store.favs[(Math.random() * store.favs.length) | 0].z, .12) : randomZ();
-    const s = model.predict(z); if (s > bs) { bs = s; best = z; }
-  }
-  history.push({ z: best }); if (history.length > 20) history.shift(); hPos = history.length - 1;
-  show(best); updateNav(); toast(`AIのベスト：予想 ${Math.round(bs * 100)}点`);
+// 最初から・書き出し・読み込み
+let resetArmed = false;
+$('#resetBtn').addEventListener('click', () => {
+  if (!resetArmed) { resetArmed = true; $('#resetBtn').textContent = 'もう一度で消去'; setTimeout(() => { resetArmed = false; $('#resetBtn').textContent = '最初から'; }, 2500); return; }
+  resetArmed = false; $('#resetBtn').textContent = '最初から';
+  GP.X = []; GP.C = []; GP.fit(); S.best = NEUTRAL.slice(); S.sigma = .22; S.round = 0; undoStack = [];
+  makeRound(); persist(); toast('学習をリセットしました（登録は残ります）');
 });
-
-// 書き出し・読み込み
 $('#expBtn').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ app: 'filtlab', v: 1, genes: GENES.map(g => g.k), ...store })], { type: 'application/json' });
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'filter-data.json'; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  const data = { app: 'filtlab', v: 2, genes: GENES.map(g => g.k), favs: store.favs, X: GP.X, C: GP.C, best: S.best, sigma: S.sigma, round: S.round };
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
+  a.download = 'filter-data.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 });
 $('#impBtn').addEventListener('click', () => $('#impFile').click());
 $('#impFile').addEventListener('change', async e => {
   const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
-    const d = JSON.parse(await f.text());
-    if (!d.favs) throw new Error('形式が違います');
-    store = { favs: d.favs, dis: d.dis || [], seen: d.seen || [] };
-    nextId = store.favs.reduce((m, x) => Math.max(m, x.id), 0) + 1;
-    persist(); renderFavs(); model.init(); model.losses = []; scheduleTrain(); toast('読み込みました');
+    const d = JSON.parse(await f.text()); if (!d.favs) throw 0;
+    store.favs = d.favs; nextId = store.favs.reduce((m, x) => Math.max(m, x.id), 0) + 1;
+    if (d.X && d.C) { GP.X = d.X; GP.C = d.C; S.best = d.best || NEUTRAL.slice(); S.sigma = d.sigma || .22; S.round = d.round || 0; }
+    undoStack = []; GP.fit(); makeRound(); persist(); renderFavs(); toast('読み込みました');
   } catch (err) { toast('読み込めませんでした'); }
 });
 
-// 保存（元の解像度で）
+// 保存（ベストを元の解像度で）
 $('#saveBtn').addEventListener('click', async () => {
   if (!imgTex) return;
   const s = Math.min(1, 3000 / Math.max(imgW, imgH)), w = Math.round(imgW * s), h = Math.round(imgH * s);
-  const c = renderToCanvas(to, w, h, seed); dirty = true;
+  const c = renderToCanvas(S.best, w, h, 3); dirty = true;
   const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
   const name = `filter_${Date.now()}.jpg`, file = new File([blob], name, { type: 'image/jpeg' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
@@ -889,40 +881,21 @@ $('#saveBtn').addEventListener('click', async () => {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 });
 
-// 長押しで元の画像
-let bypass = false;
-const orig = $('#orig');
-canvas.addEventListener('pointerdown', e => { try { canvas.setPointerCapture(e.pointerId); } catch (_) {} bypass = true; orig.classList.add('show'); dirty = true; });
-['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => { bypass = false; orig.classList.remove('show'); dirty = true; }));
-canvas.addEventListener('contextmenu', e => e.preventDefault());
-
-/* =====================================================================
-   描画ループ（変化があるときだけ描く）
-   ===================================================================== */
-function frame(now) {
+/* ---------- ループと起動 ---------- */
+function frame() {
   requestAnimationFrame(frame);
-  if (!imgTex || !live) return;
-  const t = tStart < 0 ? 1 : clamp((now - tStart) / TRANS, 0, 1);
-  if (t < 1 || dirty) {
-    const e = t * t * (3 - 2 * t);
-    for (let i = 0; i < D; i++) cur[i] = from[i] + (to[i] - from[i]) * e;
-    render(cur, live, null, bypass, seed);
-    drawDNA(cur);
-    dirty = t < 1;
-  }
+  if (dirty && imgTex && geo) { drawGrid(); dirty = false; }
 }
-
-/* ---------- 起動 ---------- */
 (function boot() {
+  buildTiles();
   const saved = localStorage.getItem('filtlab-img');
-  const go = src => { setImage(src); renderFavs(); updateStats(); updateNav(); scheduleTrain(); drawDNA(cur); requestAnimationFrame(frame); };
+  const go = src => { setImage(src); GP.fit(); makeRound(); renderFavs(); updateStats(); requestAnimationFrame(frame); };
   if (saved) { const img = new Image(); img.onload = () => go(img); img.onerror = () => go(sampleImage()); img.src = saved; }
   else { go(sampleImage()); setTimeout(() => toast('右上の「画像」から好きな写真を選べます', 2600), 600); }
 })();
 
 // テスト用
-window.__lab = { show, decode, get to() { return to.slice(); }, get store() { return store; }, model, setRunning, NEUTRAL, D,
-  renderToCanvas, randomZ, around };
+window.__lab = { GP, S, get tiles() { return tiles; }, choose, undo, decode, NEUTRAL, D, dist, renderToCanvas, randomZ, makeRound };
 })();
 </script>
 </body>
