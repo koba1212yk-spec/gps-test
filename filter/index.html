@@ -89,9 +89,23 @@ header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP
 
 #toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
   padding:10px 18px;border-radius:20px;background:rgba(74,52,38,.92);color:#fff;font-size:13px;font-weight:700;opacity:0;
-  transition:opacity .25s,transform .25s;pointer-events:none;z-index:50;white-space:nowrap}
+  transition:opacity .25s,transform .25s;pointer-events:none;z-index:50;white-space:normal;max-width:88vw;width:max-content;text-align:center;line-height:1.5}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 input[type=file]{display:none}
+.baseRow{display:flex;align-items:center;gap:10px;margin:-2px 2px 10px;font-size:12px;font-weight:800;color:var(--ink2)}
+.baseRow[hidden]{display:none}
+.seg2{flex:1;display:flex;padding:3px;border-radius:16px;background:rgba(255,255,255,.6);gap:2px}
+.seg2 button{flex:1;height:28px;border-radius:13px;background:transparent;font-size:12px;font-weight:800;color:var(--ink2)}
+.seg2 button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(150,90,40,.15)}
+#mapCard[hidden]{display:none}
+.maps{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.mapBox{min-width:0}
+.mapBox.wide{margin-top:12px}
+.mapT{font-size:11.5px;font-weight:800;color:var(--ink2);margin-bottom:6px;display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+.mapT select{font:inherit;font-size:11.5px;font-weight:800;color:var(--ink);border:none;border-radius:10px;padding:3px 6px;background:#fff;box-shadow:0 2px 6px rgba(120,70,30,.1)}
+#posMap,#colMap{width:100%;aspect-ratio:1;display:block;touch-action:none;border-radius:12px}
+#pairMap{width:100%;aspect-ratio:2/1;display:block;touch-action:none;border-radius:12px}
+
 .stage{display:flex;padding:3px;border-radius:18px;background:rgba(255,255,255,.6);gap:2px;margin:0 0 10px}
 .stage button{flex:1;height:32px;border-radius:15px;background:transparent;font-size:12.5px;font-weight:800;color:var(--ink2)}
 .stage button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(150,90,40,.15)}
@@ -118,13 +132,14 @@ input[type=file]{display:none}
     </div>
   </header>
 
-  <div class="stage" id="stageSeg"><button data-v="macro" class="on">ざっくり（つまみ10）</button><button data-v="fine">細かく（遺伝子31）</button></div>
+  <div class="stage" id="stageSeg"><button data-v="macro" class="on">ざっくり</button><button data-v="fine">細かく</button><button data-v="leak">光漏れ</button></div>
+  <div class="baseRow" id="baseRow" hidden><span>ベース</span><div class="seg2" id="baseSeg"><button data-v="orig" class="on">元の画像</button><button data-v="grade">今の色補正</button></div></div>
   <div class="lead"><span id="leadTxt">いちばん好きな1枚をタップ（長押しで拡大）</span><span class="leadR"><b id="roundNo">1回目</b></span></div>
   <div id="gridBox"><div id="gridIn"><canvas id="c"></canvas><div id="tiles"></div></div></div>
 
   <div class="tools">
     <button class="tool" id="undo">↶ 戻る</button>
-    <button class="tool like" id="like">☆ 選んだのを登録</button>
+    <button class="tool like" id="like">☆ 登録</button>
     <button class="tool" id="wide">↻ 広く探す</button>
   </div>
   <canvas id="dna"></canvas>
@@ -134,6 +149,16 @@ input[type=file]{display:none}
     <div class="rank" id="rank"></div>
     <div id="krows"></div>
     <div class="note">線はAIが予想する「好き度」（上ほど好き）、帯は自信のなさ。白い点が今のベストで、線の上をなぞると直接変えられます。左の名前をタップすると固定（探索で動かさない）。</div>
+  </section>
+
+  <section class="card" id="mapCard" hidden>
+    <h2>光漏れの地図 <small>濃いほどAIの予想で好き</small></h2>
+    <div class="maps">
+      <div class="mapBox"><div class="mapT">どこから入るのが好き？</div><canvas id="posMap"></canvas></div>
+      <div class="mapBox"><div class="mapT">色の組み合わせ（横：芯 / 縦：外）</div><canvas id="colMap"></canvas></div>
+    </div>
+    <div class="mapBox wide"><div class="mapT">相性 <select id="pairA"></select> × <select id="pairB"></select></div><canvas id="pairMap"></canvas></div>
+    <div class="note">白い点が今のベスト。地図をタップすると、その値に直接変えられます。</div>
   </section>
 
   <section class="card">
@@ -329,7 +354,55 @@ uniform sampler2D uR0, uLow, uBloom, uLut, uImg;
 uniform vec2 uLowTx;
 uniform float uBypass, uAspect, uEnc, uBloomAmt, uSat, uVig, uHaze, uEBlur, uERad, uGrain, uGSize, uSeed;
 uniform vec3 uTint;
+// 光漏れ
+uniform float uLkOn, uLkSpr;
+uniform vec4 uLk1, uLk2, uLkS, uLkC;
+uniform vec3 uLkCore, uLkOuter;
+uniform vec2 uLkN1;
 float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
+float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3. - 2.*f);
+  return mix(mix(hash(i), hash(i + vec2(1., 0.)), f.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), f.x), f.y); }
+float fbm(vec2 p){ return .5*vnoise(p) + .25*vnoise(p*2.1 + 3.7) + .125*vnoise(p*4.3 + 1.3) + .125*vnoise(p*8.7 + 9.1); }
+// 1本の光漏れの濃さ。B=入り口、D=差し込む向き（画面の縦を1とした座標）
+float leakMask(vec2 q, vec4 bd, out vec2 la){
+  vec2 B = bd.xy, Dv = bd.zw, Pv = vec2(-Dv.y, Dv.x);
+  vec2 r = q - B;
+  r += (vec2(fbm(q*2.7 + B*7.), fbm(q*2.9 - B*5.)) - .5)*uLkC.z*.4;     // ムラ
+  float along = dot(r, Dv), across = dot(r, Pv);
+  float L = uLkS.y;
+  float fall = exp(-pow(max(along, 0.)/L, mix(1., 3.5, 1. - uLkS.z))*2.2);
+  float br = L*.55; vec2 cc = Dv*L*.2;
+  float blob = exp(-dot(r - cc, r - cc)/(2.*br*br));
+  float bw = L*mix(.1, .3, uLkS.z);
+  float streak = exp(-across*across/(2.*bw*bw))*fall;
+  float s = uLkS.x;
+  la = vec2(along, across);
+  return s < .5 ? mix(blob, streak, s*2.) : mix(streak, fall, (s - .5)*2.);
+}
+vec4 leakLight(vec2 uv){
+  vec2 q = vec2(uv.x*uAspect, uv.y), la1, la2;
+  float m1 = leakMask(q, uLk1, la1);
+  float m2 = uLkS.w > .001 ? leakMask(q, uLk2, la2)*uLkS.w : 0.;
+  float m = clamp(max(m1, m2) + min(m1, m2)*.5, 0., 1.6);
+  vec3 col = mix(uLkOuter, uLkCore, smoothstep(.2, 1., m));
+  vec3 light = col*m*uLkC.x;
+  if(uLkSpr > .001){
+    // フィルムの送り穴：入り口の辺にそって四角い穴が並んで光る
+    vec2 r = q - uLk1.xy, N = uLkN1, T = vec2(-N.y, N.x);
+    float a = dot(r, N), b = dot(r, T);
+    float cell = mod(b + .045, .13) - .065;
+    vec2 d = abs(vec2(cell, a - .055)) - vec2(.026, .02);
+    float sd = length(max(d, 0.)) + min(max(d.x, d.y), 0.) - .007;
+    light += uLkCore*(1. - smoothstep(0., .01, sd))*exp(-b*b/(2.*.32*.32))*uLkSpr*max(uLkC.x, .4)*1.4;
+  }
+  if(uLkC.w > .001){
+    // 虹のふち：光の境目にうっすら色が分かれる
+    float edge = clamp(m*(1. - m)*4., 0., 1.);
+    vec3 rb = .5 + .5*cos(6.2832*(vec3(0., .33, .67) + la1.y*5. + la1.x*1.5));
+    light += (rb - .35)*edge*uLkC.w*max(uLkC.x, .3)*.28;
+  }
+  return vec4(light, clamp(m, 0., 1.)*uLkC.y);
+}
 vec3 tonemap(vec3 x){
   float m = max(x.r, max(x.g, x.b));
   float mc = m < .8 ? m : .8 + .2*(1. - exp(-(m - .8)/.2));
@@ -345,6 +418,12 @@ void main(){
   vec3 lin = pow(max(c, 0.), vec3(2.2));
   vec3 b = texture(uBloom, vUv).rgb/uEnc;
   vec3 glow = mix(b, dot(b, LUMA)*uTint, .6)*uBloomAmt;
+  if(uLkOn > .5){
+    // 光漏れは「その場所だけ余分に光が当たった」として足す。当たったところは白く濁る（かぶり）
+    vec4 lk = leakLight(vUv);
+    lin = mix(lin, lin*.5 + vec3(.13) + lk.rgb*.12, lk.a*.75);
+    glow += lk.rgb;
+  }
   // 光が足されていないところは元のまま（白も沈めない）
   float k = clamp(max(glow.r, max(glow.g, glow.b))*8., 0., 1.);
   c = pow(mix(min(lin, vec3(1.)), tonemap(lin + glow), k), vec3(1./2.2));
@@ -420,8 +499,59 @@ const lutTex = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, lutTex); texParams(gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
+/* ---------- 光漏れの遺伝子（0〜1） ---------- */
+const LEAKS = [
+  { k:'pos',      label:'位置',     def:.85, cyc:true },
+  { k:'angle',    label:'向き',     def:.5, two:true },
+  { k:'shape',    label:'形',       def:.3 },
+  { k:'depth',    label:'奥行き',   def:.45 },
+  { k:'soft',     label:'柔らかさ', def:.6 },
+  { k:'core',     label:'芯の色',   def:.3 },
+  { k:'outer',    label:'外の色',   def:.45 },
+  { k:'expo',     label:'強さ',     def:.5 },
+  { k:'fog',      label:'かぶり',   def:.3 },
+  { k:'second',   label:'2本目',    def:0, extra:true },
+  { k:'wobble',   label:'ムラ',     def:.4, extra:true },
+  { k:'sprocket', label:'送り穴',   def:0, extra:true },
+  { k:'rainbow',  label:'虹のふち', def:0, extra:true },
+];
+const LD = LEAKS.length, LEAK0 = LEAKS.map(l => l.def);
+const lerp3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+// 外周の位置 p（0〜1、左上から時計回り）→ 入り口の点と内向きの向き
+function borderAt(p, a) {
+  const P = 2 * a + 2; let d = (((p % 1) + 1) % 1) * P, B, N;
+  if (d < a) { B = [d, 1]; N = [0, -1]; }
+  else if ((d -= a) < 1) { B = [a, 1 - d]; N = [-1, 0]; }
+  else if ((d -= 1) < a) { B = [a - d, 0]; N = [0, 1]; }
+  else { d -= a; B = [0, d]; N = [1, 0]; }
+  const cx = a / 2 - B[0], cy = .5 - B[1], cl = Math.hypot(cx, cy) || 1;
+  let nx = N[0] * .75 + cx / cl * .25, ny = N[1] * .75 + cy / cl * .25; const nl = Math.hypot(nx, ny);
+  return { B, N: [nx / nl, ny / nl], edge: ['上', '右', '下', '左'][Math.min(3, Math.floor((((p % 1) + 1) % 1) * 4))] };
+}
+const rot = (v, t) => [v[0] * Math.cos(t) - v[1] * Math.sin(t), v[0] * Math.sin(t) + v[1] * Math.cos(t)];
+function leakColors(L) {
+  const core = lerp3([1, .96, .86], [1, .64, .28], L[5]);
+  const o = L[6], outer = o < .5 ? lerp3([1, .14, .42], [1, .24, .08], o * 2) : lerp3([1, .24, .08], [1, .62, .14], (o - .5) * 2);
+  return { core, outer };
+}
+function leakUniforms(U, L, aspect) {
+  if (!L) { gl.uniform1f(U.uLkOn, 0); return; }
+  const ang = (L[1] - .5) * Math.PI / 2;
+  const b1 = borderAt(L[0], aspect), b2 = borderAt(L[0] + .37, aspect);
+  const d1 = rot(b1.N, ang), d2 = rot(b2.N, -ang);
+  const { core, outer } = leakColors(L);
+  gl.uniform1f(U.uLkOn, 1);
+  gl.uniform4f(U.uLk1, b1.B[0], b1.B[1], d1[0], d1[1]);
+  gl.uniform4f(U.uLk2, b2.B[0], b2.B[1], d2[0], d2[1]);
+  gl.uniform4f(U.uLkS, L[2], .12 + L[3] * .85, L[4], L[9]);
+  gl.uniform4f(U.uLkC, L[7] * 3, L[8], L[10], L[12]);
+  gl.uniform3fv(U.uLkCore, core); gl.uniform3fv(U.uLkOuter, outer);
+  gl.uniform2f(U.uLkN1, b1.N[0], b1.N[1]);
+  gl.uniform1f(U.uLkSpr, L[11]);
+}
+
 function bindTex(unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); }
-function render(z, S, fbo, bypass, seed, vx = 0, vy = 0) {
+function render(z, S, fbo, bypass, seed, vx = 0, vy = 0, leak = null) {
   const F = decode(z);
   buildLUT(F.curves);
   gl.bindTexture(gl.TEXTURE_2D, lutTex);
@@ -473,13 +603,14 @@ function render(z, S, fbo, bypass, seed, vx = 0, vy = 0) {
   gl.uniform1f(U.uBloomAmt, F.bloom); gl.uniform3fv(U.uTint, F.tint); gl.uniform1f(U.uSat, F.sat);
   gl.uniform1f(U.uVig, F.vig); gl.uniform1f(U.uHaze, F.haze); gl.uniform1f(U.uEBlur, F.eBlur); gl.uniform1f(U.uERad, F.eRad);
   gl.uniform1f(U.uGrain, F.grain); gl.uniform1f(U.uGSize, F.gSize * Math.max(1, S.w / 900)); gl.uniform1f(U.uSeed, seed || 0);
+  leakUniforms(U, leak, S.w / S.h);
   draw();
   bindTex(0, null);
 }
 // 任意サイズで描いて画素を取り出す（サムネ・保存用）
-function renderToCanvas(z, w, h, seed, bp) {
+function renderToCanvas(z, w, h, seed, bp, leak) {
   const S = makeSet(w, h), out = target(w, h, RGBA8);
-  render(z, S, out.fbo, !!bp, seed);
+  render(z, S, out.fbo, !!bp, seed, 0, 0, leak || null);
   const px = new Uint8Array(w * h * 4);
   gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -580,71 +711,28 @@ function knobsToGenes(u) {
   add('grain', .6 * gr); add('gSize', .3 * gr);
   return z.map(v => Math.round(clamp(v, 0, 1) * 1e4) / 1e4);
 }
-const fmtKnob = (j, v) => { const x = KNOBS[j].two ? (v - .5) * 2 : v; return (x > 0.005 && KNOBS[j].two ? '+' : '') + x.toFixed(2); };
 
 /* =====================================================================
-   2×2 の表示
+   いまの探索空間（ざっくり／細かく／光漏れ）
    ===================================================================== */
-let dirty = true, tileSet = null, geo = null;
-const tilesBox = $('#tiles');
-function layout() {
-  if (!imgW) return;
-  const W = $('#gridBox').clientWidth, maxH = Math.min(window.innerHeight * .62, 680), gap = 8, a = imgW / imgH;
-  let tw = (W - gap) / 2, th = tw / a;
-  if (th * 2 + gap > maxH) { th = (maxH - gap) / 2; tw = th * a; }
-  const cw = tw * 2 + gap, ch = th * 2 + gap, dpr = Math.min(window.devicePixelRatio || 1, 2);
-  canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
-  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
-  const ptw = Math.round(tw * dpr), pth = Math.round(th * dpr);
-  if (!tileSet || tileSet.w !== ptw || tileSet.h !== pth) { freeSet(tileSet); tileSet = makeSet(ptw, pth); }
-  geo = { tw, th, gap, sx: canvas.width / cw, sy: canvas.height / ch };
-  $('#gridIn').style.width = cw + 'px'; $('#gridIn').style.height = ch + 'px';
-  $$('.tile').forEach((el, i) => {
-    const col = i % 2, row = i >> 1;
-    Object.assign(el.style, { left: col * (tw + gap) + 'px', top: row * (th + gap) + 'px', width: tw + 'px', height: th + 'px' });
-  });
-  dirty = true; drawCurves();
+const r4 = v => Math.round(v * 1e4) / 1e4;
+const wrap = v => ((v % 1) + 1) % 1;
+// 円のつまみ（光漏れの位置）は0と1がつながっている → 弦の長さで距離を測る
+const cycDiff = (a, b) => Math.sin(Math.PI * Math.abs(a - b)) / Math.PI;
+function makeDist(cyc0) {
+  return (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) { const t = (cyc0 && i === 0) ? cycDiff(a[i], b[i]) : a[i] - b[i]; s += t * t; } return Math.sqrt(s); };
 }
-window.addEventListener('resize', layout);
-function drawGrid() {
-  if (!imgTex || !geo || tiles.length < 4) return;
-  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  gl.viewport(0, 0, canvas.width, canvas.height);
-  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-  tiles.forEach((t, i) => {
-    const col = i % 2, row = i >> 1;
-    const x = Math.round(col * (geo.tw + geo.gap) * geo.sx);
-    const yTop = Math.round(row * (geo.th + geo.gap) * geo.sy);
-    render(t.z, tileSet, null, false, t.seed, x, canvas.height - yTop - tileSet.h);
-  });
-  drawDNA(bestZ());
-}
-const dna = $('#dna'), dctx = dna.getContext('2d');
-function drawDNA(z) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = dna.clientWidth, h = dna.clientHeight;
-  if (!w) return;
-  if (dna.width !== Math.round(w * dpr)) { dna.width = Math.round(w * dpr); dna.height = Math.round(h * dpr); }
-  dctx.setTransform(dpr, 0, 0, dpr, 0, 0); dctx.clearRect(0, 0, w, h);
-  const bw = w / D, mid = h / 2;
-  dctx.fillStyle = 'rgba(120,80,50,.15)'; dctx.fillRect(0, mid - .5, w, 1);
-  for (let i = 0; i < D; i++) {
-    const v = z[i] - GENES[i].n, bh = Math.max(1.5, Math.abs(v) * (h - 2));
-    dctx.fillStyle = GROUP_COLOR[GENES[i].g]; dctx.globalAlpha = .35 + .65 * Math.min(1, Math.abs(v) * 2.2);
-    const x = i * bw + 1.5;
-    if (v >= 0) dctx.fillRect(x, mid - bh, bw - 3, bh); else dctx.fillRect(x, mid, bw - 3, bh);
-  }
-  dctx.globalAlpha = 1;
-}
+const distPlain = makeDist(false), distLeak = makeDist(true);
 
 /* =====================================================================
    選好ガウス過程（ラプラス近似）
    「選んだ1枚 ＞ ほかの3枚」の比較から、見えない「好き度」を推定
    ===================================================================== */
-const dist = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s); };
-function makeGP(ell) {
+function makeGP(ell, cyc0) {
+  const dist = makeDist(cyc0);
   return {
-    X: [], C: [], ell, s: .4, jitter: 1e-4, f: null, alpha: null, Kinv: null, M: null,
-    kern(a, b) { let d = 0; for (let i = 0; i < a.length; i++) { const t = a[i] - b[i]; d += t * t; } return Math.exp(-d / (2 * this.ell * this.ell)); },
+    X: [], C: [], ell, s: .4, jitter: 1e-4, f: null, alpha: null, Kinv: null, M: null, dist,
+    kern(a, b) { const d = dist(a, b); return Math.exp(-d * d / (2 * this.ell * this.ell)); },
     fit() {
       const N = this.X.length;
       if (!N || !this.C.length) { this.f = null; return; }
@@ -689,7 +777,12 @@ function makeGP(ell) {
       for (let i = 0; i < N; i++) { kv += k[i] * v[i]; let s = 0; const r = this.M[i]; for (let j = 0; j < N; j++) s += r[j] * v[j]; ku += k[i] * s; }
       return [mu, Math.sqrt(Math.max(1 - kv + ku, 1e-9))];
     },
-    indexOf(x) { for (let i = 0; i < this.X.length; i++) if (dist(this.X[i], x) < 1e-6) return i; return -1; },
+    mean(x) {
+      if (!this.f) return 0;
+      let mu = 0; for (let i = 0; i < this.X.length; i++) mu += this.kern(x, this.X[i]) * this.alpha[i];
+      return mu;
+    },
+    indexOf(x) { for (let i = 0; i < this.X.length; i++) if (distPlain(this.X[i], x) < 1e-6) return i; return -1; },
     add(x) { const i = this.indexOf(x); if (i >= 0) return i; this.X.push(x.slice()); return this.X.length - 1; },
     trim(max, keep) {
       if (this.X.length <= max) return false;
@@ -739,52 +832,135 @@ function inverse(A) {
 }
 
 /* =====================================================================
-   探索の状態（ざっくり：つまみ空間 / 細かく：遺伝子空間）
+   状態
    ===================================================================== */
 const MAX_PTS = 120;
 const SPACE = {
-  macro: { dim: KD, gp: makeGP(.5), smin: .05, smax: .3, sigma: .25 },
-  fine:  { dim: D,  gp: makeGP(.5), smin: .03, smax: .15, sigma: .07 },
+  macro: { gp: makeGP(.5, false), smin: .05, smax: .3, sigma: .25 },
+  fine:  { gp: makeGP(.5, false), smin: .03, smax: .15, sigma: .07 },
+  leak:  { gp: makeGP(.5, true),  smin: .05, smax: .3, sigma: .25 },
 };
-const S = { stage: 'macro', uBest: U0.slice(), zBest: knobsToGenes(U0), round: 0, locks: KNOBS.map(() => false) };
+const S = {
+  stage: 'macro', uBest: U0.slice(), zBest: knobsToGenes(U0), lBest: LEAK0.slice(), round: 0,
+  locks: KNOBS.map(() => false), lLocks: LEAKS.map(l => !!l.extra), base: 'orig',
+};
 let tiles = [], undoStack = [], log = [];
 let store = { favs: [] };
-const r4 = v => Math.round(v * 1e4) / 1e4;
-const bestZ = () => S.stage === 'macro' ? knobsToGenes(S.uBest) : S.zBest;
-const bestX = () => S.stage === 'macro' ? S.uBest : S.zBest;
-const toZ = x => S.stage === 'macro' ? knobsToGenes(x) : x;
+const baseZ = () => S.base === 'grade' ? S.zBest : NEUTRAL;
+const bestZ = () => S.stage === 'macro' ? knobsToGenes(S.uBest) : S.stage === 'fine' ? S.zBest : baseZ();
+const bestX = () => S.stage === 'macro' ? S.uBest : S.stage === 'fine' ? S.zBest : S.lBest;
+const bestLeak = () => S.stage === 'leak' ? S.lBest : null;
+const toZ = x => S.stage === 'macro' ? knobsToGenes(x) : S.stage === 'fine' ? x : baseZ();
+const curDist = () => S.stage === 'leak' ? distLeak : distPlain;
+const curLocks = () => S.stage === 'macro' ? S.locks : S.stage === 'leak' ? S.lLocks : null;
 
 try { const s = JSON.parse(localStorage.getItem('filtlab-v1') || 'null'); if (s && s.favs) store.favs = s.favs; } catch (e) {}
-try {
-  const g = JSON.parse(localStorage.getItem('filtlab-v3') || 'null');
-  if (g) {
-    for (const k of ['macro', 'fine']) if (g[k]) { SPACE[k].gp.X = g[k].X || []; SPACE[k].gp.C = g[k].C || []; SPACE[k].sigma = g[k].sigma || SPACE[k].sigma; }
-    if (g.uBest && g.uBest.length === KD) S.uBest = g.uBest;
-    if (g.zBest && g.zBest.length === D) S.zBest = g.zBest;
-    if (g.locks && g.locks.length === KD) S.locks = g.locks;
-    S.stage = g.stage === 'fine' ? 'fine' : 'macro'; S.round = g.round || 0; log = g.log || [];
-  }
-} catch (e) {}
+function loadState(g) {
+  for (const k of ['macro', 'fine', 'leak']) if (g[k]) { SPACE[k].gp.X = g[k].X || []; SPACE[k].gp.C = g[k].C || []; SPACE[k].sigma = g[k].sigma || SPACE[k].sigma; }
+  if (g.uBest && g.uBest.length === KD) S.uBest = g.uBest;
+  if (g.zBest && g.zBest.length === D) S.zBest = g.zBest;
+  if (g.lBest && g.lBest.length === LD) S.lBest = g.lBest;
+  if (g.locks && g.locks.length === KD) S.locks = g.locks;
+  if (g.lLocks && g.lLocks.length === LD) S.lLocks = g.lLocks;
+  S.stage = ['macro', 'fine', 'leak'].includes(g.stage) ? g.stage : 'macro';
+  S.base = g.base === 'grade' ? 'grade' : 'orig';
+  S.round = g.round || 0; log = g.log || [];
+}
+try { const g = JSON.parse(localStorage.getItem('filtlab-v3') || 'null'); if (g) loadState(g); } catch (e) {}
 let nextId = store.favs.reduce((m, f) => Math.max(m, f.id), 0) + 1;
+function snapshot() {
+  const sp = k => ({ X: SPACE[k].gp.X.map(x => x.map(r4)), C: SPACE[k].gp.C, sigma: SPACE[k].sigma });
+  return { macro: sp('macro'), fine: sp('fine'), leak: sp('leak'), uBest: S.uBest, zBest: S.zBest, lBest: S.lBest,
+    locks: S.locks, lLocks: S.lLocks, stage: S.stage, base: S.base, round: S.round, log: log.slice(-400) };
+}
 const persist = () => {
   try {
     localStorage.setItem('filtlab-v1', JSON.stringify({ favs: store.favs, dis: [], seen: [] }));
-    const sp = k => ({ X: SPACE[k].gp.X.map(x => x.map(r4)), C: SPACE[k].gp.C, sigma: SPACE[k].sigma });
-    localStorage.setItem('filtlab-v3', JSON.stringify({ macro: sp('macro'), fine: sp('fine'), uBest: S.uBest, zBest: S.zBest, locks: S.locks, stage: S.stage, round: S.round, log: log.slice(-400) }));
+    localStorage.setItem('filtlab-v3', JSON.stringify(snapshot()));
   } catch (e) { toast('端末の保存領域がいっぱいです'); }
 };
 
-// 候補づくり
-function aroundX(base, s) {
-  return base.map((v, i) => (S.stage === 'macro' && S.locks[i]) ? v : r4(clamp(v + gauss() * s, 0, 1)));
+/* =====================================================================
+   2×2 の表示
+   ===================================================================== */
+let dirty = true, tileSet = null, geo = null;
+const tilesBox = $('#tiles');
+function layout() {
+  if (!imgW) return;
+  const W = $('#gridBox').clientWidth, maxH = Math.min(window.innerHeight * .62, 680), gap = 8, a = imgW / imgH;
+  let tw = (W - gap) / 2, th = tw / a;
+  if (th * 2 + gap > maxH) { th = (maxH - gap) / 2; tw = th * a; }
+  const cw = tw * 2 + gap, ch = th * 2 + gap, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+  canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+  const ptw = Math.round(tw * dpr), pth = Math.round(th * dpr);
+  if (!tileSet || tileSet.w !== ptw || tileSet.h !== pth) { freeSet(tileSet); tileSet = makeSet(ptw, pth); }
+  geo = { tw, th, gap, sx: canvas.width / cw, sy: canvas.height / ch };
+  $('#gridIn').style.width = cw + 'px'; $('#gridIn').style.height = ch + 'px';
+  $$('.tile').forEach((el, i) => {
+    const col = i % 2, row = i >> 1;
+    Object.assign(el.style, { left: col * (tw + gap) + 'px', top: row * (th + gap) + 'px', width: tw + 'px', height: th + 'px' });
+  });
+  dirty = true; drawAnalysis();
 }
-function mixX(a, b) { return a.map((v, i) => (S.stage === 'macro' && S.locks[i]) ? v : r4(clamp(v + (b[i] - v) * Math.random() + gauss() * .03, 0, 1))); }
-function favX(f) { return S.stage === 'macro' ? (f.u || null) : f.z; }
+window.addEventListener('resize', layout);
+function drawGrid() {
+  if (!imgTex || !geo || tiles.length < 4) return;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+  tiles.forEach((t, i) => {
+    const col = i % 2, row = i >> 1;
+    const x = Math.round(col * (geo.tw + geo.gap) * geo.sx);
+    const yTop = Math.round(row * (geo.th + geo.gap) * geo.sy);
+    render(t.z, tileSet, null, false, t.seed, x, canvas.height - yTop - tileSet.h, t.leak);
+  });
+  drawDNA(bestZ());
+}
+const dna = $('#dna'), dctx = dna.getContext('2d');
+function drawDNA(z) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = dna.clientWidth, h = dna.clientHeight;
+  if (!w) return;
+  if (dna.width !== Math.round(w * dpr)) { dna.width = Math.round(w * dpr); dna.height = Math.round(h * dpr); }
+  dctx.setTransform(dpr, 0, 0, dpr, 0, 0); dctx.clearRect(0, 0, w, h);
+  const leak = S.stage === 'leak', n = leak ? LD : D, bw = w / n, mid = h / 2;
+  dctx.fillStyle = 'rgba(120,80,50,.15)'; dctx.fillRect(0, mid - .5, w, 1);
+  for (let i = 0; i < n; i++) {
+    const v = leak ? S.lBest[i] - LEAK0[i] : z[i] - GENES[i].n, bh = Math.max(1.5, Math.abs(v) * (h - 2));
+    dctx.fillStyle = leak ? (LEAKS[i].extra ? '#c9a48a' : '#ec7f45') : GROUP_COLOR[GENES[i].g];
+    dctx.globalAlpha = .35 + .65 * Math.min(1, Math.abs(v) * 2.2);
+    const x = i * bw + 1.5;
+    if (v >= 0) dctx.fillRect(x, mid - bh, bw - 3, bh); else dctx.fillRect(x, mid, bw - 3, bh);
+  }
+  dctx.globalAlpha = 1;
+}
 
-// 次の4枚：ベスト＋「好き度＋0.5×自信のなさ」が高い3枚
+/* =====================================================================
+   探索の進め方
+   ===================================================================== */
+function aroundX(base, s) {
+  const lk = curLocks(), leak = S.stage === 'leak';
+  return base.map((v, i) => {
+    if (lk && lk[i]) return v;
+    const n = v + gauss() * s;
+    return r4(leak && i === 0 ? wrap(n) : clamp(n, 0, 1));
+  });
+}
+function mixX(a, b) {
+  const lk = curLocks(), leak = S.stage === 'leak';
+  return a.map((v, i) => {
+    if (lk && lk[i]) return v;
+    let d = b[i] - v; if (leak && i === 0) d = ((d + 1.5) % 1) - .5;
+    const n = v + d * Math.random() + gauss() * .03;
+    return r4(leak && i === 0 ? wrap(n) : clamp(n, 0, 1));
+  });
+}
+function favX(f) { return S.stage === 'macro' ? (f.u || null) : S.stage === 'fine' ? f.z : (f.leak || null); }
+
+// 次の4枚：ベスト＋「好き度＋0.5×自信のなさ」が高い3枚（並びはランダム）
 function makeRound() {
-  const sp = SPACE[S.stage], gp = sp.gp, inc = bestX(), sg = sp.sigma;
-  const freeDims = S.stage === 'macro' ? S.locks.filter(l => !l).length : D;
+  const sp = SPACE[S.stage], gp = sp.gp, inc = bestX(), sg = sp.sigma, dist = curDist();
+  const lk = curLocks(), freeDims = lk ? lk.filter(l => !l).length : D;
   const rootD = Math.sqrt(Math.max(1, freeDims));
   const pool = [];
   for (let i = 0; i < 380; i++) pool.push(aroundX(inc, sg));
@@ -802,120 +978,244 @@ function makeRound() {
   while (picks.length < 3) picks.push(aroundX(inc, sg));
   const set = [{ x: inc.slice(), inc: true }, ...picks.map(x => ({ x, inc: false }))];
   for (let i = set.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [set[i], set[j]] = [set[j], set[i]]; }
-  tiles = set.map(t => ({ ...t, z: toZ(t.x), seed: Math.random() * 100 }));
+  tiles = set.map(t => ({ ...t, z: toZ(t.x), leak: S.stage === 'leak' ? t.x : null, seed: Math.random() * 100 }));
   updateTiles(); dirty = true; updateStats();
 }
-// order：好きな順に並べたタイル番号（1位だけでも可）
+// order：選んだタイル番号（先頭が1位）
 function choose(order) {
   if (typeof order === 'number') order = [order];
   const sp = SPACE[S.stage], gp = sp.gp, win = tiles[order[0]];
-  undoStack.push({ stage: S.stage, xLen: gp.X.length, cLen: gp.C.length, uBest: S.uBest.slice(), zBest: S.zBest.slice(), sigma: sp.sigma, round: S.round, logLen: log.length,
-    tiles: tiles.map(t => ({ ...t, x: t.x.slice(), z: t.z.slice() })) });
+  undoStack.push({ stage: S.stage, xLen: gp.X.length, cLen: gp.C.length, uBest: S.uBest.slice(), zBest: S.zBest.slice(), lBest: S.lBest.slice(),
+    sigma: sp.sigma, round: S.round, logLen: log.length, tiles: tiles.map(t => ({ ...t, x: t.x.slice(), z: t.z.slice() })) });
   if (undoStack.length > 30) undoStack.shift();
   const idxs = tiles.map(t => gp.add(t.x));
-  // 上の順位 ＞ 下の順位、順位をつけた1枚 ＞ つけていない1枚、をすべて比較として足す
   const rest = [0, 1, 2, 3].filter(k => !order.includes(k));
-  order.forEach((a, ai) => {
-    [...order.slice(ai + 1), ...rest].forEach(b => { if (idxs[a] !== idxs[b]) gp.C.push([idxs[a], idxs[b]]); });
-  });
+  order.forEach((a, ai) => { [...order.slice(ai + 1), ...rest].forEach(b => { if (idxs[a] !== idxs[b]) gp.C.push([idxs[a], idxs[b]]); }); });
   log.push({ r: S.round + 1, st: S.stage, t: tiles.map((t, k) => ({ x: t.x.map(r4), c: order.indexOf(k) + 1, b: t.inc ? 1 : 0 })) });
   sp.sigma = clamp(win.inc ? sp.sigma * .8 : sp.sigma * 1.15, sp.smin, sp.smax);
-  if (S.stage === 'macro') { S.uBest = win.x.slice(); S.zBest = knobsToGenes(S.uBest); } else S.zBest = win.x.slice();
+  if (S.stage === 'macro') { S.uBest = win.x.slice(); S.zBest = knobsToGenes(S.uBest); }
+  else if (S.stage === 'fine') S.zBest = win.x.slice();
+  else S.lBest = win.x.slice();
   S.round++;
   if (gp.trim(MAX_PTS, bestX())) undoStack = [];
   gp.fit();
-  makeRound(); computeCurves(); persist();
+  makeRound(); computeAnalysis(); persist();
 }
 function undo() {
   const u = undoStack.pop(); if (!u) return;
   const sp = SPACE[u.stage]; sp.gp.X.length = u.xLen; sp.gp.C.length = u.cLen; sp.sigma = u.sigma;
-  S.stage = u.stage; S.uBest = u.uBest; S.zBest = u.zBest; S.round = u.round; log.length = u.logLen;
+  S.stage = u.stage; S.uBest = u.uBest; S.zBest = u.zBest; S.lBest = u.lBest; S.round = u.round; log.length = u.logLen;
   sp.gp.fit();
-  tiles = u.tiles; updateTiles(); dirty = true; updateStats(); updateStageUI(); computeCurves(); persist();
+  tiles = u.tiles; updateTiles(); dirty = true; updateStats(); updateStageUI(); computeAnalysis(); persist();
 }
 
 /* =====================================================================
-   好みの分析：つまみごとの「好き度」カーブ（ほかのつまみは今のベストに固定）
+   分析：つまみごとの好き度カーブ（ほかは今のベストに固定）
    ===================================================================== */
+function knobSet() {
+  return S.stage === 'leak'
+    ? { defs: LEAKS, best: S.lBest, locks: S.lLocks, gp: SPACE.leak.gp, neutral: LEAK0, leak: true }
+    : { defs: KNOBS, best: S.uBest, locks: S.locks, gp: SPACE.macro.gp, neutral: U0, leak: false };
+}
+function fmtVal(ks, j, v) {
+  const d = ks.defs[j];
+  if (ks.leak && d.cyc) return borderAt(v, imgW / imgH || 1).edge;
+  if (ks.leak && d.k === 'angle') return Math.round((v - .5) * 90) + '°';
+  const x = d.two ? (v - .5) * 2 : v;
+  return (x > .005 && d.two ? '+' : '') + x.toFixed(2);
+}
 let curves = null;
 const NPT = 25;
 function computeCurves() {
-  const gp = SPACE.macro.gp;
-  curves = KNOBS.map((_, j) => {
+  const ks = knobSet();
+  curves = ks.defs.map((_, j) => {
     const mu = [], sd = [];
-    for (let k = 0; k < NPT; k++) {
-      const u = S.uBest.slice(); u[j] = k / (NPT - 1);
-      const [m, s] = gp.predict(u); mu.push(m); sd.push(s);
-    }
+    for (let k = 0; k < NPT; k++) { const u = ks.best.slice(); u[j] = k / (NPT - 1); const [m, s] = ks.gp.predict(u); mu.push(m); sd.push(s); }
     return { mu, sd, amp: Math.max(...mu) - Math.min(...mu) };
   });
-  drawCurves(); updateRank();
 }
+let rowsFor = null;
 function buildRows() {
-  const box = $('#krows'); box.innerHTML = '';
-  KNOBS.forEach((K, j) => {
-    const row = document.createElement('div'); row.className = 'krow' + (S.locks[j] ? ' locked' : '');
+  const ks = knobSet(), box = $('#krows'); box.innerHTML = ''; rowsFor = ks.leak ? 'leak' : 'macro';
+  ks.defs.forEach((K, j) => {
+    const row = document.createElement('div'); row.className = 'krow' + (ks.locks[j] ? ' locked' : '');
     row.innerHTML = `<button class="kname"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>${K.label}</button><canvas class="kcv"></canvas><span class="kval"></span>`;
     row.querySelector('.kname').addEventListener('click', () => {
-      S.locks[j] = !S.locks[j]; row.classList.toggle('locked', S.locks[j]); persist();
-      toast(S.locks[j] ? `${K.label}を固定しました` : `${K.label}の固定を外しました`);
-      if (S.stage === 'macro') makeRound();
+      const k2 = knobSet(); k2.locks[j] = !k2.locks[j]; row.classList.toggle('locked', k2.locks[j]); persist();
+      toast(k2.locks[j] ? `${K.label}を固定しました` : `${K.label}の固定を外しました（探索で動かします）`);
+      if (S.stage !== 'fine') makeRound();
+      drawCurves();
     });
     const cv = row.querySelector('.kcv');
     let dragging = false;
-    const setFrom = e => { const r = cv.getBoundingClientRect(); S.uBest[j] = r4(clamp((e.clientX - r.left) / r.width, 0, 1)); liveBest(); };
-    cv.addEventListener('pointerdown', e => { if (S.stage !== 'macro') { toast('つまみは「ざっくり」で動かせます'); return; } dragging = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} setFrom(e); });
+    const setFrom = e => { const r = cv.getBoundingClientRect(); knobSet().best[j] = r4(clamp((e.clientX - r.left) / r.width, 0, 1)); liveBest(); };
+    cv.addEventListener('pointerdown', e => { if (S.stage === 'fine') { toast('細かく中はつまみを動かせません'); return; } dragging = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} setFrom(e); });
     cv.addEventListener('pointermove', e => { if (dragging) setFrom(e); });
-    const end = () => { if (!dragging) return; dragging = false; S.zBest = knobsToGenes(S.uBest); undoStack = []; makeRound(); computeCurves(); persist(); };
+    const end = () => { if (!dragging) return; dragging = false; commitManual(); };
     cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
     box.appendChild(row);
   });
 }
-// つまみを直接いじっている間：「いまのベスト」の1枚をその場で更新
+// 手で値を変えている間：ベストの1枚をその場で更新
 function liveBest() {
+  if (S.stage === 'macro') S.zBest = knobsToGenes(S.uBest);
   const t = tiles.find(t => t.inc);
-  if (t) { t.x = S.uBest.slice(); t.z = knobsToGenes(S.uBest); }
-  dirty = true; drawCurves();
+  if (t) { t.x = bestX().slice(); t.z = toZ(t.x); t.leak = S.stage === 'leak' ? t.x : null; }
+  dirty = true; drawAnalysis();
 }
+function commitManual() { undoStack = []; makeRound(); computeAnalysis(); persist(); }
+
 function drawCurves() {
   if (!curves) return;
-  const rows = $$('.krow');
+  const ks = knobSet(), rows = $$('.krow');
   let lo = Infinity, hi = -Infinity;
   curves.forEach(c => c.mu.forEach((m, k) => { lo = Math.min(lo, m - c.sd[k] * .5); hi = Math.max(hi, m + c.sd[k] * .5); }));
   if (hi - lo < .5) { const mid = (hi + lo) / 2; lo = mid - .25; hi = mid + .25; }
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   rows.forEach((row, j) => {
+    const c = curves[j]; if (!c) return;
     const cv = row.querySelector('.kcv'), w = cv.clientWidth, h = cv.clientHeight; if (!w) return;
     if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
     const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
-    const c = curves[j], X = k => 4 + k / (NPT - 1) * (w - 8), Y = v => h - 4 - (v - lo) / (hi - lo) * (h - 8);
-    // 中立の位置
-    const nx = 4 + U0[j] * (w - 8);
+    const X = k => 4 + k / (NPT - 1) * (w - 8), Y = v => h - 4 - (v - lo) / (hi - lo) * (h - 8);
+    const nx = 4 + ks.neutral[j] * (w - 8);
     x.strokeStyle = 'rgba(120,80,50,.18)'; x.lineWidth = 1; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(nx, 2); x.lineTo(nx, h - 2); x.stroke(); x.setLineDash([]);
-    // 自信のなさの帯
     x.fillStyle = 'rgba(238,138,74,.14)'; x.beginPath();
     c.mu.forEach((m, k) => { const px = X(k), py = Y(m + c.sd[k] * .5); k ? x.lineTo(px, py) : x.moveTo(px, py); });
     for (let k = NPT - 1; k >= 0; k--) x.lineTo(X(k), Y(c.mu[k] - c.sd[k] * .5));
     x.closePath(); x.fill();
-    // 好き度の線
-    x.strokeStyle = S.locks[j] ? '#b39883' : '#ec7f45'; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
+    x.strokeStyle = ks.locks[j] ? '#b39883' : '#ec7f45'; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
     c.mu.forEach((m, k) => { const px = X(k), py = Y(m); k ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke();
-    // 今のベスト
-    const u = S.uBest[j], kk = u * (NPT - 1), k0 = Math.floor(kk), k1 = Math.min(NPT - 1, k0 + 1), fr = kk - k0;
+    const u = ks.best[j], kk = u * (NPT - 1), k0 = Math.floor(kk), k1 = Math.min(NPT - 1, k0 + 1), fr = kk - k0;
     const my = c.mu[k0] * (1 - fr) + c.mu[k1] * fr;
     x.fillStyle = '#fff'; x.strokeStyle = '#d8692e'; x.lineWidth = 2.5;
     x.beginPath(); x.arc(4 + u * (w - 8), Y(my), 6, 0, 7); x.fill(); x.stroke();
-    row.querySelector('.kval').textContent = fmtKnob(j, u);
+    row.querySelector('.kval').textContent = fmtVal(ks, j, u);
   });
 }
 function updateRank() {
-  const gp = SPACE.macro.gp;
-  if (!gp.f || !curves) { $('#rank').innerHTML = '何回か選ぶと、AIが学んだ好みの形がここに出ます'; return; }
-  const order = curves.map((c, j) => [c.amp, j]).sort((a, b) => b[0] - a[0]).slice(0, 3).filter(o => o[0] > .05);
-  const tip = (j) => { const c = curves[j], k = c.mu.indexOf(Math.max(...c.mu)); const v = k / (NPT - 1); const x = KNOBS[j].two ? (v - .5) * 2 : v;
-    return x > .15 ? '強め' : x < -.15 ? (KNOBS[j].two ? '逆向き' : '弱め') : (KNOBS[j].two ? '中くらい' : '弱め'); };
-  $('#rank').innerHTML = order.length ? 'AIが重視：' + order.map(([a, j]) => `<b>${KNOBS[j].label}</b>（${tip(j)}が好き）`).join('、') : 'まだはっきりした好みは見えていません';
+  const ks = knobSet();
+  if (!ks.gp.f || !curves) { $('#rank').innerHTML = '何回か選ぶと、AIが学んだ好みの形がここに出ます'; return; }
+  const order = curves.map((c, j) => [c.amp, j]).filter(o => !ks.locks[o[1]]).sort((a, b) => b[0] - a[0]).slice(0, 3).filter(o => o[0] > .05);
+  const tip = j => {
+    const c = curves[j], k = c.mu.indexOf(Math.max(...c.mu)), v = k / (NPT - 1), d = ks.defs[j];
+    if (ks.leak && d.cyc) return borderAt(v, imgW / imgH || 1).edge + 'から';
+    const x = d.two ? (v - .5) * 2 : v;
+    return x > .15 ? (d.two ? 'プラス寄り' : '強め') : x < -.15 ? 'マイナス寄り' : (d.two ? '中くらい' : '弱め');
+  };
+  $('#rank').innerHTML = order.length ? 'AIが重視：' + order.map(([a, j]) => `<b>${ks.defs[j].label}</b>（${tip(j)}が好き）`).join('、') : 'まだはっきりした好みは見えていません';
 }
+
+/* =====================================================================
+   光漏れの地図（位置・色・相性）
+   ===================================================================== */
+let maps = null;
+const pairSel = { a: 7, b: 8 };
+const heat = t => { t = clamp(t, 0, 1); return `rgb(${Math.round(255 - 18 * t)},${Math.round(246 - 120 * t)},${Math.round(232 - 180 * t)})`; };
+function computeMaps() {
+  if (S.stage !== 'leak') { maps = null; return; }
+  const gp = SPACE.leak.gp, B = S.lBest;
+  const pos = []; for (let k = 0; k < 64; k++) { const u = B.slice(); u[0] = k / 64; pos.push(gp.mean(u)); }
+  const col = [], NC = 14;
+  for (let y = 0; y < NC; y++) for (let x = 0; x < NC; x++) { const u = B.slice(); u[5] = (x + .5) / NC; u[6] = (y + .5) / NC; col.push(gp.mean(u)); }
+  const pair = [], NP = 18, NQ = 9;
+  for (let y = 0; y < NQ; y++) for (let x = 0; x < NP; x++) { const u = B.slice(); u[pairSel.a] = (x + .5) / NP; u[pairSel.b] = (y + .5) / NQ; pair.push(gp.mean(u)); }
+  maps = { pos, col, pair, NC, NP, NQ };
+}
+const norm = arr => { const lo = Math.min(...arr), hi = Math.max(...arr); return v => hi - lo < 1e-6 ? .5 : (v - lo) / (hi - lo); };
+function prepCanvas(cv) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = cv.clientWidth, h = cv.clientHeight;
+  if (!w) return null;
+  if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  return { x, w, h };
+}
+function frameRect(w, h) {
+  const a = imgW / imgH || 1, m = 18; let fw = w - m * 2, fh = fw / a;
+  if (fh > h - m * 2) { fh = h - m * 2; fw = fh * a; }
+  return { x0: (w - fw) / 2, y0: (h - fh) / 2, fw, fh, a };
+}
+function borderXY(p, R) { const b = borderAt(p, R.a); return [R.x0 + b.B[0] / R.a * R.fw, R.y0 + (1 - b.B[1]) * R.fh]; }
+function drawMaps() {
+  if (!maps) return;
+  // 位置
+  let c = prepCanvas($('#posMap'));
+  if (c) {
+    const { x, w, h } = c, R = frameRect(w, h), n = norm(maps.pos);
+    x.fillStyle = '#fffaf4'; x.fillRect(R.x0, R.y0, R.fw, R.fh);
+    x.lineWidth = 12; x.lineCap = 'butt';
+    for (let k = 0; k < 64; k++) {
+      const p0 = borderXY(k / 64, R), p1 = borderXY((k + 1) / 64 - 1e-4, R);
+      x.strokeStyle = heat(n(maps.pos[k])); x.beginPath(); x.moveTo(...p0); x.lineTo(...p1); x.stroke();
+    }
+    // 今のベストの光漏れの向き
+    const b = borderAt(S.lBest[0], R.a), ang = (S.lBest[1] - .5) * Math.PI / 2, d = rot(b.N, ang);
+    const [px, py] = borderXY(S.lBest[0], R);
+    x.strokeStyle = 'rgba(216,105,46,.7)'; x.lineWidth = 2; x.beginPath(); x.moveTo(px, py);
+    x.lineTo(px + d[0] / R.a * R.fw * .35, py - d[1] * R.fh * .35); x.stroke();
+    x.fillStyle = '#fff'; x.strokeStyle = '#d8692e'; x.lineWidth = 2.5; x.beginPath(); x.arc(px, py, 6, 0, 7); x.fill(); x.stroke();
+  }
+  // 色
+  c = prepCanvas($('#colMap'));
+  if (c) {
+    const { x, w, h } = c, n = norm(maps.col), N = maps.NC, cw = w / N, ch = h / N;
+    for (let yy = 0; yy < N; yy++) for (let xx = 0; xx < N; xx++) {
+      const L = S.lBest.slice(); L[5] = (xx + .5) / N; L[6] = (yy + .5) / N;
+      const { core, outer } = leakColors(L), mixc = lerp3(outer, core, .45), t = n(maps.col[yy * N + xx]);
+      const f = .25 + .75 * t; // 好きじゃないところは白っぽく
+      x.fillStyle = `rgb(${Math.round(255 * (mixc[0] * f + (1 - f)))},${Math.round(255 * (mixc[1] * f + (1 - f)))},${Math.round(255 * (mixc[2] * f + (1 - f)))})`;
+      x.fillRect(xx * cw, h - (yy + 1) * ch, cw + .5, ch + .5);
+    }
+    x.fillStyle = '#fff'; x.strokeStyle = '#4a3426'; x.lineWidth = 2.5;
+    x.beginPath(); x.arc(S.lBest[5] * w, h - S.lBest[6] * h, 6, 0, 7); x.fill(); x.stroke();
+  }
+  // 相性
+  c = prepCanvas($('#pairMap'));
+  if (c) {
+    const { x, w, h } = c, n = norm(maps.pair), cw = w / maps.NP, ch = h / maps.NQ;
+    for (let yy = 0; yy < maps.NQ; yy++) for (let xx = 0; xx < maps.NP; xx++) { x.fillStyle = heat(n(maps.pair[yy * maps.NP + xx])); x.fillRect(xx * cw, h - (yy + 1) * ch, cw + .5, ch + .5); }
+    x.fillStyle = 'rgba(74,52,38,.6)'; x.font = '10px sans-serif';
+    x.fillText(LEAKS[pairSel.a].label + ' →', w - 70, h - 5); x.save(); x.translate(10, h - 6); x.rotate(-Math.PI / 2); x.fillText(LEAKS[pairSel.b].label + ' →', 0, 0); x.restore();
+    x.fillStyle = '#fff'; x.strokeStyle = '#d8692e'; x.lineWidth = 2.5;
+    x.beginPath(); x.arc(S.lBest[pairSel.a] * w, h - S.lBest[pairSel.b] * h, 6, 0, 7); x.fill(); x.stroke();
+  }
+}
+// 地図をタップ／なぞって直接変える
+function bindMap(id, apply) {
+  const cv = $(id); let on = false;
+  const go = e => { const r = cv.getBoundingClientRect(); apply((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height, r); liveBest(); };
+  cv.addEventListener('pointerdown', e => { on = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} go(e); });
+  cv.addEventListener('pointermove', e => { if (on) go(e); });
+  const end = () => { if (!on) return; on = false; commitManual(); };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+}
+bindMap('#posMap', (fx, fy, r) => {
+  // 外周のいちばん近い点を探す
+  const R = frameRect(r.width, r.height), px = fx * r.width, py = fy * r.height;
+  let best = 0, bd = Infinity;
+  for (let k = 0; k < 200; k++) { const [x, y] = borderXY(k / 200, R), d = (x - px) ** 2 + (y - py) ** 2; if (d < bd) { bd = d; best = k / 200; } }
+  S.lBest[0] = r4(best);
+});
+bindMap('#colMap', (fx, fy) => { S.lBest[5] = r4(clamp(fx, 0, 1)); S.lBest[6] = r4(clamp(1 - fy, 0, 1)); });
+bindMap('#pairMap', (fx, fy) => { S.lBest[pairSel.a] = r4(clamp(fx, 0, 1)); S.lBest[pairSel.b] = r4(clamp(1 - fy, 0, 1)); });
+function buildPairSelects() {
+  ['#pairA', '#pairB'].forEach((id, k) => {
+    const el = $(id); el.innerHTML = LEAKS.map((l, j) => j === 0 ? '' : `<option value="${j}">${l.label}</option>`).join('');
+    el.value = k ? pairSel.b : pairSel.a;
+    el.addEventListener('change', () => {
+      const v = +el.value; if (k) pairSel.b = v; else pairSel.a = v;
+      if (pairSel.a === pairSel.b) { toast('違う2つを選んでください'); return; }
+      computeMaps(); drawMaps();
+    });
+  });
+}
+
+function computeAnalysis() {
+  const want = S.stage === 'leak' ? 'leak' : 'macro';
+  if (rowsFor !== want) buildRows();
+  computeCurves(); computeMaps(); drawAnalysis(); updateRank();
+}
+function drawAnalysis() { drawCurves(); drawMaps(); }
 
 /* =====================================================================
    UI
@@ -933,48 +1233,46 @@ function buildTiles() {
     tilesBox.appendChild(b);
   }
 }
-let busy = false, ranking = [];
-function updateTiles() { ranking = []; renderRanks(); }
-function renderRanks() {
-  $$('.tile').forEach((el, i) => {
-    const r = ranking.indexOf(i);
-    el.classList.toggle('ranked', r >= 0); el.classList.toggle('last', r === 3);
-    el.querySelector('.rk').textContent = r >= 0 ? '✓' : '';
-  });
-}
-// タップした1枚を1位として次へ
+let busy = false;
+function updateTiles() { $$('.tile').forEach(el => { el.classList.remove('ranked'); el.querySelector('.rk').textContent = ''; }); }
 function pick(i) {
   if (busy || !tiles[i]) return;
-  ranking = [i]; renderRanks();
-  commit([i], 140);
-}
-function commit(order, wait = 160) {
   busy = true;
+  const el = $$('.tile')[i]; el.classList.add('ranked'); el.querySelector('.rk').textContent = '✓';
   setTimeout(() => {
     $('#gridIn').classList.add('fade');
-    setTimeout(() => {
-      choose(order);
-      requestAnimationFrame(() => { $('#gridIn').classList.remove('fade'); busy = false; });
-    }, 160);
-  }, wait);
+    setTimeout(() => { choose([i]); requestAnimationFrame(() => { $('#gridIn').classList.remove('fade'); busy = false; }); }, 160);
+  }, 140);
 }
 function updateStats() {
   const sp = SPACE[S.stage];
   $('#roundNo').textContent = (S.round + 1) + '回目';
-  $('#stats').innerHTML = `比較 <b>${SPACE.macro.gp.C.length + SPACE.fine.gp.C.length}</b> 件（ざっくり ${SPACE.macro.gp.C.length}／細かく ${SPACE.fine.gp.C.length}）<br>探す範囲（ベストのまわり、どこまで離れた候補を出すか）`;
+  $('#stats').innerHTML = `比較 <b>${SPACE.macro.gp.C.length + SPACE.fine.gp.C.length + SPACE.leak.gp.C.length}</b> 件（ざっくり ${SPACE.macro.gp.C.length}／細かく ${SPACE.fine.gp.C.length}／光漏れ ${SPACE.leak.gp.C.length}）<br>探す範囲（ベストのまわり、どこまで離れた候補を出すか）`;
   $('#rangeBar').style.width = Math.round((sp.sigma - sp.smin) / (sp.smax - sp.smin) * 100) + '%';
   $('#undo').disabled = !undoStack.length;
 }
 function updateStageUI() {
   $$('#stageSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === S.stage));
-  $('#anaCard').style.opacity = S.stage === 'macro' ? 1 : .55;
-  $('#anaSub').textContent = S.stage === 'macro' ? 'AIが学んだ好き度' : '「ざっくり」の結果（細かく中は参考）';
+  $('#baseRow').hidden = S.stage !== 'leak';
+  $('#mapCard').hidden = S.stage !== 'leak';
+  $$('#baseSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === S.base));
+  $('#anaCard').style.opacity = S.stage === 'fine' ? .55 : 1;
+  $('#anaSub').textContent = S.stage === 'fine' ? '「ざっくり」の結果（細かく中は参考）' : S.stage === 'leak' ? '光漏れの好き度' : 'AIが学んだ好き度';
 }
 $('#stageSeg').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.dataset.v === S.stage) return;
-  if (b.dataset.v === 'fine') { S.zBest = knobsToGenes(S.uBest); S.stage = 'fine'; SPACE.fine.sigma = .07; toast('今のベストから、31個の遺伝子で細かく詰めます'); }
-  else { S.stage = 'macro'; toast('つまみ10個に戻りました（細かい調整は★登録で残せます）'); }
-  undoStack = []; updateStageUI(); makeRound(); persist();
+  const to = b.dataset.v;
+  if (to === 'fine') { if (S.stage === 'macro') S.zBest = knobsToGenes(S.uBest); SPACE.fine.sigma = .07; toast('今の色補正から、31個の遺伝子で細かく詰めます'); }
+  else if (to === 'macro') toast('つまみ10個に戻りました（細かい調整は★登録で残せます）');
+  else toast('光漏れだけを探します（鍵マーク＝固定中）');
+  S.stage = to; undoStack = [];
+  updateStageUI(); makeRound(); computeAnalysis(); persist();
+});
+$('#baseSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.base = b.dataset.v; updateStageUI();
+  tiles.forEach(t => { t.z = baseZ(); }); dirty = true; persist();
+  toast(S.base === 'grade' ? '今の色補正の上に光漏れを重ねます' : '元の画像に光漏れを重ねます');
 });
 $('#undo').addEventListener('click', undo);
 $('#wide').addEventListener('click', () => { const sp = SPACE[S.stage]; sp.sigma = sp.smax; makeRound(); persist(); toast('広く探します'); });
@@ -985,10 +1283,10 @@ const bigBox = $('#bigImg');
 function openBig(i) {
   bigIdx = i;
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const maxW = Math.min(window.innerWidth - 28, 900), maxH = window.innerHeight - 130, a = imgW / imgH;
+  const maxW = Math.min(window.innerWidth - 28, 900), maxH = window.innerHeight - 150, a = imgW / imgH;
   let w = maxW, h = w / a; if (h > maxH) { h = maxH; w = h * a; }
   let pw = Math.round(w * dpr), ph = Math.round(h * dpr); const m = Math.max(pw, ph); if (m > 1600) { pw = Math.round(pw * 1600 / m); ph = Math.round(ph * 1600 / m); }
-  const fc = renderToCanvas(tiles[i].z, pw, ph, tiles[i].seed), oc = renderToCanvas(tiles[i].z, pw, ph, 0, true);
+  const fc = renderToCanvas(tiles[i].z, pw, ph, tiles[i].seed, false, tiles[i].leak), oc = renderToCanvas(tiles[i].z, pw, ph, 0, true);
   [fc, oc].forEach(c => { c.style.width = w + 'px'; c.style.height = h + 'px'; });
   oc.style.display = 'none';
   bigBox.innerHTML = ''; bigBox.append(fc, oc);
@@ -1001,31 +1299,32 @@ const showOrig = on => { const cs = bigBox.querySelectorAll('canvas'); if (cs.le
 bigBox.addEventListener('pointerdown', () => showOrig(true));
 ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => bigBox.addEventListener(ev, () => showOrig(false)));
 bigBox.addEventListener('contextmenu', e => e.preventDefault());
-$('#bigLike').addEventListener('click', () => { if (bigIdx >= 0) addFav(tiles[bigIdx].z, S.stage === 'macro' ? tiles[bigIdx].x : null); });
+$('#bigLike').addEventListener('click', () => { if (bigIdx >= 0) addFavFromTile(tiles[bigIdx]); });
 
 // 登録
-function thumbOf(z) {
+function thumbOf(z, leak) {
   const s = 132 / Math.max(imgW, imgH), w = Math.max(8, Math.round(imgW * s)), h = Math.max(8, Math.round(imgH * s));
-  const c = renderToCanvas(z, w, h, 1); dirty = true;
+  const c = renderToCanvas(z, w, h, 1, false, leak); dirty = true;
   return c.toDataURL('image/jpeg', .8);
 }
-function addFav(zIn, u) {
+function addFav(zIn, u, leak) {
   if (!imgTex) return;
-  const z = zIn.map(r4);
-  if (store.favs.some(f => dist(f.z, z) < 1e-3)) { toast('もう登録されています'); return; }
-  const f = { id: nextId++, z, u: u ? u.slice() : null, thumb: thumbOf(z), t: Date.now() };
+  const z = zIn.map(r4), lk = leak ? leak.map(r4) : null;
+  if (store.favs.some(f => distPlain(f.z, z) < 1e-3 && (!!f.leak === !!lk) && (!lk || distPlain(f.leak, lk) < 1e-3))) { toast('もう登録されています'); return; }
+  const f = { id: nextId++, z, u: u ? u.slice() : null, leak: lk, thumb: thumbOf(z, lk), t: Date.now() };
   store.favs.push(f); persist(); renderFavs(); toast(`★${f.id} を登録しました`);
 }
-$('#like').addEventListener('click', () => addFav(bestZ(), S.stage === 'macro' ? S.uBest : null));
+function addFavFromTile(t) { addFav(t.z, S.stage === 'macro' ? t.x : null, t.leak); }
+$('#like').addEventListener('click', () => addFav(bestZ(), S.stage === 'macro' ? S.uBest : null, bestLeak()));
 let delArmed = null;
 function renderFavs() {
   const box = $('#favs'); box.innerHTML = '';
   $('#favCount').textContent = store.favs.length + '件';
-  if (!store.favs.length) { box.innerHTML = '<div class="empty">気に入ったら「☆ ベストを登録」。消すまで残ります。タップするとそこから探し直せます</div>'; return; }
+  if (!store.favs.length) { box.innerHTML = '<div class="empty">気に入ったら「☆ 登録」（直前に選んだ1枚）か、長押しして「☆ 登録」。消すまで残ります。タップするとそこから探し直せます</div>'; return; }
   for (const f of store.favs.slice().reverse()) {
     const b = document.createElement('button'); b.className = 'fav';
     b.style.backgroundImage = `url(${f.thumb})`;
-    b.innerHTML = `<span>★${f.id}</span><i class="del${delArmed === f.id ? ' sure' : ''}">${delArmed === f.id ? '消す' : '✕'}</i>`;
+    b.innerHTML = `<span>★${f.id}${f.leak ? ' 光' : ''}</span><i class="del${delArmed === f.id ? ' sure' : ''}">${delArmed === f.id ? '消す' : '✕'}</i>`;
     b.addEventListener('click', e => {
       if (e.target.classList.contains('del')) {
         if (delArmed === f.id) { store.favs = store.favs.filter(x => x.id !== f.id); delArmed = null; persist(); renderFavs(); toast(`★${f.id} を消しました`); }
@@ -1033,12 +1332,22 @@ function renderFavs() {
         return;
       }
       delArmed = null;
-      if (f.u && f.u.length === KD) { S.uBest = f.u.slice(); }
-      S.zBest = f.z.slice();
-      if (!f.u && S.stage === 'macro') { S.stage = 'fine'; updateStageUI(); toast(`★${f.id} は細かく調整したものなので「細かく」で探します`); }
-      else toast(`★${f.id} から探します`);
-      SPACE[S.stage].sigma = S.stage === 'macro' ? .15 : .08; undoStack = [];
-      makeRound(); computeCurves(); persist(); renderFavs();
+      if (f.leak) {
+        // 光漏れの★：光漏れモードでそこから探す（ベースも★の色補正にする）
+        S.lBest = f.leak.slice(); S.zBest = f.z.slice(); S.base = distPlain(f.z, NEUTRAL) < 1e-3 ? 'orig' : 'grade'; S.stage = 'leak';
+        toast(`★${f.id} の光漏れから探します`);
+      } else if (S.stage === 'leak') {
+        // 色補正の★を光漏れのベースにする
+        S.zBest = f.z.slice(); if (f.u) S.uBest = f.u.slice(); S.base = 'grade';
+        toast(`★${f.id} の色補正をベースにしました`);
+      } else {
+        if (f.u && f.u.length === KD) S.uBest = f.u.slice();
+        S.zBest = f.z.slice();
+        if (!f.u && S.stage === 'macro') { S.stage = 'fine'; toast(`★${f.id} は細かく調整したものなので「細かく」で探します`); }
+        else toast(`★${f.id} から探します`);
+      }
+      SPACE[S.stage].sigma = S.stage === 'fine' ? .06 : .15; undoStack = [];
+      updateStageUI(); makeRound(); computeAnalysis(); persist(); renderFavs();
     });
     box.appendChild(b);
   }
@@ -1049,25 +1358,29 @@ let resetArmed = false;
 $('#resetBtn').addEventListener('click', () => {
   if (!resetArmed) { resetArmed = true; $('#resetBtn').textContent = 'もう一度で消去'; setTimeout(() => { resetArmed = false; $('#resetBtn').textContent = '最初から'; }, 2500); return; }
   resetArmed = false; $('#resetBtn').textContent = '最初から';
-  for (const k of ['macro', 'fine']) { SPACE[k].gp.X = []; SPACE[k].gp.C = []; SPACE[k].gp.fit(); }
-  SPACE.macro.sigma = .25; SPACE.fine.sigma = .07;
-  S.stage = 'macro'; S.uBest = U0.slice(); S.zBest = knobsToGenes(U0); S.round = 0; S.locks = KNOBS.map(() => false); log = []; undoStack = [];
-  buildRows(); updateStageUI(); makeRound(); computeCurves(); persist(); toast('学習をリセットしました（登録は残ります）');
+  const k = S.stage;
+  SPACE[k].gp.X = []; SPACE[k].gp.C = []; SPACE[k].gp.fit();
+  if (k === 'macro') { SPACE.macro.sigma = .25; S.uBest = U0.slice(); S.zBest = knobsToGenes(U0); S.locks = KNOBS.map(() => false); }
+  else if (k === 'fine') { SPACE.fine.sigma = .07; }
+  else { SPACE.leak.sigma = .25; S.lBest = LEAK0.slice(); S.lLocks = LEAKS.map(l => !!l.extra); }
+  log = log.filter(e => e.st !== k); undoStack = [];
+  rowsFor = null; makeRound(); computeAnalysis(); persist();
+  toast(`「${{ macro: 'ざっくり', fine: '細かく', leak: '光漏れ' }[k]}」の学習をリセットしました（登録は残ります）`);
 });
 const download = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
 $('#expBtn').addEventListener('click', () => {
-  const sp = k => ({ X: SPACE[k].gp.X, C: SPACE[k].gp.C, sigma: SPACE[k].sigma });
-  const data = { app: 'filtlab', v: 3, knobs: KNOBS.map(k => k.k), genes: GENES.map(g => g.k), favs: store.favs, macro: sp('macro'), fine: sp('fine'),
-    uBest: S.uBest, zBest: S.zBest, locks: S.locks, stage: S.stage, round: S.round, log };
+  const data = { app: 'filtlab', v: 4, knobs: KNOBS.map(k => k.k), leaks: LEAKS.map(l => l.k), genes: GENES.map(g => g.k), favs: store.favs, ...snapshot() };
   download(new Blob([JSON.stringify(data)], { type: 'application/json' }), 'filter-data.json');
 });
 $('#csvBtn').addEventListener('click', () => {
-  // 1行＝表示された1枚。選ばれたか(chosen)、ベストだったか(was_best)と、つまみ（ざっくり）または遺伝子（細かく）の値
-  const head = ['round', 'stage', 'tile', 'chosen', 'was_best', ...KNOBS.map(k => k.label), ...GENES.map(g => g.k)];
+  // 1行＝表示された1枚。chosen=1位なら1、was_best=そのときのベストなら1
+  const head = ['round', 'stage', 'tile', 'chosen', 'was_best', ...KNOBS.map(k => k.label), ...LEAKS.map(l => '光漏れ_' + l.label), ...GENES.map(g => g.k)];
   const rows = [head.join(',')];
   for (const e of log) e.t.forEach((t, k) => {
-    const u = e.st === 'macro' ? t.x : KNOBS.map(() => ''), z = e.st === 'macro' ? knobsToGenes(t.x) : t.x;
-    rows.push([e.r, e.st, k + 1, t.c || "", t.b, ...u.map(v => v === '' ? '' : (KNOBS.length && typeof v === 'number' ? v : '')), ...z].join(','));
+    const u = e.st === 'macro' ? t.x : KNOBS.map(() => '');
+    const L = e.st === 'leak' ? t.x : LEAKS.map(() => '');
+    const z = e.st === 'macro' ? knobsToGenes(t.x) : e.st === 'fine' ? t.x : GENES.map(() => '');
+    rows.push([e.r, e.st, k + 1, t.c === 1 ? 1 : 0, t.b, ...u, ...L, ...z].join(','));
   });
   download(new Blob(['﻿' + rows.join('\n')], { type: 'text/csv' }), 'filter-choices.csv');
 });
@@ -1077,12 +1390,9 @@ $('#impFile').addEventListener('change', async e => {
   try {
     const d = JSON.parse(await f.text()); if (!d.favs) throw 0;
     store.favs = d.favs; nextId = store.favs.reduce((m, x) => Math.max(m, x.id), 0) + 1;
-    for (const k of ['macro', 'fine']) if (d[k]) { SPACE[k].gp.X = d[k].X || []; SPACE[k].gp.C = d[k].C || []; SPACE[k].sigma = d[k].sigma || SPACE[k].sigma; SPACE[k].gp.fit(); }
-    if (d.uBest && d.uBest.length === KD) S.uBest = d.uBest;
-    if (d.zBest && d.zBest.length === D) S.zBest = d.zBest;
-    if (d.locks && d.locks.length === KD) S.locks = d.locks;
-    S.stage = d.stage === 'fine' ? 'fine' : 'macro'; S.round = d.round || 0; log = d.log || [];
-    undoStack = []; buildRows(); updateStageUI(); makeRound(); computeCurves(); persist(); renderFavs(); toast('読み込みました');
+    loadState(d);
+    for (const k of ['macro', 'fine', 'leak']) SPACE[k].gp.fit();
+    undoStack = []; rowsFor = null; updateStageUI(); makeRound(); computeAnalysis(); persist(); renderFavs(); toast('読み込みました');
   } catch (err) { toast('読み込めませんでした'); }
 });
 
@@ -1090,7 +1400,7 @@ $('#impFile').addEventListener('change', async e => {
 $('#saveBtn').addEventListener('click', async () => {
   if (!imgTex) return;
   const s = Math.min(1, 3000 / Math.max(imgW, imgH)), w = Math.round(imgW * s), h = Math.round(imgH * s);
-  const c = renderToCanvas(bestZ(), w, h, 3); dirty = true;
+  const c = renderToCanvas(bestZ(), w, h, 3, false, bestLeak()); dirty = true;
   const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
   const name = `filter_${Date.now()}.jpg`, file = new File([blob], name, { type: 'image/jpeg' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
@@ -1103,19 +1413,20 @@ function frame() {
   if (dirty && imgTex && geo) { drawGrid(); dirty = false; }
 }
 (function boot() {
-  buildTiles(); buildRows(); updateStageUI();
+  buildTiles(); buildPairSelects(); updateStageUI();
   const saved = localStorage.getItem('filtlab-img');
   const go = src => {
     setImage(src);
-    SPACE.macro.gp.fit(); SPACE.fine.gp.fit();
-    makeRound(); computeCurves(); renderFavs(); updateStats(); requestAnimationFrame(frame);
+    for (const k of ['macro', 'fine', 'leak']) SPACE[k].gp.fit();
+    makeRound(); computeAnalysis(); renderFavs(); updateStats(); requestAnimationFrame(frame);
   };
   if (saved) { const img = new Image(); img.onload = () => go(img); img.onerror = () => go(sampleImage()); img.src = saved; }
   else { go(sampleImage()); setTimeout(() => toast('右上の「画像」から好きな写真を選べます', 2600), 600); }
 })();
 
 // テスト用
-window.__lab = { SPACE, S, KNOBS, knobsToGenes, get tiles() { return tiles; }, choose, undo, dist, makeRound, computeCurves, get curves() { return curves; }, U0 };
+window.__lab = { SPACE, S, KNOBS, LEAKS, LEAK0, knobsToGenes, get tiles() { return tiles; }, choose, undo, distPlain, distLeak, makeRound,
+  computeAnalysis, get curves() { return curves; }, get maps() { return maps; }, U0, renderToCanvas, NEUTRAL };
 })();
 </script>
 </body>
