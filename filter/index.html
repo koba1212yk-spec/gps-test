@@ -79,6 +79,8 @@ header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP
   -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
 #big.open{display:flex}
 #bigImg{position:relative;max-width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center}
+.bighint{font-size:11.5px;color:var(--ink2);margin-top:-6px}
+#bigImg{touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
 #bigImg canvas{max-width:100%;max-height:100%;border-radius:16px;box-shadow:0 14px 40px rgba(120,70,30,.25)}
 .bbtns{display:flex;gap:8px;width:100%;max-width:460px}
 .bbtns button{flex:1;height:48px;border-radius:24px;background:#fff;font-size:14px;font-weight:800;box-shadow:0 3px 12px rgba(120,70,30,.12);
@@ -117,12 +119,12 @@ input[type=file]{display:none}
   </header>
 
   <div class="stage" id="stageSeg"><button data-v="macro" class="on">ざっくり（つまみ10）</button><button data-v="fine">細かく（遺伝子31）</button></div>
-  <div class="lead"><span id="leadTxt">好きな順にタップ（長押しで拡大）</span><span class="leadR"><button id="topOnly" hidden>1位だけで次へ ›</button><b id="roundNo">1回目</b></span></div>
+  <div class="lead"><span id="leadTxt">いちばん好きな1枚をタップ（長押しで拡大）</span><span class="leadR"><b id="roundNo">1回目</b></span></div>
   <div id="gridBox"><div id="gridIn"><canvas id="c"></canvas><div id="tiles"></div></div></div>
 
   <div class="tools">
     <button class="tool" id="undo">↶ 戻る</button>
-    <button class="tool like" id="like">☆ ベストを登録</button>
+    <button class="tool like" id="like">☆ 選んだのを登録</button>
     <button class="tool" id="wide">↻ 広く探す</button>
   </div>
   <canvas id="dna"></canvas>
@@ -158,10 +160,11 @@ input[type=file]{display:none}
 
 <div id="big">
   <div id="bigImg"></div>
+  <div class="bighint">画像を押している間は元の画像</div>
   <div class="bbtns">
     <button id="bigClose">閉じる</button>
-    <button id="bigOrig">押して元の画像</button>
-    <button class="main" id="bigPick">次の順位にする</button>
+    <button id="bigLike">☆ 登録</button>
+    <button class="main" id="bigPick">これを選ぶ</button>
   </div>
 </div>
 
@@ -936,24 +939,17 @@ function renderRanks() {
   $$('.tile').forEach((el, i) => {
     const r = ranking.indexOf(i);
     el.classList.toggle('ranked', r >= 0); el.classList.toggle('last', r === 3);
-    el.querySelector('.rk').textContent = r >= 0 ? r + 1 : '';
+    el.querySelector('.rk').textContent = r >= 0 ? '✓' : '';
   });
-  const n = ranking.length;
-  $('#leadTxt').textContent = n === 0 ? '好きな順にタップ（長押しで拡大）' : n < 3 ? `${n + 1}位をタップ` : '決定！';
-  $('#topOnly').hidden = !(n >= 1 && n < 3);
 }
-// タップで順位をつける。3枚目まで決まると4位は自動で決まって次へ
+// タップした1枚を1位として次へ
 function pick(i) {
   if (busy || !tiles[i]) return;
-  const at = ranking.indexOf(i);
-  if (at >= 0) { ranking = ranking.slice(0, at); renderRanks(); return; }
-  ranking.push(i);
-  if (ranking.length === 3) ranking.push([0, 1, 2, 3].find(k => !ranking.includes(k)));
-  renderRanks();
-  if (ranking.length === 4) commit(ranking.slice(), 420);
+  ranking = [i]; renderRanks();
+  commit([i], 140);
 }
 function commit(order, wait = 160) {
-  busy = true; $('#topOnly').hidden = true;
+  busy = true;
   setTimeout(() => {
     $('#gridIn').classList.add('fade');
     setTimeout(() => {
@@ -962,7 +958,6 @@ function commit(order, wait = 160) {
     }, 160);
   }, wait);
 }
-$('#topOnly').addEventListener('click', () => { if (ranking.length && !busy) commit(ranking.slice(0, ranking.length)); });
 function updateStats() {
   const sp = SPACE[S.stage];
   $('#roundNo').textContent = (S.round + 1) + '回目';
@@ -1003,9 +998,10 @@ const closeBig = () => { $('#big').classList.remove('open'); bigBox.innerHTML = 
 $('#bigClose').addEventListener('click', closeBig);
 $('#bigPick').addEventListener('click', () => { const i = bigIdx; closeBig(); if (i >= 0) pick(i); });
 const showOrig = on => { const cs = bigBox.querySelectorAll('canvas'); if (cs.length < 2) return; cs[0].style.display = on ? 'none' : ''; cs[1].style.display = on ? '' : 'none'; };
-$('#bigOrig').addEventListener('pointerdown', () => showOrig(true));
-['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => $('#bigOrig').addEventListener(ev, () => showOrig(false)));
-$('#bigOrig').addEventListener('contextmenu', e => e.preventDefault());
+bigBox.addEventListener('pointerdown', () => showOrig(true));
+['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => bigBox.addEventListener(ev, () => showOrig(false)));
+bigBox.addEventListener('contextmenu', e => e.preventDefault());
+$('#bigLike').addEventListener('click', () => { if (bigIdx >= 0) addFav(tiles[bigIdx].z, S.stage === 'macro' ? tiles[bigIdx].x : null); });
 
 // 登録
 function thumbOf(z) {
@@ -1013,13 +1009,14 @@ function thumbOf(z) {
   const c = renderToCanvas(z, w, h, 1); dirty = true;
   return c.toDataURL('image/jpeg', .8);
 }
-$('#like').addEventListener('click', () => {
+function addFav(zIn, u) {
   if (!imgTex) return;
-  const z = bestZ().map(r4);
+  const z = zIn.map(r4);
   if (store.favs.some(f => dist(f.z, z) < 1e-3)) { toast('もう登録されています'); return; }
-  const f = { id: nextId++, z, u: S.stage === 'macro' ? S.uBest.slice() : null, thumb: thumbOf(z), t: Date.now() };
+  const f = { id: nextId++, z, u: u ? u.slice() : null, thumb: thumbOf(z), t: Date.now() };
   store.favs.push(f); persist(); renderFavs(); toast(`★${f.id} を登録しました`);
-});
+}
+$('#like').addEventListener('click', () => addFav(bestZ(), S.stage === 'macro' ? S.uBest : null));
 let delArmed = null;
 function renderFavs() {
   const box = $('#favs'); box.innerHTML = '';
@@ -1066,7 +1063,7 @@ $('#expBtn').addEventListener('click', () => {
 });
 $('#csvBtn').addEventListener('click', () => {
   // 1行＝表示された1枚。選ばれたか(chosen)、ベストだったか(was_best)と、つまみ（ざっくり）または遺伝子（細かく）の値
-  const head = ['round', 'stage', 'tile', 'rank', 'was_best', ...KNOBS.map(k => k.label), ...GENES.map(g => g.k)];
+  const head = ['round', 'stage', 'tile', 'chosen', 'was_best', ...KNOBS.map(k => k.label), ...GENES.map(g => g.k)];
   const rows = [head.join(',')];
   for (const e of log) e.t.forEach((t, k) => {
     const u = e.st === 'macro' ? t.x : KNOBS.map(() => ''), z = e.st === 'macro' ? knobsToGenes(t.x) : t.x;
