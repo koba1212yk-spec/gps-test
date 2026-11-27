@@ -83,6 +83,20 @@ header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP
   transition:opacity .25s,transform .25s;pointer-events:none;z-index:50;white-space:nowrap}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 input[type=file]{display:none}
+.stage{display:flex;padding:3px;border-radius:18px;background:rgba(255,255,255,.6);gap:2px;margin:0 0 10px}
+.stage button{flex:1;height:32px;border-radius:15px;background:transparent;font-size:12.5px;font-weight:800;color:var(--ink2)}
+.stage button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(150,90,40,.15)}
+.rank{font-size:12px;color:var(--ink2);margin:-2px 0 8px;line-height:1.6}
+.rank b{color:#d8692e}
+.krow{display:grid;grid-template-columns:100px 1fr 40px;align-items:center;gap:8px;height:42px}
+.kname{display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:800;background:none;padding:0;text-align:left;color:var(--ink)}
+.kname svg{width:13px;height:13px;flex:none;opacity:.28;transition:opacity .2s}
+.krow.locked .kname svg{opacity:1}
+.krow.locked .kname{color:#d8692e}
+.kcv{width:100%;height:36px;touch-action:none;display:block}
+.kval{font-size:11px;text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums}
+.note{font-size:11px;color:var(--ink3);line-height:1.6;margin-top:8px}
+
 </style>
 </head>
 <body>
@@ -95,6 +109,7 @@ input[type=file]{display:none}
     </div>
   </header>
 
+  <div class="stage" id="stageSeg"><button data-v="macro" class="on">ざっくり（つまみ10）</button><button data-v="fine">細かく（遺伝子31）</button></div>
   <div class="lead"><span>いちばん好きな1枚をタップ（長押しで大きく）</span><b id="roundNo">1回目</b></div>
   <div id="gridBox"><div id="gridIn"><canvas id="c"></canvas><div id="tiles"></div></div></div>
 
@@ -104,6 +119,13 @@ input[type=file]{display:none}
     <button class="tool" id="wide">↻ 広く探す</button>
   </div>
   <canvas id="dna"></canvas>
+
+  <section class="card" id="anaCard">
+    <h2>好みの分析 <small id="anaSub">AIが学んだ好き度</small></h2>
+    <div class="rank" id="rank"></div>
+    <div id="krows"></div>
+    <div class="note">線はAIが予想する「好き度」（上ほど好き）、帯は自信のなさ。白い点が今のベストで、線の上をなぞると直接変えられます。左の名前をタップすると固定（探索で動かさない）。</div>
+  </section>
 
   <section class="card">
     <h2>登録 <small id="favCount">0件</small></h2>
@@ -117,6 +139,7 @@ input[type=file]{display:none}
     <div class="subacts">
       <button id="resetBtn">最初から</button>
       <button id="expBtn">書き出し</button>
+      <button id="csvBtn">CSV</button>
       <button id="impBtn">読み込み</button>
     </div>
     <div class="legend">
@@ -515,13 +538,48 @@ $('#file').addEventListener('change', e => {
 });
 
 /* =====================================================================
+   つまみ10個（ざっくり探索の空間）→ 遺伝子31個
+   u は 0〜1。両側つまみは 0.5 が中立、片側つまみは 0 が中立
+   ===================================================================== */
+const KNOBS = [
+  { k:'bright',   label:'明るさ',     two:true },
+  { k:'contrast', label:'コントラスト', two:true },
+  { k:'fade',     label:'色あせ',     two:false },
+  { k:'warm',     label:'暖かさ',     two:true },
+  { k:'tint',     label:'色かぶり',   two:true },
+  { k:'sat',      label:'彩度',       two:true },
+  { k:'soft',     label:'柔らかさ',   two:true },
+  { k:'glow',     label:'滲み',       two:false },
+  { k:'edge',     label:'端',         two:true },
+  { k:'grain',    label:'粒子',       two:false },
+];
+const KD = KNOBS.length;
+const U0 = KNOBS.map(k => k.two ? .5 : 0);
+function knobsToGenes(u) {
+  const z = NEUTRAL.slice(), s = j => KNOBS[j].two ? (u[j] - .5) * 2 : u[j];
+  const add = (k, v) => { z[idx[k]] += v; };
+  const b = s(0), c = s(1), f = s(2), w = s(3), t = s(4), sa = s(5), so = s(6), g = s(7), e = s(8), gr = s(9);
+  add('mS', .35 * b - .45 * c); add('mM', .5 * b); add('mH', .35 * b + .45 * c);
+  add('black', .9 * f); add('white', .45 * f);
+  ['rS', 'rM', 'rH'].forEach(k => add(k, .3 * w)); ['bS', 'bM', 'bH'].forEach(k => add(k, -.3 * w));
+  ['gS', 'gM', 'gH'].forEach(k => add(k, .25 * t));
+  add('sat', .4 * sa);
+  add('f0', -.45 * so); add('f1', -.4 * so); add('f2', -.25 * so); add('f3', -.1 * so);
+  add('bloom', .7 * g); add('bThr', .3 * g); add('bSpr', .3 * g); add('bTint', .35 * w);
+  add('vig', .8 * Math.max(-e, 0)); add('haze', .8 * Math.max(e, 0)); add('eBlur', .6 * Math.abs(e));
+  add('grain', .6 * gr); add('gSize', .3 * gr);
+  return z.map(v => Math.round(clamp(v, 0, 1) * 1e4) / 1e4);
+}
+const fmtKnob = (j, v) => { const x = KNOBS[j].two ? (v - .5) * 2 : v; return (x > 0.005 && KNOBS[j].two ? '+' : '') + x.toFixed(2); };
+
+/* =====================================================================
    2×2 の表示
    ===================================================================== */
 let dirty = true, tileSet = null, geo = null;
 const tilesBox = $('#tiles');
 function layout() {
   if (!imgW) return;
-  const W = $('#gridBox').clientWidth, maxH = Math.min(window.innerHeight * .64, 680), gap = 8, a = imgW / imgH;
+  const W = $('#gridBox').clientWidth, maxH = Math.min(window.innerHeight * .62, 680), gap = 8, a = imgW / imgH;
   let tw = (W - gap) / 2, th = tw / a;
   if (th * 2 + gap > maxH) { th = (maxH - gap) / 2; tw = th * a; }
   const cw = tw * 2 + gap, ch = th * 2 + gap, dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -529,16 +587,15 @@ function layout() {
   canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
   const ptw = Math.round(tw * dpr), pth = Math.round(th * dpr);
   if (!tileSet || tileSet.w !== ptw || tileSet.h !== pth) { freeSet(tileSet); tileSet = makeSet(ptw, pth); }
-  geo = { tw, th, gap, ptw, pth, sx: canvas.width / cw, sy: canvas.height / ch };
+  geo = { tw, th, gap, sx: canvas.width / cw, sy: canvas.height / ch };
   $('#gridIn').style.width = cw + 'px'; $('#gridIn').style.height = ch + 'px';
   $$('.tile').forEach((el, i) => {
     const col = i % 2, row = i >> 1;
     Object.assign(el.style, { left: col * (tw + gap) + 'px', top: row * (th + gap) + 'px', width: tw + 'px', height: th + 'px' });
   });
-  dirty = true;
+  dirty = true; drawCurves();
 }
 window.addEventListener('resize', layout);
-
 function drawGrid() {
   if (!imgTex || !geo || tiles.length < 4) return;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
@@ -548,13 +605,10 @@ function drawGrid() {
     const col = i % 2, row = i >> 1;
     const x = Math.round(col * (geo.tw + geo.gap) * geo.sx);
     const yTop = Math.round(row * (geo.th + geo.gap) * geo.sy);
-    const vy = canvas.height - yTop - tileSet.h;
-    render(t.z, tileSet, null, false, t.seed, x, vy);
+    render(t.z, tileSet, null, false, t.seed, x, canvas.height - yTop - tileSet.h);
   });
-  drawDNA(S.best);
+  drawDNA(bestZ());
 }
-
-// DNA（ベストの遺伝子）
 const dna = $('#dna'), dctx = dna.getContext('2d');
 function drawDNA(z) {
   const dpr = Math.min(window.devicePixelRatio || 1, 2), w = dna.clientWidth, h = dna.clientHeight;
@@ -574,62 +628,70 @@ function drawDNA(z) {
 
 /* =====================================================================
    選好ガウス過程（ラプラス近似）
-   「選んだ1枚 ＞ ほかの3枚」という比較から、見えない「好き度」f(x) を推定する
+   「選んだ1枚 ＞ ほかの3枚」の比較から、見えない「好き度」を推定
    ===================================================================== */
-const GP = {
-  X: [], C: [], ell: .5, s: .4, jitter: 1e-4,
-  f: null, alpha: null, Kinv: null, M: null,
-  kern(a, b) { let d = 0; for (let i = 0; i < D; i++) { const t = a[i] - b[i]; d += t * t; } return Math.exp(-d / (2 * this.ell * this.ell)); },
-  fit() {
-    const N = this.X.length;
-    if (!N) { this.f = null; return; }
-    const K = []; for (let i = 0; i < N; i++) { K.push(new Float64Array(N)); }
-    for (let i = 0; i < N; i++) for (let j = i; j < N; j++) { const v = this.kern(this.X[i], this.X[j]); K[i][j] = v; K[j][i] = v; }
-    let f = new Float64Array(N), g, Wm;
-    const grad = f => {
-      const g = new Float64Array(N), W = []; for (let i = 0; i < N; i++) W.push(new Float64Array(N));
-      for (const [w, l] of this.C) {
-        const z = (f[w] - f[l]) / this.s, p = 1 / (1 + Math.exp(-z)), h = p * (1 - p) / (this.s * this.s);
-        g[w] += (1 - p) / this.s; g[l] -= (1 - p) / this.s;
-        W[w][w] += h; W[l][l] += h; W[w][l] -= h; W[l][w] -= h;
+const dist = (a, b) => { let s = 0; for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s); };
+function makeGP(ell) {
+  return {
+    X: [], C: [], ell, s: .4, jitter: 1e-4, f: null, alpha: null, Kinv: null, M: null,
+    kern(a, b) { let d = 0; for (let i = 0; i < a.length; i++) { const t = a[i] - b[i]; d += t * t; } return Math.exp(-d / (2 * this.ell * this.ell)); },
+    fit() {
+      const N = this.X.length;
+      if (!N || !this.C.length) { this.f = null; return; }
+      const K = []; for (let i = 0; i < N; i++) K.push(new Float64Array(N));
+      for (let i = 0; i < N; i++) for (let j = i; j < N; j++) { const v = this.kern(this.X[i], this.X[j]); K[i][j] = v; K[j][i] = v; }
+      let f = new Float64Array(N), g, Wm;
+      const grad = f => {
+        const g = new Float64Array(N), W = []; for (let i = 0; i < N; i++) W.push(new Float64Array(N));
+        for (const [w, l] of this.C) {
+          const z = (f[w] - f[l]) / this.s, p = 1 / (1 + Math.exp(-z)), h = p * (1 - p) / (this.s * this.s);
+          g[w] += (1 - p) / this.s; g[l] -= (1 - p) / this.s;
+          W[w][w] += h; W[l][l] += h; W[w][l] -= h; W[l][w] -= h;
+        }
+        return [g, W];
+      };
+      for (let it = 0; it < 40; it++) {
+        [g, Wm] = grad(f);
+        const b = new Float64Array(N);
+        for (let i = 0; i < N; i++) { let s = g[i]; for (let j = 0; j < N; j++) s += Wm[i][j] * f[j]; b[i] = s; }
+        const B = matMul(Wm, K); for (let i = 0; i < N; i++) B[i][i] += 1;
+        const x = solve(B, b);
+        const fn = new Float64Array(N); let diff = 0;
+        for (let i = 0; i < N; i++) { let s = 0; for (let j = 0; j < N; j++) s += K[i][j] * x[j]; fn[i] = s; diff = Math.max(diff, Math.abs(s - f[i])); }
+        f = fn;
+        if (diff < 1e-5) break;
       }
-      return [g, W];
-    };
-    for (let it = 0; it < 40; it++) {
       [g, Wm] = grad(f);
-      // f_new = K (I + W K)^-1 (W f + g)
-      const b = new Float64Array(N);
-      for (let i = 0; i < N; i++) { let s = g[i]; for (let j = 0; j < N; j++) s += Wm[i][j] * f[j]; b[i] = s; }
-      const B = matMul(Wm, K); for (let i = 0; i < N; i++) B[i][i] += 1;
-      const x = solve(B, b);
-      const fn = new Float64Array(N); let diff = 0;
-      for (let i = 0; i < N; i++) { let s = 0; for (let j = 0; j < N; j++) s += K[i][j] * x[j]; fn[i] = s; diff = Math.max(diff, Math.abs(s - f[i])); }
-      f = fn;
-      if (diff < 1e-5) break;
-    }
-    [g, Wm] = grad(f);
-    const Kj = K.map((r, i) => { const c = Float64Array.from(r); c[i] += this.jitter; return c; });
-    this.Kinv = inverse(Kj);
-    const IWK = matMul(Wm, K); for (let i = 0; i < N; i++) IWK[i][i] += 1;
-    this.M = inverse(IWK);
-    this.f = f;
-    this.alpha = new Float64Array(N);
-    for (let i = 0; i < N; i++) { let s = 0; for (let j = 0; j < N; j++) s += this.Kinv[i][j] * f[j]; this.alpha[i] = s; }
-  },
-  predict(x) {
-    const N = this.X.length;
-    if (!N || !this.f) return [0, 1];
-    const k = new Float64Array(N); for (let i = 0; i < N; i++) k[i] = this.kern(x, this.X[i]);
-    let mu = 0; for (let i = 0; i < N; i++) mu += k[i] * this.alpha[i];
-    const v = new Float64Array(N);
-    for (let i = 0; i < N; i++) { let s = 0; const r = this.Kinv[i]; for (let j = 0; j < N; j++) s += r[j] * k[j]; v[i] = s; }
-    let kv = 0, ku = 0;
-    for (let i = 0; i < N; i++) { kv += k[i] * v[i]; let s = 0; const r = this.M[i]; for (let j = 0; j < N; j++) s += r[j] * v[j]; ku += k[i] * s; }
-    return [mu, Math.sqrt(Math.max(1 - kv + ku, 1e-9))];
-  },
-  indexOf(z) { for (let i = 0; i < this.X.length; i++) if (dist(this.X[i], z) < 1e-6) return i; return -1; },
-  add(z) { const i = this.indexOf(z); if (i >= 0) return i; this.X.push(z.slice()); return this.X.length - 1; },
-};
+      this.Kinv = inverse(K.map((r, i) => { const c = Float64Array.from(r); c[i] += this.jitter; return c; }));
+      const IWK = matMul(Wm, K); for (let i = 0; i < N; i++) IWK[i][i] += 1;
+      this.M = inverse(IWK);
+      this.f = f; this.alpha = new Float64Array(N);
+      for (let i = 0; i < N; i++) { let s = 0; for (let j = 0; j < N; j++) s += this.Kinv[i][j] * f[j]; this.alpha[i] = s; }
+    },
+    predict(x) {
+      const N = this.X.length;
+      if (!this.f) return [0, 1];
+      const k = new Float64Array(N); for (let i = 0; i < N; i++) k[i] = this.kern(x, this.X[i]);
+      let mu = 0; for (let i = 0; i < N; i++) mu += k[i] * this.alpha[i];
+      const v = new Float64Array(N);
+      for (let i = 0; i < N; i++) { let s = 0; const r = this.Kinv[i]; for (let j = 0; j < N; j++) s += r[j] * k[j]; v[i] = s; }
+      let kv = 0, ku = 0;
+      for (let i = 0; i < N; i++) { kv += k[i] * v[i]; let s = 0; const r = this.M[i]; for (let j = 0; j < N; j++) s += r[j] * v[j]; ku += k[i] * s; }
+      return [mu, Math.sqrt(Math.max(1 - kv + ku, 1e-9))];
+    },
+    indexOf(x) { for (let i = 0; i < this.X.length; i++) if (dist(this.X[i], x) < 1e-6) return i; return -1; },
+    add(x) { const i = this.indexOf(x); if (i >= 0) return i; this.X.push(x.slice()); return this.X.length - 1; },
+    trim(max, keep) {
+      if (this.X.length <= max) return false;
+      const drop = new Set(), ki = keep ? this.indexOf(keep) : -1;
+      for (let i = 0; i < this.X.length && this.X.length - drop.size > max; i++) if (i !== ki) drop.add(i);
+      const map = new Map(), nx = [];
+      this.X.forEach((x, i) => { if (!drop.has(i)) { map.set(i, nx.length); nx.push(x); } });
+      this.C = this.C.filter(([w, l]) => map.has(w) && map.has(l)).map(([w, l]) => [map.get(w), map.get(l)]);
+      this.X = nx; return true;
+    },
+  };
+}
 function matMul(A, B) {
   const n = A.length, m = B[0].length, k = B.length, R = [];
   for (let i = 0; i < n; i++) {
@@ -665,86 +727,178 @@ function inverse(A) {
   }
   return I;
 }
-const dist = (a, b) => { let s = 0; for (let i = 0; i < D; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s); };
 
 /* =====================================================================
-   探索の進め方
+   探索の状態（ざっくり：つまみ空間 / 細かく：遺伝子空間）
    ===================================================================== */
-const SIG_MIN = .05, SIG_MAX = .3, MAX_PTS = 120;
-const S = { best: NEUTRAL.slice(), sigma: .22, round: 0 };
-let tiles = [], undoStack = [];
+const MAX_PTS = 120;
+const SPACE = {
+  macro: { dim: KD, gp: makeGP(.5), smin: .05, smax: .3, sigma: .25 },
+  fine:  { dim: D,  gp: makeGP(.5), smin: .03, smax: .15, sigma: .07 },
+};
+const S = { stage: 'macro', uBest: U0.slice(), zBest: knobsToGenes(U0), round: 0, locks: KNOBS.map(() => false) };
+let tiles = [], undoStack = [], log = [];
 let store = { favs: [] };
+const r4 = v => Math.round(v * 1e4) / 1e4;
+const bestZ = () => S.stage === 'macro' ? knobsToGenes(S.uBest) : S.zBest;
+const bestX = () => S.stage === 'macro' ? S.uBest : S.zBest;
+const toZ = x => S.stage === 'macro' ? knobsToGenes(x) : x;
+
 try { const s = JSON.parse(localStorage.getItem('filtlab-v1') || 'null'); if (s && s.favs) store.favs = s.favs; } catch (e) {}
 try {
-  const g = JSON.parse(localStorage.getItem('filtlab-gp') || 'null');
-  if (g && g.X && g.C) { GP.X = g.X; GP.C = g.C; S.best = g.best || S.best; S.sigma = g.sigma || S.sigma; S.round = g.round || 0; }
+  const g = JSON.parse(localStorage.getItem('filtlab-v3') || 'null');
+  if (g) {
+    for (const k of ['macro', 'fine']) if (g[k]) { SPACE[k].gp.X = g[k].X || []; SPACE[k].gp.C = g[k].C || []; SPACE[k].sigma = g[k].sigma || SPACE[k].sigma; }
+    if (g.uBest && g.uBest.length === KD) S.uBest = g.uBest;
+    if (g.zBest && g.zBest.length === D) S.zBest = g.zBest;
+    if (g.locks && g.locks.length === KD) S.locks = g.locks;
+    S.stage = g.stage === 'fine' ? 'fine' : 'macro'; S.round = g.round || 0; log = g.log || [];
+  }
 } catch (e) {}
 let nextId = store.favs.reduce((m, f) => Math.max(m, f.id), 0) + 1;
 const persist = () => {
   try {
     localStorage.setItem('filtlab-v1', JSON.stringify({ favs: store.favs, dis: [], seen: [] }));
-    localStorage.setItem('filtlab-gp', JSON.stringify({ X: GP.X.map(z => z.map(v => +v.toFixed(4))), C: GP.C, best: S.best, sigma: S.sigma, round: S.round }));
+    const sp = k => ({ X: SPACE[k].gp.X.map(x => x.map(r4)), C: SPACE[k].gp.C, sigma: SPACE[k].sigma });
+    localStorage.setItem('filtlab-v3', JSON.stringify({ macro: sp('macro'), fine: sp('fine'), uBest: S.uBest, zBest: S.zBest, locks: S.locks, stage: S.stage, round: S.round, log: log.slice(-400) }));
   } catch (e) { toast('端末の保存領域がいっぱいです'); }
 };
 
-const r4 = v => Math.round(v * 1e4) / 1e4;
-function randomZ() { return GENES.map(g => r4(Math.random() < .45 ? clamp(g.n + gauss() * .06, 0, 1) : Math.random())); }
-function around(base, s) { return base.map(v => r4(clamp(v + gauss() * s, 0, 1))); }
-function mixZ(a, b) { return a.map((v, i) => r4(clamp(v + (b[i] - v) * Math.random() + gauss() * .03, 0, 1))); }
+// 候補づくり
+function aroundX(base, s) {
+  return base.map((v, i) => (S.stage === 'macro' && S.locks[i]) ? v : r4(clamp(v + gauss() * s, 0, 1)));
+}
+function mixX(a, b) { return a.map((v, i) => (S.stage === 'macro' && S.locks[i]) ? v : r4(clamp(v + (b[i] - v) * Math.random() + gauss() * .03, 0, 1))); }
+function favX(f) { return S.stage === 'macro' ? (f.u || null) : f.z; }
 
-// 次の4枚：ベスト＋「好きそう」と「まだわからない」のバランスがいい3枚（UCB）
+// 次の4枚：ベスト＋「好き度＋0.5×自信のなさ」が高い3枚
 function makeRound() {
-  const inc = S.best, sg = S.sigma, rootD = Math.sqrt(D);
+  const sp = SPACE[S.stage], gp = sp.gp, inc = bestX(), sg = sp.sigma;
+  const freeDims = S.stage === 'macro' ? S.locks.filter(l => !l).length : D;
+  const rootD = Math.sqrt(Math.max(1, freeDims));
   const pool = [];
-  for (let i = 0; i < 360; i++) pool.push(around(inc, sg));
-  for (let i = 0; i < 140; i++) pool.push(around(inc, Math.min(SIG_MAX * 1.5, sg * 2)));
-  for (let i = 0; i < 40 && store.favs.length; i++) pool.push(mixZ(inc, store.favs[(Math.random() * store.favs.length) | 0].z));
+  for (let i = 0; i < 380; i++) pool.push(aroundX(inc, sg));
+  for (let i = 0; i < 140; i++) pool.push(aroundX(inc, Math.min(sp.smax * 1.5, sg * 2)));
+  const fx = store.favs.map(favX).filter(Boolean);
+  for (let i = 0; i < 40 && fx.length; i++) pool.push(mixX(inc, fx[(Math.random() * fx.length) | 0]));
   const minD = sg * rootD * .2;
-  const kappa = .5;
-  let cand = pool.filter(z => dist(z, inc) > minD).map(z => { const [mu, sd] = GP.predict(z); return { z, acq: GP.f ? mu + kappa * sd : Math.random() }; });
-  const picks = [];
-  const r = Math.max(.3, sg * rootD * .7);
+  let cand = pool.filter(x => dist(x, inc) > minD).map(x => { const [mu, sd] = gp.predict(x); return { x, acq: gp.f ? mu + .5 * sd : Math.random() }; });
+  const picks = [], rr = Math.max(.15, sg * rootD * .7);
   for (let k = 0; k < 3 && cand.length; k++) {
     cand.sort((a, b) => b.acq - a.acq);
-    const p = cand.shift(); picks.push(p.z);
-    // 選んだものの近くは点を下げて、似た候補が並ばないようにする
-    cand.forEach(c => { const d = dist(c.z, p.z); c.acq -= 1.5 * Math.exp(-d * d / (2 * r * r)); });
+    const p = cand.shift(); picks.push(p.x);
+    cand.forEach(c => { const d = dist(c.x, p.x); c.acq -= 1.5 * Math.exp(-d * d / (2 * rr * rr)); });
   }
-  while (picks.length < 3) picks.push(around(inc, sg));
-  const set = [{ z: inc.slice(), inc: true }, ...picks.map(z => ({ z, inc: false }))];
+  while (picks.length < 3) picks.push(aroundX(inc, sg));
+  const set = [{ x: inc.slice(), inc: true }, ...picks.map(x => ({ x, inc: false }))];
   for (let i = set.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [set[i], set[j]] = [set[j], set[i]]; }
-  tiles = set.map(t => ({ ...t, seed: Math.random() * 100 }));
+  tiles = set.map(t => ({ ...t, z: toZ(t.x), seed: Math.random() * 100 }));
   updateTiles(); dirty = true; updateStats();
 }
-function trim() {
-  if (GP.X.length <= MAX_PTS) return;
-  // 古い点から捨てる（ベストは残す）
-  const drop = new Set(); const bi = GP.indexOf(S.best);
-  for (let i = 0; i < GP.X.length && GP.X.length - drop.size > MAX_PTS; i++) if (i !== bi) drop.add(i);
-  const map = new Map(); const nx = [];
-  GP.X.forEach((z, i) => { if (!drop.has(i)) { map.set(i, nx.length); nx.push(z); } });
-  GP.C = GP.C.filter(([w, l]) => map.has(w) && map.has(l)).map(([w, l]) => [map.get(w), map.get(l)]);
-  GP.X = nx; undoStack = [];
-}
 function choose(i) {
-  const win = tiles[i];
-  undoStack.push({ xLen: GP.X.length, cLen: GP.C.length, best: S.best.slice(), sigma: S.sigma, round: S.round, tiles: tiles.map(t => ({ ...t, z: t.z.slice() })) });
+  const sp = SPACE[S.stage], gp = sp.gp, win = tiles[i];
+  undoStack.push({ stage: S.stage, xLen: gp.X.length, cLen: gp.C.length, uBest: S.uBest.slice(), zBest: S.zBest.slice(), sigma: sp.sigma, round: S.round, logLen: log.length,
+    tiles: tiles.map(t => ({ ...t, x: t.x.slice(), z: t.z.slice() })) });
   if (undoStack.length > 30) undoStack.shift();
-  const idxs = tiles.map(t => GP.add(t.z)), wi = idxs[i];
-  idxs.forEach((j, k) => { if (k !== i && j !== wi) GP.C.push([wi, j]); });
-  // ベストが残った＝近くを細かく、新しいのが勝った＝もう少し広く
-  S.sigma = clamp(win.inc ? S.sigma * .8 : S.sigma * 1.15, SIG_MIN, SIG_MAX);
-  S.best = win.z.slice(); S.round++;
-  trim();
-  GP.fit();
-  makeRound(); persist();
+  const idxs = tiles.map(t => gp.add(t.x)), wi = idxs[i];
+  idxs.forEach((j, k) => { if (k !== i && j !== wi) gp.C.push([wi, j]); });
+  log.push({ r: S.round + 1, st: S.stage, t: tiles.map((t, k) => ({ x: t.x.map(r4), c: k === i ? 1 : 0, b: t.inc ? 1 : 0 })) });
+  sp.sigma = clamp(win.inc ? sp.sigma * .8 : sp.sigma * 1.15, sp.smin, sp.smax);
+  if (S.stage === 'macro') { S.uBest = win.x.slice(); S.zBest = knobsToGenes(S.uBest); } else S.zBest = win.x.slice();
+  S.round++;
+  if (gp.trim(MAX_PTS, bestX())) undoStack = [];
+  gp.fit();
+  makeRound(); computeCurves(); persist();
 }
 function undo() {
   const u = undoStack.pop(); if (!u) return;
-  GP.X.length = u.xLen; GP.C.length = u.cLen;
-  S.best = u.best; S.sigma = u.sigma; S.round = u.round;
-  GP.fit();
-  tiles = u.tiles; updateTiles(); dirty = true; updateStats(); persist();
+  const sp = SPACE[u.stage]; sp.gp.X.length = u.xLen; sp.gp.C.length = u.cLen; sp.sigma = u.sigma;
+  S.stage = u.stage; S.uBest = u.uBest; S.zBest = u.zBest; S.round = u.round; log.length = u.logLen;
+  sp.gp.fit();
+  tiles = u.tiles; updateTiles(); dirty = true; updateStats(); updateStageUI(); computeCurves(); persist();
+}
+
+/* =====================================================================
+   好みの分析：つまみごとの「好き度」カーブ（ほかのつまみは今のベストに固定）
+   ===================================================================== */
+let curves = null;
+const NPT = 25;
+function computeCurves() {
+  const gp = SPACE.macro.gp;
+  curves = KNOBS.map((_, j) => {
+    const mu = [], sd = [];
+    for (let k = 0; k < NPT; k++) {
+      const u = S.uBest.slice(); u[j] = k / (NPT - 1);
+      const [m, s] = gp.predict(u); mu.push(m); sd.push(s);
+    }
+    return { mu, sd, amp: Math.max(...mu) - Math.min(...mu) };
+  });
+  drawCurves(); updateRank();
+}
+function buildRows() {
+  const box = $('#krows'); box.innerHTML = '';
+  KNOBS.forEach((K, j) => {
+    const row = document.createElement('div'); row.className = 'krow' + (S.locks[j] ? ' locked' : '');
+    row.innerHTML = `<button class="kname"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>${K.label}</button><canvas class="kcv"></canvas><span class="kval"></span>`;
+    row.querySelector('.kname').addEventListener('click', () => {
+      S.locks[j] = !S.locks[j]; row.classList.toggle('locked', S.locks[j]); persist();
+      toast(S.locks[j] ? `${K.label}を固定しました` : `${K.label}の固定を外しました`);
+      if (S.stage === 'macro') makeRound();
+    });
+    const cv = row.querySelector('.kcv');
+    let dragging = false;
+    const setFrom = e => { const r = cv.getBoundingClientRect(); S.uBest[j] = r4(clamp((e.clientX - r.left) / r.width, 0, 1)); liveBest(); };
+    cv.addEventListener('pointerdown', e => { if (S.stage !== 'macro') { toast('つまみは「ざっくり」で動かせます'); return; } dragging = true; try { cv.setPointerCapture(e.pointerId); } catch (_) {} setFrom(e); });
+    cv.addEventListener('pointermove', e => { if (dragging) setFrom(e); });
+    const end = () => { if (!dragging) return; dragging = false; S.zBest = knobsToGenes(S.uBest); undoStack = []; makeRound(); computeCurves(); persist(); };
+    cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+    box.appendChild(row);
+  });
+}
+// つまみを直接いじっている間：「いまのベスト」の1枚をその場で更新
+function liveBest() {
+  const t = tiles.find(t => t.inc);
+  if (t) { t.x = S.uBest.slice(); t.z = knobsToGenes(S.uBest); }
+  dirty = true; drawCurves();
+}
+function drawCurves() {
+  if (!curves) return;
+  const rows = $$('.krow');
+  let lo = Infinity, hi = -Infinity;
+  curves.forEach(c => c.mu.forEach((m, k) => { lo = Math.min(lo, m - c.sd[k] * .5); hi = Math.max(hi, m + c.sd[k] * .5); }));
+  if (hi - lo < .5) { const mid = (hi + lo) / 2; lo = mid - .25; hi = mid + .25; }
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  rows.forEach((row, j) => {
+    const cv = row.querySelector('.kcv'), w = cv.clientWidth, h = cv.clientHeight; if (!w) return;
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+    const c = curves[j], X = k => 4 + k / (NPT - 1) * (w - 8), Y = v => h - 4 - (v - lo) / (hi - lo) * (h - 8);
+    // 中立の位置
+    const nx = 4 + U0[j] * (w - 8);
+    x.strokeStyle = 'rgba(120,80,50,.18)'; x.lineWidth = 1; x.setLineDash([2, 3]); x.beginPath(); x.moveTo(nx, 2); x.lineTo(nx, h - 2); x.stroke(); x.setLineDash([]);
+    // 自信のなさの帯
+    x.fillStyle = 'rgba(238,138,74,.14)'; x.beginPath();
+    c.mu.forEach((m, k) => { const px = X(k), py = Y(m + c.sd[k] * .5); k ? x.lineTo(px, py) : x.moveTo(px, py); });
+    for (let k = NPT - 1; k >= 0; k--) x.lineTo(X(k), Y(c.mu[k] - c.sd[k] * .5));
+    x.closePath(); x.fill();
+    // 好き度の線
+    x.strokeStyle = S.locks[j] ? '#b39883' : '#ec7f45'; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
+    c.mu.forEach((m, k) => { const px = X(k), py = Y(m); k ? x.lineTo(px, py) : x.moveTo(px, py); }); x.stroke();
+    // 今のベスト
+    const u = S.uBest[j], kk = u * (NPT - 1), k0 = Math.floor(kk), k1 = Math.min(NPT - 1, k0 + 1), fr = kk - k0;
+    const my = c.mu[k0] * (1 - fr) + c.mu[k1] * fr;
+    x.fillStyle = '#fff'; x.strokeStyle = '#d8692e'; x.lineWidth = 2.5;
+    x.beginPath(); x.arc(4 + u * (w - 8), Y(my), 6, 0, 7); x.fill(); x.stroke();
+    row.querySelector('.kval').textContent = fmtKnob(j, u);
+  });
+}
+function updateRank() {
+  const gp = SPACE.macro.gp;
+  if (!gp.f || !curves) { $('#rank').innerHTML = '何回か選ぶと、AIが学んだ好みの形がここに出ます'; return; }
+  const order = curves.map((c, j) => [c.amp, j]).sort((a, b) => b[0] - a[0]).slice(0, 3).filter(o => o[0] > .05);
+  const tip = (j) => { const c = curves[j], k = c.mu.indexOf(Math.max(...c.mu)); const v = k / (NPT - 1); const x = KNOBS[j].two ? (v - .5) * 2 : v;
+    return x > .15 ? '強め' : x < -.15 ? (KNOBS[j].two ? '逆向き' : '弱め') : (KNOBS[j].two ? '中くらい' : '弱め'); };
+  $('#rank').innerHTML = order.length ? 'AIが重視：' + order.map(([a, j]) => `<b>${KNOBS[j].label}</b>（${tip(j)}が好き）`).join('、') : 'まだはっきりした好みは見えていません';
 }
 
 /* =====================================================================
@@ -778,13 +932,25 @@ function pick(i) {
   }, 140);
 }
 function updateStats() {
+  const sp = SPACE[S.stage];
   $('#roundNo').textContent = (S.round + 1) + '回目';
-  $('#stats').innerHTML = `比較 <b>${GP.C.length}</b> 件（覚えている候補 <b>${GP.X.length}</b>）<br>探す範囲（ベストのまわり、どこまで離れた候補を出すか）`;
-  $('#rangeBar').style.width = Math.round((S.sigma - SIG_MIN) / (SIG_MAX - SIG_MIN) * 100) + '%';
+  $('#stats').innerHTML = `比較 <b>${SPACE.macro.gp.C.length + SPACE.fine.gp.C.length}</b> 件（ざっくり ${SPACE.macro.gp.C.length}／細かく ${SPACE.fine.gp.C.length}）<br>探す範囲（ベストのまわり、どこまで離れた候補を出すか）`;
+  $('#rangeBar').style.width = Math.round((sp.sigma - sp.smin) / (sp.smax - sp.smin) * 100) + '%';
   $('#undo').disabled = !undoStack.length;
 }
+function updateStageUI() {
+  $$('#stageSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === S.stage));
+  $('#anaCard').style.opacity = S.stage === 'macro' ? 1 : .55;
+  $('#anaSub').textContent = S.stage === 'macro' ? 'AIが学んだ好き度' : '「ざっくり」の結果（細かく中は参考）';
+}
+$('#stageSeg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.dataset.v === S.stage) return;
+  if (b.dataset.v === 'fine') { S.zBest = knobsToGenes(S.uBest); S.stage = 'fine'; SPACE.fine.sigma = .07; toast('今のベストから、31個の遺伝子で細かく詰めます'); }
+  else { S.stage = 'macro'; toast('つまみ10個に戻りました（細かい調整は★登録で残せます）'); }
+  undoStack = []; updateStageUI(); makeRound(); persist();
+});
 $('#undo').addEventListener('click', undo);
-$('#wide').addEventListener('click', () => { S.sigma = SIG_MAX; makeRound(); persist(); toast('広く探します'); });
+$('#wide').addEventListener('click', () => { const sp = SPACE[S.stage]; sp.sigma = sp.smax; makeRound(); persist(); toast('広く探します'); });
 
 // 大きく見る
 let bigIdx = -1;
@@ -817,9 +983,9 @@ function thumbOf(z) {
 }
 $('#like').addEventListener('click', () => {
   if (!imgTex) return;
-  const z = S.best.map(v => +v.toFixed(4));
+  const z = bestZ().map(r4);
   if (store.favs.some(f => dist(f.z, z) < 1e-3)) { toast('もう登録されています'); return; }
-  const f = { id: nextId++, z, thumb: thumbOf(z), t: Date.now() };
+  const f = { id: nextId++, z, u: S.stage === 'macro' ? S.uBest.slice() : null, thumb: thumbOf(z), t: Date.now() };
   store.favs.push(f); persist(); renderFavs(); toast(`★${f.id} を登録しました`);
 });
 let delArmed = null;
@@ -838,25 +1004,43 @@ function renderFavs() {
         return;
       }
       delArmed = null;
-      S.best = f.z.slice(); S.sigma = .15; undoStack = [];
-      makeRound(); persist(); renderFavs(); toast(`★${f.id} から探します`);
+      if (f.u && f.u.length === KD) { S.uBest = f.u.slice(); }
+      S.zBest = f.z.slice();
+      if (!f.u && S.stage === 'macro') { S.stage = 'fine'; updateStageUI(); toast(`★${f.id} は細かく調整したものなので「細かく」で探します`); }
+      else toast(`★${f.id} から探します`);
+      SPACE[S.stage].sigma = S.stage === 'macro' ? .15 : .08; undoStack = [];
+      makeRound(); computeCurves(); persist(); renderFavs();
     });
     box.appendChild(b);
   }
 }
 
-// 最初から・書き出し・読み込み
+// 最初から・書き出し・読み込み・CSV
 let resetArmed = false;
 $('#resetBtn').addEventListener('click', () => {
   if (!resetArmed) { resetArmed = true; $('#resetBtn').textContent = 'もう一度で消去'; setTimeout(() => { resetArmed = false; $('#resetBtn').textContent = '最初から'; }, 2500); return; }
   resetArmed = false; $('#resetBtn').textContent = '最初から';
-  GP.X = []; GP.C = []; GP.fit(); S.best = NEUTRAL.slice(); S.sigma = .22; S.round = 0; undoStack = [];
-  makeRound(); persist(); toast('学習をリセットしました（登録は残ります）');
+  for (const k of ['macro', 'fine']) { SPACE[k].gp.X = []; SPACE[k].gp.C = []; SPACE[k].gp.fit(); }
+  SPACE.macro.sigma = .25; SPACE.fine.sigma = .07;
+  S.stage = 'macro'; S.uBest = U0.slice(); S.zBest = knobsToGenes(U0); S.round = 0; S.locks = KNOBS.map(() => false); log = []; undoStack = [];
+  buildRows(); updateStageUI(); makeRound(); computeCurves(); persist(); toast('学習をリセットしました（登録は残ります）');
 });
+const download = (blob, name) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); };
 $('#expBtn').addEventListener('click', () => {
-  const data = { app: 'filtlab', v: 2, genes: GENES.map(g => g.k), favs: store.favs, X: GP.X, C: GP.C, best: S.best, sigma: S.sigma, round: S.round };
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: 'application/json' }));
-  a.download = 'filter-data.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  const sp = k => ({ X: SPACE[k].gp.X, C: SPACE[k].gp.C, sigma: SPACE[k].sigma });
+  const data = { app: 'filtlab', v: 3, knobs: KNOBS.map(k => k.k), genes: GENES.map(g => g.k), favs: store.favs, macro: sp('macro'), fine: sp('fine'),
+    uBest: S.uBest, zBest: S.zBest, locks: S.locks, stage: S.stage, round: S.round, log };
+  download(new Blob([JSON.stringify(data)], { type: 'application/json' }), 'filter-data.json');
+});
+$('#csvBtn').addEventListener('click', () => {
+  // 1行＝表示された1枚。選ばれたか(chosen)、ベストだったか(was_best)と、つまみ（ざっくり）または遺伝子（細かく）の値
+  const head = ['round', 'stage', 'tile', 'chosen', 'was_best', ...KNOBS.map(k => k.label), ...GENES.map(g => g.k)];
+  const rows = [head.join(',')];
+  for (const e of log) e.t.forEach((t, k) => {
+    const u = e.st === 'macro' ? t.x : KNOBS.map(() => ''), z = e.st === 'macro' ? knobsToGenes(t.x) : t.x;
+    rows.push([e.r, e.st, k + 1, t.c, t.b, ...u.map(v => v === '' ? '' : (KNOBS.length && typeof v === 'number' ? v : '')), ...z].join(','));
+  });
+  download(new Blob(['﻿' + rows.join('\n')], { type: 'text/csv' }), 'filter-choices.csv');
 });
 $('#impBtn').addEventListener('click', () => $('#impFile').click());
 $('#impFile').addEventListener('change', async e => {
@@ -864,8 +1048,12 @@ $('#impFile').addEventListener('change', async e => {
   try {
     const d = JSON.parse(await f.text()); if (!d.favs) throw 0;
     store.favs = d.favs; nextId = store.favs.reduce((m, x) => Math.max(m, x.id), 0) + 1;
-    if (d.X && d.C) { GP.X = d.X; GP.C = d.C; S.best = d.best || NEUTRAL.slice(); S.sigma = d.sigma || .22; S.round = d.round || 0; }
-    undoStack = []; GP.fit(); makeRound(); persist(); renderFavs(); toast('読み込みました');
+    for (const k of ['macro', 'fine']) if (d[k]) { SPACE[k].gp.X = d[k].X || []; SPACE[k].gp.C = d[k].C || []; SPACE[k].sigma = d[k].sigma || SPACE[k].sigma; SPACE[k].gp.fit(); }
+    if (d.uBest && d.uBest.length === KD) S.uBest = d.uBest;
+    if (d.zBest && d.zBest.length === D) S.zBest = d.zBest;
+    if (d.locks && d.locks.length === KD) S.locks = d.locks;
+    S.stage = d.stage === 'fine' ? 'fine' : 'macro'; S.round = d.round || 0; log = d.log || [];
+    undoStack = []; buildRows(); updateStageUI(); makeRound(); computeCurves(); persist(); renderFavs(); toast('読み込みました');
   } catch (err) { toast('読み込めませんでした'); }
 });
 
@@ -873,12 +1061,11 @@ $('#impFile').addEventListener('change', async e => {
 $('#saveBtn').addEventListener('click', async () => {
   if (!imgTex) return;
   const s = Math.min(1, 3000 / Math.max(imgW, imgH)), w = Math.round(imgW * s), h = Math.round(imgH * s);
-  const c = renderToCanvas(S.best, w, h, 3); dirty = true;
+  const c = renderToCanvas(bestZ(), w, h, 3); dirty = true;
   const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
   const name = `filter_${Date.now()}.jpg`, file = new File([blob], name, { type: 'image/jpeg' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  download(blob, name);
 });
 
 /* ---------- ループと起動 ---------- */
@@ -887,15 +1074,19 @@ function frame() {
   if (dirty && imgTex && geo) { drawGrid(); dirty = false; }
 }
 (function boot() {
-  buildTiles();
+  buildTiles(); buildRows(); updateStageUI();
   const saved = localStorage.getItem('filtlab-img');
-  const go = src => { setImage(src); GP.fit(); makeRound(); renderFavs(); updateStats(); requestAnimationFrame(frame); };
+  const go = src => {
+    setImage(src);
+    SPACE.macro.gp.fit(); SPACE.fine.gp.fit();
+    makeRound(); computeCurves(); renderFavs(); updateStats(); requestAnimationFrame(frame);
+  };
   if (saved) { const img = new Image(); img.onload = () => go(img); img.onerror = () => go(sampleImage()); img.src = saved; }
   else { go(sampleImage()); setTimeout(() => toast('右上の「画像」から好きな写真を選べます', 2600), 600); }
 })();
 
 // テスト用
-window.__lab = { GP, S, get tiles() { return tiles; }, choose, undo, decode, NEUTRAL, D, dist, renderToCanvas, randomZ, makeRound };
+window.__lab = { SPACE, S, KNOBS, knobsToGenes, get tiles() { return tiles; }, choose, undo, dist, makeRound, computeCurves, get curves() { return curves; }, U0 };
 })();
 </script>
 </body>
