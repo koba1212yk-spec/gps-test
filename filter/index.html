@@ -92,6 +92,63 @@ header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP
   transition:opacity .25s,transform .25s;pointer-events:none;z-index:50;white-space:normal;max-width:88vw;width:max-content;text-align:center;line-height:1.5}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 input[type=file]{display:none}
+.pill.help{width:34px;padding:0;font-weight:900;color:#d8692e}
+.viewBtn{height:26px;padding:0 10px;border-radius:13px;background:#fff;font-size:11.5px;font-weight:800;color:var(--ink2);box-shadow:0 2px 8px rgba(120,70,30,.12);white-space:nowrap}
+.tool.cam{flex:1.6;background:linear-gradient(135deg,#6b4a36,#4a3426);color:#fff;box-shadow:0 8px 20px rgba(74,52,38,.28)}
+#gridBox.list{overflow-y:auto;scroll-snap-type:y mandatory;-webkit-overflow-scrolling:touch;border-radius:12px;scrollbar-width:none}
+#gridBox.list::-webkit-scrollbar{display:none}
+#gridBox.list .tile{scroll-snap-align:start}
+.tile .pg{position:absolute;right:8px;bottom:8px;padding:2px 8px;border-radius:10px;background:rgba(255,250,244,.85);font-size:11px;font-weight:800;display:none}
+#gridBox.list .tile .pg{display:block}
+.ovl{position:fixed;inset:0;z-index:40;display:none}
+.ovl.open{display:flex}
+.sheet{flex-direction:column;background:rgba(248,236,223,.97);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  padding:calc(10px + env(safe-area-inset-top)) 0 env(safe-area-inset-bottom)}
+.shead{display:flex;justify-content:space-between;align-items:center;padding:6px 16px 10px;font-size:16px}
+.shead small{font-size:12px;color:var(--ink3);font-weight:700}
+.x{width:36px;height:36px;border-radius:18px;background:#fff;font-weight:900;box-shadow:0 2px 8px rgba(120,70,30,.12)}
+.sbody{flex:1;overflow-y:auto;padding:0 14px 30px}
+.sbody details{background:#fff;border-radius:16px;margin-bottom:10px;padding:2px 14px;box-shadow:0 3px 12px rgba(120,70,30,.07)}
+.sbody summary{font-size:14px;font-weight:800;padding:12px 0;cursor:pointer;list-style:none;display:flex;justify-content:space-between}
+.sbody summary::after{content:"＋";color:#d8692e}
+.sbody details[open] summary::after{content:"－"}
+.sbody summary::-webkit-details-marker{display:none}
+.sbody ol,.sbody ul{margin:0 0 10px;padding-left:20px;font-size:13px;line-height:1.75;color:var(--ink)}
+.sbody li{margin-bottom:4px}
+.sbody p{font-size:12.5px;line-height:1.7;color:var(--ink2);margin:0 0 12px}
+.camO{background:#120d0a;flex-direction:column}
+#camView{position:absolute;inset:0;display:grid;place-items:center}
+#camView canvas{width:100%;height:100%;display:block}
+.camTop{position:absolute;left:0;right:0;top:calc(10px + env(safe-area-inset-top));display:flex;align-items:center;gap:8px;padding:0 10px}
+.cbtn{flex:none;width:40px;height:40px;border-radius:20px;background:rgba(255,250,244,.78);font-size:16px;font-weight:900;
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.cbtn.wide{width:auto;padding:0 14px;font-size:13px}
+.cbtn.off{opacity:.5}
+.camChips{flex:1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.camChips::-webkit-scrollbar{display:none}
+.cchip{flex:none;height:40px;display:flex;align-items:center;gap:6px;padding:0 10px 0 4px;border-radius:20px;background:rgba(255,250,244,.7);
+  font-size:12px;font-weight:800;-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.cchip i{width:32px;height:32px;border-radius:16px;background:#ccc center/cover}
+.cchip.on{background:#fff;box-shadow:0 0 0 2px #ec7f45}
+.camBottom{position:absolute;left:0;right:0;bottom:calc(22px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:center;padding:0 26px}
+#camThumb{width:52px;height:52px;border-radius:14px;border:2px solid rgba(255,255,255,.9);background:rgba(255,255,255,.2) center/cover}
+#camShutter{width:78px;height:78px;border-radius:50%;background:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.35);position:relative}
+#camShutter::after{content:"";position:absolute;inset:7px;border-radius:50%;background:radial-gradient(circle at 36% 30%,#fffaf0,#ffd6a6 45%,#f4a062 80%,#ee8a4a)}
+#camShutter:active{transform:scale(.93)}
+#camFlash{position:absolute;inset:0;background:#fff8ef;opacity:0;pointer-events:none}
+#camFlash.go{animation:camflash .45s ease-out}
+@keyframes camflash{0%{opacity:.85}100%{opacity:0}}
+.camMsg{position:absolute;left:50%;top:45%;transform:translateX(-50%);color:#fff;font-size:14px;font-weight:700;text-align:center;max-width:80%;line-height:1.6}
+.fbar{padding:0 16px 10px;display:flex;gap:8px}
+.fbar button{height:38px;padding:0 16px;border-radius:19px;background:#fff;font-size:12.5px;font-weight:800;box-shadow:0 3px 10px rgba(120,70,30,.1)}
+.fgrid{flex:1;overflow-y:auto;padding:0 12px 30px;display:grid;grid-template-columns:repeat(3,1fr);gap:6px;align-content:start}
+.fgrid button{aspect-ratio:3/4;border-radius:10px;background:#ddd center/cover;padding:0}
+.fgrid .empty{grid-column:1/-1}
+.photoO{flex-direction:column;align-items:center;justify-content:center;gap:12px;background:rgba(248,236,223,.97);padding:calc(16px + env(safe-area-inset-top)) 14px calc(20px + env(safe-area-inset-bottom))}
+.photoO img{max-width:100%;flex:1;min-height:0;object-fit:contain;border-radius:14px;-webkit-touch-callout:default}
+.pinfo{font-size:11.5px;color:var(--ink2)}
+.photoO .bbtns button.sure{background:#b4462c;color:#fff}
+
 .baseRow{display:flex;align-items:center;gap:10px;margin:-2px 2px 10px;font-size:12px;font-weight:800;color:var(--ink2)}
 .baseRow[hidden]{display:none}
 .seg2{flex:1;display:flex;padding:3px;border-radius:16px;background:rgba(255,255,255,.6);gap:2px}
@@ -129,18 +186,23 @@ input[type=file]{display:none}
     <div class="hbtns">
       <button class="pill" id="pickBtn">画像</button>
       <button class="pill" id="saveBtn">保存</button>
+      <button class="pill help" id="helpBtn" aria-label="使い方">？</button>
     </div>
   </header>
 
   <div class="stage" id="stageSeg"><button data-v="macro" class="on">ざっくり</button><button data-v="fine">細かく</button><button data-v="leak">光漏れ</button></div>
   <div class="baseRow" id="baseRow" hidden><span>ベース</span><div class="seg2" id="baseSeg"><button data-v="orig" class="on">元の画像</button><button data-v="grade">今の色補正</button></div></div>
-  <div class="lead"><span id="leadTxt">いちばん好きな1枚をタップ（長押しで拡大）</span><span class="leadR"><b id="roundNo">1回目</b></span></div>
+  <div class="lead"><span id="leadTxt">いちばん好きな1枚をタップ（長押しで拡大）</span><span class="leadR"><button id="viewBtn" class="viewBtn">縦に見る</button><b id="roundNo">1回目</b></span></div>
   <div id="gridBox"><div id="gridIn"><canvas id="c"></canvas><div id="tiles"></div></div></div>
 
   <div class="tools">
     <button class="tool" id="undo">↶ 戻る</button>
     <button class="tool like" id="like">☆ 登録</button>
     <button class="tool" id="wide">↻ 広く探す</button>
+  </div>
+  <div class="tools">
+    <button class="tool cam" id="camBtn">📷 このフィルターで撮る</button>
+    <button class="tool" id="folderBtn">🗂 フォルダ</button>
   </div>
   <canvas id="dna"></canvas>
 
@@ -190,6 +252,125 @@ input[type=file]{display:none}
     <button id="bigClose">閉じる</button>
     <button id="bigLike">☆ 登録</button>
     <button class="main" id="bigPick">これを選ぶ</button>
+  </div>
+</div>
+
+
+<!-- 使い方 -->
+<div id="help" class="ovl sheet">
+  <div class="shead"><b>使い方</b><button class="x" data-close="help">✕</button></div>
+  <div class="sbody">
+    <details open><summary>はじめに：基本の流れ</summary>
+      <ol>
+        <li>右上の「画像」で好きな写真を選ぶ</li>
+        <li>「ざっくり」で、4枚から一番好きな1枚をタップ。これを10〜20回くりかえす（4枚が似てきたら好みに近づいた合図）</li>
+        <li>（やらなくてもOK）「細かく」で同じように選んで仕上げる</li>
+        <li>「光漏れ」にして、ベースを「今の色補正」にし、同じように選ぶ</li>
+        <li>気に入ったら「☆ 登録」。「📷 このフィルターで撮る」で実際に撮れる</li>
+      </ol>
+      <p>どの段階でも、やることは「4枚から一番好きなのをタップ」だけです。</p>
+    </details>
+    <details><summary>上の3つ：ざっくり・細かく・光漏れ</summary>
+      <ul>
+        <li><b>ざっくり</b>：色補正を10個の分かりやすいつまみ（明るさ・コントラスト・色あせ・暖かさ・色かぶり・彩度・柔らかさ・滲み・端・粒子）で探します。早く好みに近づくので最初はここ</li>
+        <li><b>細かく</b>：同じ色補正を、中身の31個の遺伝子ぜんぶで詰めます。ざっくりで最後に選んだものから始まり、違いは小さめ</li>
+        <li><b>光漏れ</b>：色補正はそのままで、光漏れだけを探します。「ベース」で、元の画像に重ねるか、今の色補正に重ねるかを選べます</li>
+      </ul>
+      <p>たとえるならカレー作り。ざっくり＝甘口か辛口か、細かく＝スパイスの微調整、光漏れ＝トッピング。それぞれAIの学習は別々で、切り替えても結果は残ります。</p>
+    </details>
+    <details><summary>選び方とボタン</summary>
+      <ul>
+        <li><b>タップ</b>：その1枚を選んで次へ</li>
+        <li><b>長押し</b>：大きく表示。画像を押している間は元の画像。「☆ 登録」「これを選ぶ」もここから</li>
+        <li><b>縦に見る／並べて見る</b>：4枚を、2×2で並べるか、1枚ずつ大きく縦スクロールで見るかの切り替え</li>
+        <li><b>↶ 戻る</b>：1回前に戻す（選び間違えたとき）</li>
+        <li><b>↻ 広く探す</b>：違いが小さくなりすぎて選べないとき、探す範囲を広げる</li>
+        <li>4枚のうち1枚は、必ず前回選んだもの（今のいちばん）。並び順は毎回ランダムです</li>
+      </ul>
+    </details>
+    <details><summary>お気に入り（★）</summary>
+      <ul>
+        <li>登録は2通り：下の「☆ 登録」（直前に選んだ1枚）か、長押しした画面の「☆ 登録」（その1枚）</li>
+        <li>消すときは右上の ✕ →「消す」ともう一度押す</li>
+        <li>★をタップすると、その状態から探し直せる</li>
+        <li>光漏れが入った★には「光」と付く。光漏れモードで色補正の★をタップすると、それがベースになる</li>
+      </ul>
+    </details>
+    <details><summary>好みの分析の見方</summary>
+      <ul>
+        <li>線：AIが予想する「好き度」（上ほど好き）。ほかのつまみは今のいちばんのまま、そのつまみだけ動かしたときの予想</li>
+        <li>薄い帯：AIの自信のなさ（太いほど、まだよく分かっていない）</li>
+        <li>白い点：今のいちばんの値。線をなぞると直接変えられる</li>
+        <li>名前をタップで鍵（固定）：探索で動かさなくなる。決まったものを固定すると早く進む</li>
+        <li>「AIが重視」：好き度の振れ幅が大きい上位3つ</li>
+      </ul>
+    </details>
+    <details><summary>光漏れの地図</summary>
+      <ul>
+        <li>位置マップ：枠の外周の濃いところほど、そこから入る光漏れが好き。白い点と線が今の入り口と向き。枠をタップで変更</li>
+        <li>色マップ：横が芯の色、縦が外の色。白っぽい組み合わせほど好きじゃない。タップで変更</li>
+        <li>相性マップ：選んだ2つのつまみの組み合わせの好き度。タップで両方変更</li>
+        <li>2本目・ムラ・送り穴・虹のふちは最初は固定。名前をタップして鍵を外すと探索に入る</li>
+      </ul>
+    </details>
+    <details><summary>カメラで撮る</summary>
+      <ul>
+        <li>「📷 このフィルターで撮る」で、今のいちばんのフィルターがかかったカメラになる</li>
+        <li>上の帯で「今のいちばん」か登録した★を選べる。「光漏れ」ボタンで光漏れのオン／オフ</li>
+        <li>撮った写真は、使ったフィルターのデータと一緒に「フォルダ」に入る</li>
+      </ul>
+    </details>
+    <details><summary>フォルダとデータ</summary>
+      <ul>
+        <li>フォルダ：撮った写真の一覧。タップで大きく見て、共有・保存・削除ができる</li>
+        <li>「ZIPで書き出し」：写真と、それぞれのフィルターのデータ、AIの学習データをまとめて1つのファイルに</li>
+        <li>「書き出し／読み込み」：AIの学習と★をファイルで保存・復元（機種変更のときなど）</li>
+        <li>「CSV」：これまで出た候補と選んだかどうかの表。スプレッドシートで分析できる</li>
+        <li>「最初から」：今のモードの学習だけを消す（★は残る）</li>
+      </ul>
+    </details>
+    <details><summary>AIのしくみ（くわしく）</summary>
+      <ul>
+        <li>1回選ぶと「選んだ1枚＞ほかの3枚」という比較が3件たまる</li>
+        <li>ガウス過程というモデルが、その比較から「好き度」と「自信のなさ」を推定</li>
+        <li>次の3枚は、「好き度＋0.5×自信のなさ」が高いものを、今のいちばんの近くから選ぶ</li>
+        <li>前回の1枚が勝つと探す範囲を狭め、新しいのが勝つと広げる（下のバーで見える）</li>
+      </ul>
+    </details>
+  </div>
+</div>
+
+<!-- カメラ -->
+<div id="cam" class="ovl camO">
+  <div id="camView"></div>
+  <div class="camTop">
+    <button class="cbtn" id="camClose" aria-label="閉じる">✕</button>
+    <div class="camChips" id="camChips"></div>
+    <button class="cbtn" id="camFlip" aria-label="カメラ切替">⟲</button>
+  </div>
+  <div class="camBottom">
+    <button id="camThumb" aria-label="フォルダ"></button>
+    <button id="camShutter" aria-label="撮影"></button>
+    <button class="cbtn wide" id="camLeak">光漏れ</button>
+  </div>
+  <div id="camFlash"></div>
+  <div class="camMsg" id="camMsg"></div>
+</div>
+
+<!-- フォルダ -->
+<div id="folder" class="ovl sheet">
+  <div class="shead"><b>フォルダ <small id="fCount"></small></b><button class="x" data-close="folder">✕</button></div>
+  <div class="fbar"><button id="zipBtn">ZIPで書き出し</button></div>
+  <div class="fgrid" id="fgrid"></div>
+</div>
+<div id="photo" class="ovl photoO">
+  <img id="photoImg" alt="">
+  <div class="pinfo" id="pinfo"></div>
+  <div class="bbtns">
+    <button data-close="photo">もどる</button>
+    <button id="pDel">削除</button>
+    <button id="pFav">☆ 登録</button>
+    <button class="main" id="pShare">保存・共有</button>
   </div>
 </div>
 
@@ -311,7 +492,10 @@ vec3 tent(sampler2D t, vec2 uv, vec2 tx){
   s += texture(t, uv).rgb*4.;
   return s/16.;
 }`;
-const FS_SRC = HEAD + `uniform sampler2D uImg; void main(){ o = vec4(texture(uImg, vUv).rgb, 1.); }`;
+// 元の画像（カメラのときは画面に合わせて切り抜き・左右反転）
+const SRC_UV = `uniform vec4 uSrcCrop; uniform float uSrcMir;
+vec2 srcUv(vec2 uv){ if(uSrcMir > .5) uv.x = 1. - uv.x; return uSrcCrop.xy + uv*uSrcCrop.zw; }`;
+const FS_SRC = HEAD + SRC_UV + `uniform sampler2D uImg; void main(){ o = vec4(texture(uImg, srcUv(vUv)).rgb, 1.); }`;
 const FS_DOWN = HEAD + `
 uniform sampler2D uTex; uniform vec2 uTexel;
 void main(){
@@ -349,7 +533,7 @@ void main(){
   s += texture(uTex, vUv)*4.;
   o = s/16.;
 }`;
-const FS_COMP = HEAD + TENT + `
+const FS_COMP = HEAD + TENT + SRC_UV + `
 uniform sampler2D uR0, uLow, uBloom, uLut, uImg;
 uniform vec2 uLowTx;
 uniform float uBypass, uAspect, uEnc, uBloomAmt, uSat, uVig, uHaze, uEBlur, uERad, uGrain, uGSize, uSeed;
@@ -410,7 +594,7 @@ vec3 tonemap(vec3 x){
 }
 float lut(float v, int ch){ return texture(uLut, vec2((clamp(v,0.,1.)*255. + .5)/256., .5))[ch]; }
 void main(){
-  if(uBypass > .5){ o = vec4(texture(uImg, vUv).rgb, 1.); return; }
+  if(uBypass > .5){ o = vec4(texture(uImg, srcUv(vUv)).rgb, 1.); return; }
   vec3 c = texture(uR0, vUv).rgb;
   vec2 q = (vUv - .5)*2.;
   float e = smoothstep(uERad, uERad + .75, length(q));
@@ -495,6 +679,8 @@ function makeSet(w, h) {
 const freeSet = s => { if (s) [...s.G, ...s.R, ...s.B].forEach(free); };
 
 let imgTex = null, imgW = 0, imgH = 0;
+// 描く元（ふだんは読み込んだ画像、カメラ中は映像）
+let srcTex = null, srcCrop = [0, 0, 1, 1], srcMirror = 0;
 const lutTex = gl.createTexture();
 gl.bindTexture(gl.TEXTURE_2D, lutTex); texParams(gl.NEAREST);
 gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
@@ -560,7 +746,8 @@ function render(z, S, fbo, bypass, seed, vx = 0, vy = 0, leak = null) {
   const { G, R, B } = S;
   // ピラミッド
   gl.bindFramebuffer(gl.FRAMEBUFFER, G[0].fbo); gl.viewport(0, 0, G[0].w, G[0].h);
-  gl.useProgram(P.src.p); bindTex(0, imgTex); gl.uniform1i(P.src.u.uImg, 0); draw();
+  gl.useProgram(P.src.p); bindTex(0, srcTex || imgTex); gl.uniform1i(P.src.u.uImg, 0);
+  gl.uniform4fv(P.src.u.uSrcCrop, srcCrop); gl.uniform1f(P.src.u.uSrcMir, srcMirror); draw();
   gl.useProgram(P.down.p); gl.uniform1i(P.down.u.uTex, 0);
   for (let i = 1; i <= LV; i++) {
     gl.bindFramebuffer(gl.FRAMEBUFFER, G[i].fbo); gl.viewport(0, 0, G[i].w, G[i].h);
@@ -596,7 +783,8 @@ function render(z, S, fbo, bypass, seed, vx = 0, vy = 0, leak = null) {
   // 合成
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(vx, vy, S.w, S.h);
   const U = P.comp.u; gl.useProgram(P.comp.p);
-  bindTex(0, R[0].tex); bindTex(1, G[3].tex); bindTex(2, B[0].tex); bindTex(3, lutTex); bindTex(4, imgTex);
+  bindTex(0, R[0].tex); bindTex(1, G[3].tex); bindTex(2, B[0].tex); bindTex(3, lutTex); bindTex(4, srcTex || imgTex);
+  gl.uniform4fv(U.uSrcCrop, srcCrop); gl.uniform1f(U.uSrcMir, srcMirror);
   gl.uniform1i(U.uR0, 0); gl.uniform1i(U.uLow, 1); gl.uniform1i(U.uBloom, 2); gl.uniform1i(U.uLut, 3); gl.uniform1i(U.uImg, 4);
   gl.uniform2f(U.uLowTx, 1 / G[3].w, 1 / G[3].h);
   gl.uniform1f(U.uBypass, bypass ? 1 : 0); gl.uniform1f(U.uAspect, S.w / S.h); gl.uniform1f(U.uEnc, ENC);
@@ -864,14 +1052,14 @@ function loadState(g) {
   if (g.lLocks && g.lLocks.length === LD) S.lLocks = g.lLocks;
   S.stage = ['macro', 'fine', 'leak'].includes(g.stage) ? g.stage : 'macro';
   S.base = g.base === 'grade' ? 'grade' : 'orig';
-  S.round = g.round || 0; log = g.log || [];
+  S.round = g.round || 0; log = g.log || []; S.leakUsed = !!g.leakUsed;
 }
 try { const g = JSON.parse(localStorage.getItem('filtlab-v3') || 'null'); if (g) loadState(g); } catch (e) {}
 let nextId = store.favs.reduce((m, f) => Math.max(m, f.id), 0) + 1;
 function snapshot() {
   const sp = k => ({ X: SPACE[k].gp.X.map(x => x.map(r4)), C: SPACE[k].gp.C, sigma: SPACE[k].sigma });
   return { macro: sp('macro'), fine: sp('fine'), leak: sp('leak'), uBest: S.uBest, zBest: S.zBest, lBest: S.lBest,
-    locks: S.locks, lLocks: S.lLocks, stage: S.stage, base: S.base, round: S.round, log: log.slice(-400) };
+    locks: S.locks, lLocks: S.lLocks, stage: S.stage, base: S.base, round: S.round, leakUsed: !!S.leakUsed, log: log.slice(-400) };
 }
 const persist = () => {
   try {
@@ -885,22 +1073,37 @@ const persist = () => {
    ===================================================================== */
 let dirty = true, tileSet = null, geo = null;
 const tilesBox = $('#tiles');
+let view = 'grid';
+try { if (localStorage.getItem('filtlab-view') === 'list') view = 'list'; } catch (e) {}
 function layout() {
-  if (!imgW) return;
-  const W = $('#gridBox').clientWidth, maxH = Math.min(window.innerHeight * .62, 680), gap = 8, a = imgW / imgH;
-  let tw = (W - gap) / 2, th = tw / a;
-  if (th * 2 + gap > maxH) { th = (maxH - gap) / 2; tw = th * a; }
-  const cw = tw * 2 + gap, ch = th * 2 + gap, dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (!imgW || camOpen) return;
+  const box = $('#gridBox'), W = box.clientWidth || box.parentElement.clientWidth, maxH = Math.min(window.innerHeight * .62, 680), gap = 8, a = imgW / imgH;
+  box.classList.toggle('list', view === 'list');
+  let tw, th, cw, ch;
+  if (view === 'list') {
+    // 1枚ずつ大きく、縦にスクロール（その枠の中だけ動く）
+    tw = W; th = tw / a; if (th > maxH) { th = maxH; tw = th * a; }
+    cw = tw; ch = th * 4 + gap * 3;
+    box.style.height = th + 'px';
+  } else {
+    tw = (W - gap) / 2; th = tw / a;
+    if (th * 2 + gap > maxH) { th = (maxH - gap) / 2; tw = th * a; }
+    cw = tw * 2 + gap; ch = th * 2 + gap;
+    box.style.height = '';
+  }
+  let dpr = Math.min(window.devicePixelRatio || 1, 2);
+  dpr = Math.min(dpr, 4000 / ch);                 // 縦長でも描ける大きさに抑える
   canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
   canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
   const ptw = Math.round(tw * dpr), pth = Math.round(th * dpr);
   if (!tileSet || tileSet.w !== ptw || tileSet.h !== pth) { freeSet(tileSet); tileSet = makeSet(ptw, pth); }
-  geo = { tw, th, gap, sx: canvas.width / cw, sy: canvas.height / ch };
+  geo = { tw, th, gap, sx: canvas.width / cw, sy: canvas.height / ch, list: view === 'list' };
   $('#gridIn').style.width = cw + 'px'; $('#gridIn').style.height = ch + 'px';
   $$('.tile').forEach((el, i) => {
-    const col = i % 2, row = i >> 1;
+    const col = geo.list ? 0 : i % 2, row = geo.list ? i : i >> 1;
     Object.assign(el.style, { left: col * (tw + gap) + 'px', top: row * (th + gap) + 'px', width: tw + 'px', height: th + 'px' });
   });
+  $('#viewBtn').textContent = view === 'list' ? '並べて見る' : '縦に見る';
   dirty = true; drawAnalysis();
 }
 window.addEventListener('resize', layout);
@@ -910,7 +1113,7 @@ function drawGrid() {
   gl.viewport(0, 0, canvas.width, canvas.height);
   gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
   tiles.forEach((t, i) => {
-    const col = i % 2, row = i >> 1;
+    const col = geo.list ? 0 : i % 2, row = geo.list ? i : i >> 1;
     const x = Math.round(col * (geo.tw + geo.gap) * geo.sx);
     const yTop = Math.round(row * (geo.th + geo.gap) * geo.sy);
     render(t.z, tileSet, null, false, t.seed, x, canvas.height - yTop - tileSet.h, t.leak);
@@ -995,7 +1198,7 @@ function choose(order) {
   sp.sigma = clamp(win.inc ? sp.sigma * .8 : sp.sigma * 1.15, sp.smin, sp.smax);
   if (S.stage === 'macro') { S.uBest = win.x.slice(); S.zBest = knobsToGenes(S.uBest); }
   else if (S.stage === 'fine') S.zBest = win.x.slice();
-  else S.lBest = win.x.slice();
+  else { S.lBest = win.x.slice(); S.leakUsed = true; }
   S.round++;
   if (gp.trim(MAX_PTS, bestX())) undoStack = [];
   gp.fit();
@@ -1058,6 +1261,7 @@ function buildRows() {
 }
 // 手で値を変えている間：ベストの1枚をその場で更新
 function liveBest() {
+  if (S.stage === 'leak') S.leakUsed = true;
   if (S.stage === 'macro') S.zBest = knobsToGenes(S.uBest);
   const t = tiles.find(t => t.inc);
   if (t) { t.x = bestX().slice(); t.z = toZ(t.x); t.leak = S.stage === 'leak' ? t.x : null; }
@@ -1223,7 +1427,7 @@ function drawAnalysis() { drawCurves(); drawMaps(); }
 function buildTiles() {
   tilesBox.innerHTML = '';
   for (let i = 0; i < 4; i++) {
-    const b = document.createElement('button'); b.className = 'tile'; b.innerHTML = '<span class="rk"></span>';
+    const b = document.createElement('button'); b.className = 'tile'; b.innerHTML = `<span class="rk"></span><span class="pg">${i + 1} / 4</span>`;
     let timer = 0, longed = false;
     b.addEventListener('pointerdown', () => { longed = false; clearTimeout(timer); timer = setTimeout(() => { longed = true; openBig(i); }, 450); });
     b.addEventListener('pointerup', () => { clearTimeout(timer); if (!longed) pick(i); });
@@ -1241,7 +1445,7 @@ function pick(i) {
   const el = $$('.tile')[i]; el.classList.add('ranked'); el.querySelector('.rk').textContent = '✓';
   setTimeout(() => {
     $('#gridIn').classList.add('fade');
-    setTimeout(() => { choose([i]); requestAnimationFrame(() => { $('#gridIn').classList.remove('fade'); busy = false; }); }, 160);
+    setTimeout(() => { choose([i]); if (view === 'list') $('#gridBox').scrollTop = 0; requestAnimationFrame(() => { $('#gridIn').classList.remove('fade'); busy = false; }); }, 160);
   }, 140);
 }
 function updateStats() {
@@ -1304,7 +1508,9 @@ $('#bigLike').addEventListener('click', () => { if (bigIdx >= 0) addFavFromTile(
 // 登録
 function thumbOf(z, leak) {
   const s = 132 / Math.max(imgW, imgH), w = Math.max(8, Math.round(imgW * s)), h = Math.max(8, Math.round(imgH * s));
+  const keep = [srcTex, srcCrop, srcMirror]; srcTex = null; srcCrop = [0, 0, 1, 1]; srcMirror = 0;
   const c = renderToCanvas(z, w, h, 1, false, leak); dirty = true;
+  [srcTex, srcCrop, srcMirror] = keep;
   return c.toDataURL('image/jpeg', .8);
 }
 function addFav(zIn, u, leak) {
@@ -1334,7 +1540,7 @@ function renderFavs() {
       delArmed = null;
       if (f.leak) {
         // 光漏れの★：光漏れモードでそこから探す（ベースも★の色補正にする）
-        S.lBest = f.leak.slice(); S.zBest = f.z.slice(); S.base = distPlain(f.z, NEUTRAL) < 1e-3 ? 'orig' : 'grade'; S.stage = 'leak';
+        S.lBest = f.leak.slice(); S.leakUsed = true; S.zBest = f.z.slice(); S.base = distPlain(f.z, NEUTRAL) < 1e-3 ? 'orig' : 'grade'; S.stage = 'leak';
         toast(`★${f.id} の光漏れから探します`);
       } else if (S.stage === 'leak') {
         // 色補正の★を光漏れのベースにする
@@ -1407,9 +1613,236 @@ $('#saveBtn').addEventListener('click', async () => {
   download(blob, name);
 });
 
+/* =====================================================================
+   使い方・表示の切り替え
+   ===================================================================== */
+const openOvl = id => $('#' + id).classList.add('open');
+const closeOvl = id => $('#' + id).classList.remove('open');
+$$('[data-close]').forEach(b => b.addEventListener('click', () => closeOvl(b.dataset.close)));
+$('#helpBtn').addEventListener('click', () => openOvl('help'));
+$('#viewBtn').addEventListener('click', () => {
+  view = view === 'grid' ? 'list' : 'grid';
+  try { localStorage.setItem('filtlab-view', view); } catch (e) {}
+  $('#gridBox').scrollTop = 0; layout();
+  toast(view === 'list' ? '1枚ずつ大きく表示します（その枠の中を縦にスクロール）' : '2×2で並べます');
+});
+
+/* =====================================================================
+   カメラ：今のフィルターをかけて撮る
+   ===================================================================== */
+let camOpen = false, bestThumb = '';
+const cam = { stream: null, facing: 'environment', mirror: false, video: document.createElement('video'), tex: null, set: null, sel: 'best', leakOn: true };
+cam.video.playsInline = true; cam.video.muted = true; cam.video.setAttribute('playsinline', '');
+function camFilter() {
+  let z, leak, label;
+  if (cam.sel === 'best') { z = S.zBest; leak = S.leakUsed ? S.lBest : null; label = 'いまのいちばん'; }
+  else {
+    const f = store.favs.find(f => f.id === cam.sel);
+    if (!f) { cam.sel = 'best'; return camFilter(); }
+    z = f.z; leak = f.leak; label = '★' + f.id;
+  }
+  return { z, leak: cam.leakOn ? leak : null, hasLeak: !!leak, label };
+}
+function buildCamChips() {
+  const box = $('#camChips'); box.innerHTML = '';
+  const add = (key, label, thumb) => {
+    const b = document.createElement('button'); b.className = 'cchip' + (cam.sel === key ? ' on' : '');
+    b.innerHTML = `<i style="background-image:url(${thumb || ''})"></i>${label}`;
+    b.addEventListener('click', () => { cam.sel = key; buildCamChips(); updateCamLeak(); });
+    box.appendChild(b);
+  };
+  add('best', 'いまのいちばん', bestThumb);
+  store.favs.slice().reverse().forEach(f => add(f.id, '★' + f.id + (f.leak ? ' 光' : ''), f.thumb));
+}
+function updateCamLeak() {
+  const F = camFilter(), b = $('#camLeak');
+  b.textContent = F.hasLeak ? (cam.leakOn ? '光漏れ ON' : '光漏れ OFF') : '光漏れなし';
+  b.classList.toggle('off', !F.hasLeak || !cam.leakOn);
+}
+async function updateCamThumb() {
+  try { const all = await dbAll(); all.sort((a, b) => b.rec.t - a.rec.t); $('#camThumb').style.backgroundImage = all[0] ? `url(${all[0].thumb})` : ''; } catch (e) {}
+}
+async function startCamStream() {
+  if (cam.stream) cam.stream.getTracks().forEach(t => t.stop());
+  cam.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: cam.facing }, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+  cam.video.srcObject = cam.stream; await cam.video.play();
+  const tr = cam.stream.getVideoTracks()[0], st = tr.getSettings ? tr.getSettings() : {};
+  cam.mirror = st.facingMode ? st.facingMode === 'user' : cam.facing === 'user';
+}
+async function openCam() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { toast('この端末ではカメラが使えません'); return; }
+  bestThumb = thumbOf(S.zBest, S.leakUsed ? S.lBest : null);
+  openOvl('cam'); camOpen = true;
+  $('#camMsg').textContent = 'カメラを準備しています…';
+  $('#camView').appendChild(canvas);           // 同じ描画面をカメラ画面へ移す
+  canvas.style.width = '100%'; canvas.style.height = '100%';
+  buildCamChips(); updateCamLeak(); updateCamThumb();
+  try { await startCamStream(); $('#camMsg').textContent = ''; }
+  catch (e) {
+    console.error(e);
+    $('#camMsg').textContent = !window.isSecureContext ? 'https のページで開いてください' : (e && e.name === 'NotAllowedError') ? 'カメラが許可されませんでした。ブラウザの設定から許可してください' : 'カメラを起動できませんでした';
+  }
+}
+function closeCam() {
+  camOpen = false; closeOvl('cam');
+  if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; }
+  srcTex = null; srcCrop = [0, 0, 1, 1]; srcMirror = 0;
+  $('#gridIn').insertBefore(canvas, $('#tiles'));
+  freeSet(cam.set); cam.set = null;
+  layout();
+}
+const coverCrop = (vw, vh, ca) => { const va = vw / vh; if (va > ca) { const s = ca / va; return [(1 - s) / 2, 0, s, 1]; } const s = va / ca; return [0, (1 - s) / 2, 1, s]; };
+function uploadCamTex() {
+  if (!cam.tex) { cam.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, cam.tex); texParams(); }
+  gl.bindTexture(gl.TEXTURE_2D, cam.tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cam.video);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+}
+function camFrame() {
+  const v = cam.video; if (!cam.stream || v.readyState < 2 || !v.videoWidth) return;
+  const box = $('#camView'), dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let w = Math.round(box.clientWidth * dpr), h = Math.round(box.clientHeight * dpr);
+  const m = Math.max(w, h); if (m > 1280) { w = Math.round(w * 1280 / m); h = Math.round(h * 1280 / m); }
+  if (w < 2 || h < 2) return;
+  if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+  if (!cam.set || cam.set.w !== w || cam.set.h !== h) { freeSet(cam.set); cam.set = makeSet(w, h); }
+  uploadCamTex();
+  srcTex = cam.tex; srcCrop = coverCrop(v.videoWidth, v.videoHeight, w / h); srcMirror = cam.mirror ? 1 : 0;
+  const F = camFilter();
+  render(F.z, cam.set, null, false, 7, 0, 0, F.leak);
+}
+async function camShoot() {
+  const v = cam.video; if (!cam.stream || !v.videoWidth) return;
+  const fl = $('#camFlash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
+  const ca = canvas.width / canvas.height, vw = v.videoWidth, vh = v.videoHeight;
+  let w, h; if (vw / vh > ca) { h = vh; w = Math.round(vh * ca); } else { w = vw; h = Math.round(vw / ca); }
+  const sc = Math.min(1, 2560 / Math.max(w, h)); w = Math.round(w * sc); h = Math.round(h * sc);
+  uploadCamTex(); srcTex = cam.tex; srcCrop = coverCrop(vw, vh, w / h); srcMirror = cam.mirror ? 1 : 0;
+  const F = camFilter();
+  const c = renderToCanvas(F.z, w, h, 7, false, F.leak);
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
+  const tc = document.createElement('canvas'), ts = 240 / Math.max(w, h);
+  tc.width = Math.round(w * ts); tc.height = Math.round(h * ts); tc.getContext('2d').drawImage(c, 0, 0, tc.width, tc.height);
+  const rec = { label: F.label, z: F.z.map(r4), leak: F.leak ? F.leak.map(r4) : null, t: Date.now(), w, h };
+  try { await dbPut({ blob, thumb: tc.toDataURL('image/jpeg', .75), rec }); updateCamThumb(); toast('フォルダに保存しました'); }
+  catch (e) { console.error(e); toast('保存できませんでした（容量がいっぱいかもしれません）'); }
+}
+$('#camBtn').addEventListener('click', openCam);
+$('#camClose').addEventListener('click', closeCam);
+$('#camShutter').addEventListener('click', camShoot);
+$('#camFlip').addEventListener('click', async () => {
+  cam.facing = cam.facing === 'environment' ? 'user' : 'environment';
+  try { await startCamStream(); } catch (e) { cam.facing = cam.facing === 'environment' ? 'user' : 'environment'; toast('切り替えられませんでした'); }
+});
+$('#camLeak').addEventListener('click', () => {
+  if (!camFilter().hasLeak) { toast('このフィルターには光漏れが入っていません'); return; }
+  cam.leakOn = !cam.leakOn; updateCamLeak();
+});
+$('#camThumb').addEventListener('click', openFolder);
+
+/* =====================================================================
+   フォルダ：撮った写真とフィルターのデータを端末の中に保存
+   ===================================================================== */
+let dbp = null;
+function db() {
+  if (!dbp) dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('filtlab', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('photos', { keyPath: 'id', autoIncrement: true });
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  return dbp;
+}
+async function dbTx(mode, fn) {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const tx = d.transaction('photos', mode), req = fn(tx.objectStore('photos'));
+    tx.oncomplete = () => res(req ? req.result : undefined); tx.onerror = () => rej(tx.error);
+  });
+}
+const dbPut = o => dbTx('readwrite', st => st.add(o));
+const dbAll = () => dbTx('readonly', st => st.getAll());
+const dbDel = id => dbTx('readwrite', st => st.delete(id));
+
+let curPhoto = null, curURL = null;
+async function openFolder() { openOvl('folder'); await renderFolder(); }
+async function renderFolder() {
+  let photos = [];
+  try { photos = (await dbAll()).sort((a, b) => b.rec.t - a.rec.t); } catch (e) {}
+  $('#fCount').textContent = photos.length + '枚';
+  const g = $('#fgrid'); g.innerHTML = '';
+  if (!photos.length) { g.innerHTML = '<div class="empty">まだ写真はありません。「📷 このフィルターで撮る」で撮ると、使ったフィルターのデータと一緒にここへ入ります</div>'; return; }
+  photos.forEach(p => { const b = document.createElement('button'); b.style.backgroundImage = `url(${p.thumb})`; b.addEventListener('click', () => openPhoto(p)); g.appendChild(b); });
+}
+const pad2 = n => String(n).padStart(2, '0');
+function openPhoto(p) {
+  curPhoto = p; if (curURL) URL.revokeObjectURL(curURL); curURL = URL.createObjectURL(p.blob);
+  $('#photoImg').src = curURL;
+  const d = new Date(p.rec.t);
+  $('#pinfo').textContent = `${d.getMonth() + 1}/${d.getDate()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}・${p.rec.label}${p.rec.leak ? '＋光漏れ' : ''}`;
+  $('#pDel').classList.remove('sure'); $('#pDel').textContent = '削除';
+  openOvl('photo');
+}
+const photoName = p => { const d = new Date(p.rec.t); return `nijimi_${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}_${p.id}.jpg`; };
+$('#pDel').addEventListener('click', async () => {
+  const b = $('#pDel');
+  if (!b.classList.contains('sure')) { b.classList.add('sure'); b.textContent = 'もう一度で削除'; return; }
+  await dbDel(curPhoto.id); closeOvl('photo'); renderFolder(); updateCamThumb(); toast('削除しました');
+});
+$('#pShare').addEventListener('click', async () => {
+  if (!curPhoto) return;
+  const file = new File([curPhoto.blob], photoName(curPhoto), { type: 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  download(curPhoto.blob, file.name);
+});
+$('#pFav').addEventListener('click', () => { if (curPhoto) addFav(curPhoto.rec.z, null, curPhoto.rec.leak); });
+$('#folderBtn').addEventListener('click', openFolder);
+
+// ZIP（無圧縮）：写真＋それぞれのフィルターのデータ＋AIの学習データ
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) {
+  const enc = new TextEncoder(), parts = [], central = [], now = new Date(); let offset = 0;
+  const dosT = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+  const dosD = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  for (const f of files) {
+    const name = enc.encode(f.name), crc = crc32(f.data), size = f.data.length;
+    const h = new DataView(new ArrayBuffer(30));
+    h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint16(8, 0, true);
+    h.setUint16(10, dosT, true); h.setUint16(12, dosD, true); h.setUint32(14, crc, true); h.setUint32(18, size, true); h.setUint32(22, size, true);
+    h.setUint16(26, name.length, true); h.setUint16(28, 0, true);
+    parts.push(new Uint8Array(h.buffer), name, f.data);
+    const c = new DataView(new ArrayBuffer(46));
+    c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint16(10, 0, true);
+    c.setUint16(12, dosT, true); c.setUint16(14, dosD, true); c.setUint32(16, crc, true); c.setUint32(20, size, true); c.setUint32(24, size, true);
+    c.setUint16(28, name.length, true); c.setUint32(42, offset, true);
+    central.push(new Uint8Array(c.buffer), name);
+    offset += 30 + name.length + size;
+  }
+  const cSize = central.reduce((s, p) => s + p.length, 0), e = new DataView(new ArrayBuffer(22));
+  e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, cSize, true); e.setUint32(16, offset, true);
+  return new Blob([...parts, ...central, new Uint8Array(e.buffer)], { type: 'application/zip' });
+}
+$('#zipBtn').addEventListener('click', async () => {
+  const photos = (await dbAll()).sort((a, b) => a.rec.t - b.rec.t), enc = new TextEncoder(), files = [], recipes = [];
+  for (const p of photos) {
+    const name = 'photos/' + photoName(p);
+    files.push({ name, data: new Uint8Array(await p.blob.arrayBuffer()) });
+    recipes.push({ file: name, label: p.rec.label, date: new Date(p.rec.t).toISOString(), genes: Object.fromEntries(GENES.map((g, i) => [g.k, p.rec.z[i]])),
+      leak: p.rec.leak ? Object.fromEntries(LEAKS.map((l, i) => [l.k, p.rec.leak[i]])) : null });
+  }
+  files.push({ name: 'recipes.json', data: enc.encode(JSON.stringify(recipes, null, 1)) });
+  files.push({ name: 'filter-data.json', data: enc.encode(JSON.stringify({ app: 'filtlab', v: 4, knobs: KNOBS.map(k => k.k), leaks: LEAKS.map(l => l.k), genes: GENES.map(g => g.k), favs: store.favs, ...snapshot() })) });
+  const blob = makeZip(files), d = new Date(), name = `nijimi_folder_${d.getFullYear()}${pad2(d.getMonth() + 1)}${pad2(d.getDate())}.zip`;
+  const file = new File([blob], name, { type: 'application/zip' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  download(blob, name);
+});
+
 /* ---------- ループと起動 ---------- */
-function frame() {
+function frame(now) {
   requestAnimationFrame(frame);
+  if (camOpen) { camFrame(now); return; }
   if (dirty && imgTex && geo) { drawGrid(); dirty = false; }
 }
 (function boot() {
@@ -1425,7 +1858,7 @@ function frame() {
 })();
 
 // テスト用
-window.__lab = { SPACE, S, KNOBS, LEAKS, LEAK0, knobsToGenes, get tiles() { return tiles; }, choose, undo, distPlain, distLeak, makeRound,
+window.__lab = { cam, openCam, closeCam, camShoot, dbAll, makeZip, get view() { return view; }, SPACE, S, KNOBS, LEAKS, LEAK0, knobsToGenes, get tiles() { return tiles; }, choose, undo, distPlain, distLeak, makeRound,
   computeAnalysis, get curves() { return curves; }, get maps() { return maps; }, U0, renderToCanvas, NEUTRAL };
 })();
 </script>
