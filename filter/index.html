@@ -92,6 +92,32 @@ header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP
   transition:opacity .25s,transform .25s;pointer-events:none;z-index:50;white-space:normal;max-width:88vw;width:max-content;text-align:center;line-height:1.5}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 input[type=file]{display:none}
+.tools.sub2{margin-top:10px}
+.tool.soft{height:38px;font-size:12.5px;background:rgba(255,255,255,.6);color:var(--ink2);box-shadow:none;border:1px solid rgba(120,80,50,.12)}
+.toc{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.toc button{height:36px;border-radius:12px;background:#fff;font-size:12px;font-weight:800;text-align:left;padding:0 10px;box-shadow:0 2px 8px rgba(120,70,30,.07)}
+.sbody h4{font-size:13px;margin:14px 0 6px;color:#d8692e}
+.sbody details p b,.sbody li b{color:var(--ink)}
+.sbody .tip{font-size:12.5px;line-height:1.7;background:#fff4e8;border-radius:12px;padding:10px 12px;margin:6px 0 14px;color:var(--ink)}
+.sbody ol.alpha{list-style:none;padding-left:0}
+.qa{margin:0 0 12px;font-size:13px;line-height:1.7}
+.qa dt{font-weight:800;margin-top:10px;color:var(--ink)}
+.qa dt::before{content:"Q. ";color:#d8692e}
+.qa dd{margin:2px 0 0;color:var(--ink2)}
+.hmap{width:100%;max-width:300px;display:block;margin:6px auto 10px}
+.hmap .t{font-size:13px;font-weight:700;fill:#4a3426;font-family:serif}
+.hmap .b{fill:#fff;stroke:#e5cdb6}
+.hmap .b2{fill:#f6e8da;stroke:#e5cdb6}
+.hmap .o{fill:#f2a066}
+.hmap .d{fill:#5c4232}
+.hmap .img{fill:#f2c9a8}
+.hmap .dna{fill:#f0dccb}
+.hmap .n circle{fill:#ec7f45}
+.hmap .n text{fill:#fff;font-size:11px;font-weight:800;text-anchor:middle}
+.hmap .s{font-size:9.5px;fill:#8d6d58;text-anchor:middle}
+.hcurve{width:100%;display:block;margin:4px 0 8px;background:#fff;border-radius:12px}
+.hcurve .c{font-size:10px;fill:#8d6d58}
+
 .pill.help{width:34px;padding:0;font-weight:900;color:#d8692e}
 .viewBtn{height:26px;padding:0 10px;border-radius:13px;background:#fff;font-size:11.5px;font-weight:800;color:var(--ink2);box-shadow:0 2px 8px rgba(120,70,30,.12);white-space:nowrap}
 .tool.cam{flex:1.6;background:linear-gradient(135deg,#6b4a36,#4a3426);color:#fff;box-shadow:0 8px 20px rgba(74,52,38,.28)}
@@ -195,6 +221,10 @@ input[type=file]{display:none}
   <div class="lead"><span id="leadTxt">いちばん好きな1枚をタップ（長押しで拡大）</span><span class="leadR"><button id="viewBtn" class="viewBtn">縦に見る</button><b id="roundNo">1回目</b></span></div>
   <div id="gridBox"><div id="gridIn"><canvas id="c"></canvas><div id="tiles"></div></div></div>
 
+  <div class="tools sub2">
+    <button class="tool soft" id="passBtn">パス（決められない）</button>
+    <button class="tool soft" id="noneBtn">どれもいまいち</button>
+  </div>
   <div class="tools">
     <button class="tool" id="undo">↶ 戻る</button>
     <button class="tool like" id="like">☆ 登録</button>
@@ -260,82 +290,256 @@ input[type=file]{display:none}
 <div id="help" class="ovl sheet">
   <div class="shead"><b>使い方</b><button class="x" data-close="help">✕</button></div>
   <div class="sbody">
-    <details open><summary>はじめに：基本の流れ</summary>
-      <ol>
-        <li>右上の「画像」で好きな写真を選ぶ</li>
-        <li>「ざっくり」で、4枚から一番好きな1枚をタップ。これを10〜20回くりかえす（4枚が似てきたら好みに近づいた合図）</li>
-        <li>（やらなくてもOK）「細かく」で同じように選んで仕上げる</li>
-        <li>「光漏れ」にして、ベースを「今の色補正」にし、同じように選ぶ</li>
-        <li>気に入ったら「☆ 登録」。「📷 このフィルターで撮る」で実際に撮れる</li>
+    <nav class="toc" id="toc">
+      <button data-go="h1">1. できること</button><button data-go="h2">2. 画面の見取り図</button>
+      <button data-go="h3">3. はじめての1回</button><button data-go="h4">4. 3つのモード</button>
+      <button data-go="h5">5. ボタンの説明</button><button data-go="h6">6. 分析の読み方</button>
+      <button data-go="h7">7. 困ったとき</button><button data-go="h8">8. 用語集</button>
+    </nav>
+
+    <details id="h1" open><summary>1. このアプリでできること</summary>
+      <p>好きな写真を1枚使って、<b>自分好みのフィルターをAIと一緒に探す</b>アプリです。</p>
+      <p>ふつうの写真アプリは、スライダーを自分で動かしてフィルターを作ります。でも「どこをどれだけ動かせば好みになるか」は、自分でもよく分からないものです。このアプリでは、AIが出す4枚の中から<b>「これがいい」と1枚選ぶだけ</b>です。選ぶたびにAIがあなたの好みを学んで、次はもっと好みに近い4枚を出してきます。これを繰り返すと、だんだん好みのフィルターに近づいていきます。</p>
+      <p>探せるものは2種類あります。</p>
+      <ul>
+        <li><b>色補正</b>：明るさ、色味、色あせ、柔らかさ、光の滲み、粒子など、写真の「見た目そのもの」を変えるもの。インスタやVSCOのフィルターと同じ種類です</li>
+        <li><b>光漏れ</b>：フィルムカメラのすき間から光が入ったような、赤やオレンジの光を写真に「足す」もの</li>
+      </ul>
+      <p>最後に手に入るものは、次のとおりです。</p>
+      <ul>
+        <li>自分好みのフィルター（★として保存され、消すまで残ります）</li>
+        <li>そのフィルターをかけたまま撮れるカメラ</li>
+        <li>撮った写真と、そのとき使ったフィルターの数値（フォルダに保存、まとめて書き出し可）</li>
+        <li>自分の好みの分析（何を重視しているか、どんな値が好きか）</li>
+      </ul>
+    </details>
+
+    <details id="h2"><summary>2. 画面の見取り図</summary>
+      <p>画面は上から順に、次のように並んでいます。図の番号と下の説明が対応しています。</p>
+      <svg class="hmap" viewBox="0 0 300 560" role="img" aria-label="画面の見取り図">
+        <rect x="6" y="4" width="288" height="552" rx="22" fill="#fffaf4" stroke="#e5cdb6"/>
+        <text x="20" y="30" class="t">フィルターさがし</text>
+        <rect x="166" y="16" width="36" height="20" rx="10" class="b"/><rect x="206" y="16" width="36" height="20" rx="10" class="b"/><rect x="246" y="16" width="24" height="20" rx="10" class="b"/>
+        <rect x="18" y="46" width="264" height="24" rx="12" class="b"/>
+        <rect x="18" y="76" width="264" height="20" rx="10" class="b2"/>
+        <rect x="200" y="102" width="50" height="16" rx="8" class="b"/>
+        <rect x="18" y="124" width="129" height="150" rx="10" class="img"/><rect x="153" y="124" width="129" height="150" rx="10" class="img"/>
+        <rect x="18" y="280" width="129" height="150" rx="10" class="img"/><rect x="153" y="280" width="129" height="150" rx="10" class="img"/>
+        <rect x="18" y="438" width="129" height="18" rx="9" class="b"/><rect x="153" y="438" width="129" height="18" rx="9" class="b"/>
+        <rect x="18" y="462" width="84" height="20" rx="10" class="b"/><rect x="108" y="462" width="84" height="20" rx="10" class="o"/><rect x="198" y="462" width="84" height="20" rx="10" class="b"/>
+        <rect x="18" y="488" width="170" height="20" rx="10" class="d"/><rect x="194" y="488" width="88" height="20" rx="10" class="b"/>
+        <rect x="18" y="516" width="264" height="10" rx="3" class="dna"/>
+        <g class="n">
+          <circle cx="184" cy="26" r="9"/><text x="184" y="30">A</text>
+          <circle cx="150" cy="58" r="9"/><text x="150" y="62">B</text>
+          <circle cx="150" cy="86" r="9"/><text x="150" y="90">C</text>
+          <circle cx="188" cy="110" r="9"/><text x="188" y="114">D</text>
+          <circle cx="150" cy="277" r="11"/><text x="150" y="281">E</text>
+          <circle cx="150" cy="447" r="9"/><text x="150" y="451">F</text>
+          <circle cx="150" cy="472" r="9"/><text x="150" y="476">G</text>
+          <circle cx="104" cy="498" r="9"/><text x="104" y="502">H</text>
+          <circle cx="150" cy="521" r="9"/><text x="150" y="525">I</text>
+        </g>
+        <text x="150" y="546" class="s">↓ この下に「好みの分析」「光漏れの地図」「登録」「AIの様子」</text>
+      </svg>
+      <ol class="alpha">
+        <li><b>A 画像・保存・？</b>：写真を選ぶ／今のいちばんを写真として書き出す／この説明</li>
+        <li><b>B モード切替</b>：ざっくり・細かく・光漏れ。今どれを探しているかの切り替え（4章）</li>
+        <li><b>C ベース</b>：光漏れモードのときだけ出ます。光漏れを「元の画像」に重ねるか、「今の色補正」に重ねるか</li>
+        <li><b>D 表示切替と回数</b>：「縦に見る」で1枚ずつ大きく、「並べて見る」で2×2。右は何回目か</li>
+        <li><b>E 4枚の候補</b>：一番好きな1枚をタップ。長押しで大きく見られます</li>
+        <li><b>F パス・どれもいまいち</b>：決められないとき／4枚とも良くないとき</li>
+        <li><b>G 戻る・登録・広く探す</b>：1回前に戻す／★に登録／違いが小さすぎるとき範囲を広げる</li>
+        <li><b>H カメラ・フォルダ</b>：今のフィルターで撮る／撮った写真を見る</li>
+        <li><b>I 遺伝子の帯</b>：今のいちばんの中身。棒が長いほど、何もしない状態から大きく変えている部分です</li>
       </ol>
-      <p>どの段階でも、やることは「4枚から一番好きなのをタップ」だけです。</p>
-    </details>
-    <details><summary>上の3つ：ざっくり・細かく・光漏れ</summary>
+      <p>さらに下にスクロールすると、次のカードがあります。</p>
       <ul>
-        <li><b>ざっくり</b>：色補正を10個の分かりやすいつまみ（明るさ・コントラスト・色あせ・暖かさ・色かぶり・彩度・柔らかさ・滲み・端・粒子）で探します。早く好みに近づくので最初はここ</li>
-        <li><b>細かく</b>：同じ色補正を、中身の31個の遺伝子ぜんぶで詰めます。ざっくりで最後に選んだものから始まり、違いは小さめ</li>
-        <li><b>光漏れ</b>：色補正はそのままで、光漏れだけを探します。「ベース」で、元の画像に重ねるか、今の色補正に重ねるかを選べます</li>
-      </ul>
-      <p>たとえるならカレー作り。ざっくり＝甘口か辛口か、細かく＝スパイスの微調整、光漏れ＝トッピング。それぞれAIの学習は別々で、切り替えても結果は残ります。</p>
-    </details>
-    <details><summary>選び方とボタン</summary>
-      <ul>
-        <li><b>タップ</b>：その1枚を選んで次へ</li>
-        <li><b>長押し</b>：大きく表示。画像を押している間は元の画像。「☆ 登録」「これを選ぶ」もここから</li>
-        <li><b>縦に見る／並べて見る</b>：4枚を、2×2で並べるか、1枚ずつ大きく縦スクロールで見るかの切り替え</li>
-        <li><b>↶ 戻る</b>：1回前に戻す（選び間違えたとき）</li>
-        <li><b>↻ 広く探す</b>：違いが小さくなりすぎて選べないとき、探す範囲を広げる</li>
-        <li>4枚のうち1枚は、必ず前回選んだもの（今のいちばん）。並び順は毎回ランダムです</li>
+        <li><b>好みの分析</b>：AIが学んだ「つまみごとの好き度」の線（6章）</li>
+        <li><b>光漏れの地図</b>：光漏れモードのときだけ。位置・色・相性のマップ（6章）</li>
+        <li><b>登録</b>：★の一覧。タップでそこから探し直し、✕で消す</li>
+        <li><b>AIの様子</b>：これまでの比較の数、探す範囲のバー、最初から／書き出し／CSV／読み込み</li>
       </ul>
     </details>
-    <details><summary>お気に入り（★）</summary>
+
+    <details id="h3"><summary>3. はじめての1回（例：夕焼けの写真）</summary>
+      <p>実際の流れを、夕焼けの写真を例にして説明します。</p>
+      <h4>ステップ1　写真を選ぶ</h4>
+      <p>右上の「画像」を押して、夕焼けの写真を選びます。ここから先は、ずっとこの写真で比べます。選んだ写真は次に開いたときも残っています。</p>
+      <h4>ステップ2　「ざっくり」で方向を決める（10〜20回）</h4>
+      <p>最初は「ざっくり」になっています。1回目の4枚は、かなりバラバラです。AIがまだあなたのことを何も知らないので、いろいろな方向を見せているからです。少し変な見た目が混ざっていても気にせず、<b>一番マシだと思う1枚</b>をタップしてください。</p>
+      <p>5回目くらいから、4枚の雰囲気が似てきます。たとえば暖かい色ばかりを選んでいると、AIが「暖かいのが好きらしい」と学んで、暖かい候補を多く出すようになります。下の「好みの分析」にも「AIが重視：暖かさ（プラス寄りが好き）」のように出てきます。</p>
+      <p>15回目くらいで、4枚の違いがかなり小さくなります。これは<b>好みに近づいた合図</b>です。ここで「☆ 登録」を押しておきましょう。</p>
+      <h4>ステップ3　「細かく」で仕上げる（5〜10回、やらなくてもOK）</h4>
+      <p>上の「細かく」を押すと、ざっくりで最後に選んだ1枚から続きが始まります。今度は4枚の違いがごく小さいので、「ほんの少し青みがある方が好き」のような細かい好みを選んでいきます。違いが分からなくなったら完成です。また「☆ 登録」を押します。</p>
+      <h4>ステップ4　「光漏れ」で光を足す（10〜15回）</h4>
+      <p>上の「光漏れ」を押して、その下の「ベース」を<b>「今の色補正」</b>にします。これで、ステップ2〜3で作った色の上に、光漏れが乗った4枚が出ます。最初は光の入る場所や色がバラバラなので、好きな入り方を選んでいきます。</p>
+      <p>何回か選ぶと、「光漏れの地図」で「左上から入る赤っぽい光が好き」のような好みが見えてきます。気に入ったら「☆ 登録」。★に「光」と付きます。</p>
+      <h4>ステップ5　撮る・保存する</h4>
+      <p>「📷 このフィルターで撮る」を押すと、カメラになります。上の帯で「いまのいちばん」か★を選んで、シャッターを押します。撮った写真は「フォルダ」に入るので、写真をタップして「保存・共有」で端末の写真に保存できます。</p>
+      <div class="tip">迷ったときのコツ：決められないときは「パス」、4枚とも良くないときは「どれもいまいち」、選び間違えたら「↶ 戻る」。どの段階でも、やることは「4枚から一番好きなのをタップ」だけです。</div>
+    </details>
+
+    <details id="h4"><summary>4. 3つのモードを詳しく</summary>
+      <p>3つのモードは、それぞれAIの学習が別々です。切り替えても、それぞれの結果は残っています。「最初から」は、<b>今表示しているモードの学習だけ</b>を消します。</p>
+      <h4>ざっくり（つまみ10個）</h4>
+      <p>色補正を、意味の分かる10個のつまみで探します。数が少ないので、早く好みに近づきます。最初はここからがおすすめです。</p>
       <ul>
-        <li>登録は2通り：下の「☆ 登録」（直前に選んだ1枚）か、長押しした画面の「☆ 登録」（その1枚）</li>
-        <li>消すときは右上の ✕ →「消す」ともう一度押す</li>
-        <li>★をタップすると、その状態から探し直せる</li>
-        <li>光漏れが入った★には「光」と付く。光漏れモードで色補正の★をタップすると、それがベースになる</li>
+        <li><b>明るさ</b>：全体を明るく／暗く</li>
+        <li><b>コントラスト</b>：明暗の差。プラスでくっきり、マイナスで眠たい感じ</li>
+        <li><b>色あせ</b>：黒が浮いて白が沈む、古い写真のような褪せ方</li>
+        <li><b>暖かさ</b>：プラスで赤・オレンジ寄り、マイナスで青寄り</li>
+        <li><b>色かぶり</b>：プラスで緑寄り、マイナスでマゼンタ（赤紫）寄り</li>
+        <li><b>彩度</b>：色の濃さ</li>
+        <li><b>柔らかさ</b>：プラスでふんわりぼやける、マイナスでシャープ</li>
+        <li><b>滲み</b>：明るいところから光がふわっと広がる（ミストフィルター風）</li>
+        <li><b>端</b>：プラスで周りが白くかすむ、マイナスで周りが暗くなる</li>
+        <li><b>粒子</b>：フィルムのようなザラザラ</li>
+      </ul>
+      <p><b>次へ進む目安</b>：4枚がほとんど同じに見えてきた、または「AIの様子」の探す範囲のバーが左端（狭い）近くまで来たら。</p>
+      <h4>細かく（遺伝子31個）</h4>
+      <p>同じ色補正を、中身の31個の数値（遺伝子）ぜんぶで詰めます。ざっくりのつまみ1つは、裏では複数の遺伝子をまとめて動かしています。細かくでは、それをバラバラに動かせるので、ざっくりでは届かない微妙な好みまで探せます。</p>
+      <ul>
+        <li><b>色（15個）</b>：黒の浮き、白の沈み、暗部・中間・明部の明るさ、RGBそれぞれの暗部・中間・明部のずれ、彩度</li>
+        <li><b>細かさ（6個）</b>：画像を細かい模様から大きな明暗まで6段階に分けたときの、それぞれの強さ</li>
+        <li><b>光の滲み（4個）</b>：量、光り始める明るさ、広がり、光の色</li>
+        <li><b>場所（4個）</b>：周辺減光、端のかすみ、端のぼけ、効き始める位置</li>
+        <li><b>粒子（2個）</b>：量、大きさ</li>
+      </ul>
+      <p><b>終わりの目安</b>：違いが分からなくなったら。細かくは、ざっくりの最後の1枚から始まります。</p>
+      <h4>光漏れ（13個）</h4>
+      <p>色補正には触らず、光漏れだけを探します。光漏れは「その場所だけ余分に光が当たった」として計算しているので、強い部分は白く飛び、暗いところは色付きで浮き上がります。</p>
+      <ul>
+        <li><b>位置</b>：画面の外周のどこから入るか（上・右・下・左をぐるっと1周）</li>
+        <li><b>向き</b>：辺に対してまっすぐか、斜め（±45°）か</li>
+        <li><b>形</b>：小さい値で丸いぼやけ、真ん中で細い帯、大きい値で辺全体がふわっと明るい</li>
+        <li><b>奥行き</b>：画面のどこまで入り込むか</li>
+        <li><b>柔らかさ</b>：境目がくっきりか、ぼんやりか</li>
+        <li><b>芯の色</b>：光の一番強いところの色。白っぽい黄色〜オレンジ</li>
+        <li><b>外の色</b>：光のふちの色。マゼンタ〜赤〜オレンジ</li>
+        <li><b>強さ</b>：光の量</li>
+        <li><b>かぶり</b>：光が当たったところが白く濁る量</li>
+        <li><b>2本目・ムラ・送り穴・虹のふち</b>：追加の4つ。最初は鍵がかかっていて動きません（下の6章）</li>
+      </ul>
+      <p><b>ベース</b>：「元の画像」は色補正なしの写真に、「今の色補正」はざっくり・細かくで見つけたものに光漏れを重ねます。光漏れモードで色補正の★をタップすると、その★がベースになります。</p>
+    </details>
+
+    <details id="h5"><summary>5. ボタンの説明</summary>
+      <h4>いちばん上</h4>
+      <ul>
+        <li><b>画像</b>：比べる写真を選びます。変えても、AIの学習や★は消えません</li>
+        <li><b>保存</b>：今のいちばんを、元の大きさ（長い辺3000pxまで）で写真として書き出します</li>
+        <li><b>？</b>：この説明</li>
+      </ul>
+      <h4>4枚のまわり</h4>
+      <ul>
+        <li><b>タップ</b>：その1枚を「一番好き」として次の4枚へ</li>
+        <li><b>長押し</b>：大きく表示。画像を押している間は元の画像になるので、比べられます。そこから「☆ 登録」（その1枚を★に）や「これを選ぶ」もできます</li>
+        <li><b>縦に見る／並べて見る</b>：1枚ずつ大きく縦スクロールか、2×2か</li>
+        <li><b>パス</b>：何も記録せずに、新しい候補と入れ替えます。違いが小さすぎて選べない、どれも同じくらい、というときに。探す範囲も少し広がります</li>
+        <li><b>どれもいまいち</b>：「この4枚はぜんぶ、これまでで一番良かったものより下」として記録し、AIが一番と思っている過去の候補に戻って、広めに探し直します。変な方向に迷い込んだときの脱出用です</li>
+        <li><b>↶ 戻る</b>：1回前の4枚に戻します。選び間違えたときに</li>
+        <li><b>☆ 登録</b>：直前に選んだ1枚（今のいちばん）を★にします</li>
+        <li><b>↻ 広く探す</b>：探す範囲を最大にします。もっと違う方向も見たいときに</li>
+        <li><b>📷 このフィルターで撮る</b>：カメラを開きます</li>
+        <li><b>🗂 フォルダ</b>：撮った写真の一覧</li>
+      </ul>
+      <h4>分析・地図・登録</h4>
+      <ul>
+        <li><b>つまみの名前をタップ</b>：鍵（固定）のオン／オフ</li>
+        <li><b>線の上をなぞる</b>：今のいちばんの値を直接変えます。指を離すと、そこから探し直します</li>
+        <li><b>地図をタップ</b>：その場所の値に変えます</li>
+        <li><b>★をタップ</b>：その★から探し直します。✕ →「消す」で削除</li>
+      </ul>
+      <h4>AIの様子</h4>
+      <ul>
+        <li><b>最初から</b>：今のモードの学習を消します（2回押し）。★や写真は消えません</li>
+        <li><b>書き出し／読み込み</b>：AIの学習と★をファイルに保存／戻す。機種変更のときなどに</li>
+        <li><b>CSV</b>：これまで出た候補と、選んだかどうかの表。スプレッドシートで自分の選び方を分析できます</li>
+      </ul>
+      <h4>カメラ画面</h4>
+      <ul>
+        <li><b>上の帯</b>：使うフィルターを選びます（いまのいちばん／★）</li>
+        <li><b>光漏れ ON/OFF</b>：選んだフィルターの光漏れだけを外せます。光漏れが入っていないときは「光漏れなし」</li>
+        <li><b>⟲</b>：外カメラと内カメラの切り替え</li>
+        <li><b>左下の四角</b>：フォルダを開きます</li>
+      </ul>
+      <h4>フォルダ・写真</h4>
+      <ul>
+        <li><b>ZIPで書き出し</b>：写真ぜんぶ＋それぞれのフィルターの数値＋AIの学習データを、1つのファイルにまとめます</li>
+        <li><b>保存・共有</b>：その写真を端末の写真に保存したり、送ったりします</li>
+        <li><b>☆ 登録</b>：その写真を撮ったときのフィルターを★にします</li>
+        <li><b>削除</b>：2回押しで消えます</li>
       </ul>
     </details>
-    <details><summary>好みの分析の見方</summary>
+
+    <details id="h6"><summary>6. 分析と地図の読み方</summary>
+      <h4>好き度の線</h4>
+      <svg class="hcurve" viewBox="0 0 300 120" role="img" aria-label="好き度の線の例">
+        <path d="M14 96 C70 92 110 30 160 26 S250 70 286 84 L286 104 C250 92 200 50 160 48 S70 108 14 110 Z" fill="rgba(238,138,74,.16)"/>
+        <path d="M14 103 C70 100 110 40 160 37 S250 78 286 94" fill="none" stroke="#ec7f45" stroke-width="3"/>
+        <line x1="150" y1="8" x2="150" y2="114" stroke="#c9a48a" stroke-dasharray="3 4"/>
+        <circle cx="196" cy="44" r="7" fill="#fff" stroke="#d8692e" stroke-width="3"/>
+        <text x="160" y="20" class="c">いちばん好きそうな値</text>
+        <text x="200" y="66" class="c">白い点＝今の値</text>
+        <text x="152" y="112" class="c">点線＝何もしない値</text>
+        <text x="16" y="84" class="c">薄い帯＝自信のなさ</text>
+      </svg>
       <ul>
-        <li>線：AIが予想する「好き度」（上ほど好き）。ほかのつまみは今のいちばんのまま、そのつまみだけ動かしたときの予想</li>
-        <li>薄い帯：AIの自信のなさ（太いほど、まだよく分かっていない）</li>
-        <li>白い点：今のいちばんの値。線をなぞると直接変えられる</li>
-        <li>名前をタップで鍵（固定）：探索で動かさなくなる。決まったものを固定すると早く進む</li>
-        <li>「AIが重視」：好き度の振れ幅が大きい上位3つ</li>
+        <li><b>線</b>：AIが予想する「好き度」です。上ほど好き。ほかのつまみは今のいちばんのままにして、そのつまみだけを動かしたときの予想です</li>
+        <li><b>薄い帯</b>：AIの自信のなさ。帯が太いところは、まだあまり試していないのでよく分かっていません</li>
+        <li><b>白い点</b>：今のいちばんの値。線をなぞると直接動かせます</li>
+        <li><b>点線</b>：何もしない値（元の画像と同じになる位置）</li>
+      </ul>
+      <p><b>形の読み方の例</b></p>
+      <ul>
+        <li><b>山の形</b>：その山のてっぺんあたりの値が好き。強すぎても弱すぎてもダメ</li>
+        <li><b>右上がり</b>：強いほど好き。「暖かさ」なら、暖かければ暖かいほど好き</li>
+        <li><b>平ら</b>：そのつまみはあまり気にしていない（どっちでもいい）</li>
+        <li><b>帯がずっと太い</b>：まだ判断材料が少ない。もう少し選ぶと形がはっきりします</li>
+      </ul>
+      <p><b>「AIが重視」</b>は、線の高低差が大きい（＝値によって好き嫌いがはっきり分かれる）つまみの上位3つです。</p>
+      <h4>鍵（固定）の使い方</h4>
+      <p>つまみの名前をタップすると鍵がかかり、探索でそのつまみを動かさなくなります。「粒子はもうこれでいい」と決まったものを固定していくと、AIが探す数が減って、残りが早く決まります。光漏れの「2本目・ムラ・送り穴・虹のふち」は最初から固定です。試したいときは名前をタップして鍵を外してください。</p>
+      <h4>光漏れの地図</h4>
+      <ul>
+        <li><b>位置マップ</b>：写真の枠の外周を、好き度の濃さで塗ったものです。濃いオレンジの辺ほど、そこから入る光漏れが好き。白い点と線は、今の光漏れの入り口と向き。枠をタップすると、そこから入る光漏れに変わります</li>
+        <li><b>色マップ</b>：横が芯の色（左が白っぽい黄色、右がオレンジ）、縦が外の色（下がマゼンタ、上がオレンジ）。実際の光漏れの色で塗ってあり、好きじゃない組み合わせほど白っぽく薄くなります</li>
+        <li><b>相性マップ</b>：選んだ2つのつまみの組み合わせの好き度。濃いところが好きな組み合わせです。たとえば「強さ×かぶり」で右下が濃ければ、「強い光漏れのときは、かぶりは弱めが好き」という意味になります</li>
       </ul>
     </details>
-    <details><summary>光漏れの地図</summary>
-      <ul>
-        <li>位置マップ：枠の外周の濃いところほど、そこから入る光漏れが好き。白い点と線が今の入り口と向き。枠をタップで変更</li>
-        <li>色マップ：横が芯の色、縦が外の色。白っぽい組み合わせほど好きじゃない。タップで変更</li>
-        <li>相性マップ：選んだ2つのつまみの組み合わせの好き度。タップで両方変更</li>
-        <li>2本目・ムラ・送り穴・虹のふちは最初は固定。名前をタップして鍵を外すと探索に入る</li>
-      </ul>
+
+    <details id="h7"><summary>7. 困ったとき（Q&amp;A）</summary>
+      <dl class="qa">
+        <dt>4枚がほとんど同じに見える</dt><dd>好みにかなり近づいた証拠です。満足なら「☆ 登録」。もっと違う方向も見たいなら「↻ 広く探す」、今の4枚だけ変えたいなら「パス」。</dd>
+        <dt>4枚とも気に入らない</dt><dd>「どれもいまいち」を押すと、これまでで一番良かったものに戻って探し直します。最初の数回は4枚がバラバラで変な見た目も出るので、「一番マシなもの」を選ぶだけでも大丈夫です。</dd>
+        <dt>選び間違えた</dt><dd>「↶ 戻る」で1回前に戻せます（何回か続けて戻れます）。</dd>
+        <dt>前に気に入ったものに戻りたい</dt><dd>★に登録してあれば、★をタップするとそこから探し直せます。登録していなければ「どれもいまいち」で、AIが一番と思っているものに戻れます。</dd>
+        <dt>どれが前回選んだものか分からない</dt><dd>わざと見えないようにしています（見えると、それを選びがちになるため）。4枚のうち1枚は必ず前回選んだもので、並び順は毎回ランダムです。</dd>
+        <dt>いつまで続ければいい？</dt><dd>目安は、ざっくり10〜20回、細かく5〜10回、光漏れ10〜15回。「4枚の違いが分からなくなった」「探す範囲のバーが左端近く」なら十分です。</dd>
+        <dt>写真を変えたら？</dt><dd>AIの学習と★はそのまま残ります。別の写真で同じ好みが通じるか確かめるのにも使えます。</dd>
+        <dt>カメラが動かない</dt><dd>ブラウザにカメラの許可が必要です。許可しなかった場合は、ブラウザの設定から許可してください。動きがカクつく場合は、端末の性能が足りないかもしれません。</dd>
+        <dt>撮った写真が消えた</dt><dd>フォルダはブラウザの中の保存場所なので、ブラウザのデータを消すと一緒に消えます。大事な写真は「保存・共有」か「ZIPで書き出し」で外に出しておいてください。</dd>
+        <dt>機種変更したい</dt><dd>「AIの様子」の「書き出し」でファイルにして、新しい端末で「読み込み」。写真は「ZIPで書き出し」で。</dd>
+        <dt>最初からやり直したい</dt><dd>「AIの様子」の「最初から」を2回押すと、今表示しているモードの学習だけが消えます。★と写真は残ります。</dd>
+      </dl>
     </details>
-    <details><summary>カメラで撮る</summary>
-      <ul>
-        <li>「📷 このフィルターで撮る」で、今のいちばんのフィルターがかかったカメラになる</li>
-        <li>上の帯で「今のいちばん」か登録した★を選べる。「光漏れ」ボタンで光漏れのオン／オフ</li>
-        <li>撮った写真は、使ったフィルターのデータと一緒に「フォルダ」に入る</li>
-      </ul>
-    </details>
-    <details><summary>フォルダとデータ</summary>
-      <ul>
-        <li>フォルダ：撮った写真の一覧。タップで大きく見て、共有・保存・削除ができる</li>
-        <li>「ZIPで書き出し」：写真と、それぞれのフィルターのデータ、AIの学習データをまとめて1つのファイルに</li>
-        <li>「書き出し／読み込み」：AIの学習と★をファイルで保存・復元（機種変更のときなど）</li>
-        <li>「CSV」：これまで出た候補と選んだかどうかの表。スプレッドシートで分析できる</li>
-        <li>「最初から」：今のモードの学習だけを消す（★は残る）</li>
-      </ul>
-    </details>
-    <details><summary>AIのしくみ（くわしく）</summary>
-      <ul>
-        <li>1回選ぶと「選んだ1枚＞ほかの3枚」という比較が3件たまる</li>
-        <li>ガウス過程というモデルが、その比較から「好き度」と「自信のなさ」を推定</li>
-        <li>次の3枚は、「好き度＋0.5×自信のなさ」が高いものを、今のいちばんの近くから選ぶ</li>
-        <li>前回の1枚が勝つと探す範囲を狭め、新しいのが勝つと広げる（下のバーで見える）</li>
-      </ul>
+
+    <details id="h8"><summary>8. 用語集</summary>
+      <dl class="qa">
+        <dt>今のいちばん</dt><dd>直前に選んだ1枚のこと。次の4枚には必ずこれが1枚入っています（どれかは見えません）。</dd>
+        <dt>★（登録）</dt><dd>気に入ったフィルターの保存。消すまで残ります。「光」と付いているものは光漏れ入り。</dd>
+        <dt>遺伝子</dt><dd>フィルターの中身を表す数値。色補正は31個、光漏れは13個。それぞれ0〜1の値です。</dd>
+        <dt>つまみ</dt><dd>遺伝子をまとめて動かす、意味の分かる調整項目。ざっくりの10個がこれです。</dd>
+        <dt>ベース</dt><dd>光漏れを重ねる土台。元の画像か、今の色補正か。</dd>
+        <dt>探す範囲</dt><dd>次の候補を、今のいちばんからどれだけ離れたところまで出すか。前回の1枚が選ばれ続けると狭くなって細かく詰め、新しい候補が選ばれると広がります。</dd>
+        <dt>好き度</dt><dd>AIが予想する「どれくらい好きそうか」。選んだ結果から推定しています。</dd>
+        <dt>自信のなさ</dt><dd>AIがその予想にどれくらい自信がないか。まだ試していないあたりほど大きくなります。</dd>
+        <dt>固定（鍵）</dt><dd>探索で動かさないようにしたつまみ。決まったものを固定すると、残りが早く決まります。</dd>
+        <dt>比較</dt><dd>1回選ぶと「選んだ1枚＞ほかの3枚」という比較が3件たまります。「どれもいまいち」は「過去の一番＞この4枚」で4件。AIはこの比較から好みを学びます。</dd>
+        <dt>ガウス過程（AIのしくみ）</dt><dd>このアプリのAIの正体です。「近い見た目は好き度も近い」という前提で、比較の結果から好き度と自信のなさを推定します。次の候補は「好き度＋0.5×自信のなさ」が高いものを選ぶので、好きそうなものと、まだ分からないものの両方が混ざって出てきます。</dd>
+        <dt>光漏れ</dt><dd>フィルムカメラのすき間から光が入ってフィルムが焼けたような効果。写っていない光を「足す」ので、色補正とは別のジャンルです。</dd>
+      </dl>
     </details>
   </div>
 </div>
@@ -1837,6 +2041,58 @@ $('#zipBtn').addEventListener('click', async () => {
   const file = new File([blob], name, { type: 'application/zip' });
   if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
   download(blob, name);
+});
+
+
+/* ---------- 説明の目次 ---------- */
+$$('#toc button').forEach(b => b.addEventListener('click', () => {
+  const d = $('#' + b.dataset.go); d.open = true; d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}));
+
+/* ---------- パス・どれもいまいち ---------- */
+// パス：何も記録せず、新しい候補に入れ替える（範囲を少し広げる）
+$('#passBtn').addEventListener('click', () => {
+  if (busy) return;
+  const sp = SPACE[S.stage]; sp.sigma = clamp(sp.sigma * 1.15, sp.smin, sp.smax);
+  $('#gridIn').classList.add('fade');
+  setTimeout(() => { makeRound(); if (view === 'list') $('#gridBox').scrollTop = 0; requestAnimationFrame(() => $('#gridIn').classList.remove('fade')); persist(); }, 160);
+  toast('記録せずに入れ替えました');
+});
+// どれもいまいち：AIが一番と思う過去の候補 ＞ この4枚、として記録し、そこへ戻って広めに探す
+function bestSoFar(excl) {
+  const gp = SPACE[S.stage].gp, dist = curDist();
+  let best = null, bm = -Infinity;
+  if (gp.f) gp.X.forEach(x => {
+    if (excl.some(e => dist(e, x) < 1e-6)) return;
+    const m = gp.mean(x); if (m > bm) { bm = m; best = x; }
+  });
+  if (best) return best.slice();
+  return S.stage === 'macro' ? U0.slice() : S.stage === 'fine' ? knobsToGenes(S.uBest) : LEAK0.slice();
+}
+$('#noneBtn').addEventListener('click', () => {
+  if (busy || tiles.length < 4) return;
+  busy = true;
+  const sp = SPACE[S.stage], gp = sp.gp;
+  undoStack.push({ stage: S.stage, xLen: gp.X.length, cLen: gp.C.length, uBest: S.uBest.slice(), zBest: S.zBest.slice(), lBest: S.lBest.slice(),
+    sigma: sp.sigma, round: S.round, logLen: log.length, tiles: tiles.map(t => ({ ...t, x: t.x.slice(), z: t.z.slice() })) });
+  const target = bestSoFar(tiles.map(t => t.x));
+  const ti = gp.add(target);
+  tiles.forEach(t => { const j = gp.add(t.x); if (j !== ti) gp.C.push([ti, j]); });
+  log.push({ r: S.round + 1, st: S.stage, none: 1, t: tiles.map(t => ({ x: t.x.map(r4), c: 0, b: t.inc ? 1 : 0 })) });
+  sp.sigma = clamp(Math.max(sp.sigma * 1.4, (sp.smin + sp.smax) / 2), sp.smin, sp.smax);
+  if (S.stage === 'macro') { S.uBest = target; S.zBest = knobsToGenes(target); }
+  else if (S.stage === 'fine') S.zBest = target;
+  else { S.lBest = target; S.leakUsed = true; }
+  S.round++;
+  if (gp.trim(MAX_PTS, bestX())) undoStack = [];
+  gp.fit();
+  $('#gridIn').classList.add('fade');
+  setTimeout(() => {
+    makeRound(); computeAnalysis(); persist();
+    if (view === 'list') $('#gridBox').scrollTop = 0;
+    requestAnimationFrame(() => { $('#gridIn').classList.remove('fade'); busy = false; });
+  }, 160);
+  toast('これまでで一番良かったものに戻って、広めに探します');
 });
 
 /* ---------- ループと起動 ---------- */
