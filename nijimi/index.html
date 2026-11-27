@@ -21,51 +21,33 @@ button{font:inherit;color:inherit;cursor:pointer}
 .glass{background:var(--glass);border:1px solid var(--line);
   -webkit-backdrop-filter:blur(22px) saturate(1.5);backdrop-filter:blur(22px) saturate(1.5)}
 
-/* ---------- top bar ---------- */
-.topbar{position:fixed;left:12px;right:12px;top:calc(12px + env(safe-area-inset-top));
-  display:flex;justify-content:space-between;align-items:center;pointer-events:none}
-.topbar>*{pointer-events:auto}
-.seg{display:flex;padding:3px;border-radius:20px;gap:2px}
-.seg button{border:none;background:transparent;height:34px;padding:0 16px;border-radius:17px;
-  font-size:13px;font-weight:700;color:var(--ink2);letter-spacing:.06em;white-space:nowrap;transition:background .2s,color .2s}
-.seg button.on{background:#fff;color:var(--ink);box-shadow:0 2px 10px rgba(150,90,40,.16)}
-.round{width:42px;height:42px;border-radius:50%;display:grid;place-items:center;padding:0}
+.round{position:fixed;right:12px;top:calc(12px + env(safe-area-inset-top));width:42px;height:42px;border-radius:50%;
+  display:grid;place-items:center;padding:0}
 .round svg{width:22px;height:22px}
 .round:active{transform:scale(.94)}
+
+/* 主役の目印 */
+#ring{position:fixed;left:0;top:0;width:76px;height:76px;margin:-38px 0 0 -38px;border-radius:50%;pointer-events:none;
+  border:1.5px solid rgba(255,255,255,.95);box-shadow:0 0 18px rgba(255,190,120,.85),inset 0 0 14px rgba(255,210,160,.6);
+  opacity:0;transition:opacity .4s}
+#ring.show{opacity:1}
 
 /* ---------- panel ---------- */
 .panel{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));
   max-width:460px;margin:0 auto;padding:14px 16px 16px;border-radius:30px;
   box-shadow:0 10px 40px rgba(120,70,30,.18)}
-.tools{display:none;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid rgba(120,80,50,.12)}
-.sel .tools{display:block}
-.toolrow{display:flex;gap:6px}
-.tool{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 0 5px;
-  border:none;border-radius:16px;background:rgba(255,255,255,.36);color:var(--ink2);font-size:11px;font-weight:700;
-  transition:background .2s,color .2s}
-.tool svg{width:19px;height:19px}
-.tool.on{background:#fff;color:var(--ink);box-shadow:0 3px 12px rgba(150,90,40,.16)}
-.tool .badge{position:absolute;top:4px;right:calc(50% - 20px);min-width:15px;height:15px;padding:0 4px;border-radius:8px;
-  background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff;font-size:9.5px;line-height:15px;font-style:normal;display:none}
-.tool.has .badge{display:block}
-.tool.reset{flex:.8}
-.sub{display:none;align-items:center;justify-content:center;gap:10px;margin-top:8px;min-height:30px;flex-wrap:wrap}
-.sub.on{display:flex}
-.seg.sm{background:rgba(255,255,255,.36);border:none}
-.seg.sm button{height:28px;padding:0 13px;font-size:12px;border-radius:14px}
-.tip{font-size:11.5px;color:var(--ink2);letter-spacing:.03em}
-
-.presets{display:flex;gap:8px}
+.opts{display:flex;gap:8px}
 .chip{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;height:38px;border-radius:19px;
-  border:none;background:rgba(255,255,255,.42);color:var(--ink2);font-size:13.5px;font-weight:700;
+  border:none;background:rgba(255,255,255,.42);color:var(--ink2);font-size:13px;font-weight:700;
   letter-spacing:.04em;white-space:nowrap;transition:background .25s,color .25s,box-shadow .25s}
-.chip i{width:13px;height:13px;border-radius:50%;flex:none}
+.chip i{width:13px;height:13px;border-radius:50%;flex:none;opacity:.55;transition:opacity .25s}
 .chip.on{background:#fff;color:var(--ink);box-shadow:0 3px 12px rgba(150,90,40,.18)}
-.sw-mist{background:radial-gradient(circle at 40% 35%,#fff,#f6dcc0 60%,#e9bf98)}
-.sw-film{background:radial-gradient(circle at 40% 35%,#fff1dc,#ff7a45 55%,#c23a22)}
+.chip.on i{opacity:1}
 .sw-leak{background:linear-gradient(135deg,#ffd27a,#ff8a4c 55%,#ff5f6d)}
+.sw-subj{background:radial-gradient(circle,#ffb35c 0 38%,transparent 40%),radial-gradient(circle,transparent 58%,#f0a868 60% 72%,transparent 74%)}
 
-.row{display:flex;align-items:center;gap:12px;margin:14px 4px 12px}
+.row{display:flex;align-items:center;gap:12px;margin:10px 4px 4px}
+.row+.row{margin-top:2px}
 .row label{font-size:13px;font-weight:700;letter-spacing:.12em;flex:none}
 .row output{font-size:12px;width:2.2em;text-align:right;color:var(--ink2);font-variant-numeric:tabular-nums;flex:none}
 input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:30px;margin:0;background:transparent;--p:50%}
@@ -79,7 +61,7 @@ input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:l
 input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;border-radius:50%;background:#fff;
   box-shadow:0 2px 8px rgba(120,70,30,.3),0 0 0 5px rgba(255,190,120,.32)}
 
-.shot{display:flex;align-items:center;justify-content:space-between;padding:0 6px}
+.shot{display:flex;align-items:center;justify-content:space-between;padding:0 6px;margin-top:8px}
 #thumb{width:50px;height:50px;border-radius:15px;border:2px solid rgba(255,255,255,.95);
   background:rgba(255,255,255,.38) center/cover no-repeat;box-shadow:0 3px 12px rgba(120,70,30,.18);padding:0}
 #thumb:disabled{opacity:.55}
@@ -93,7 +75,7 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;border-ra
   display:grid;place-items:center;padding:0;box-shadow:0 3px 12px rgba(120,70,30,.14)}
 #flip svg{width:24px;height:24px}
 
-.tag{position:fixed;left:50%;top:calc(66px + env(safe-area-inset-top));transform:translateX(-50%);
+.tag{position:fixed;left:50%;top:calc(16px + env(safe-area-inset-top));transform:translateX(-50%);
   padding:8px 16px;border-radius:18px;font-size:12.5px;font-weight:700;letter-spacing:.06em;
   opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
 .tag.show{opacity:1}
@@ -139,61 +121,30 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;border-ra
 <body>
 <video id="v" playsinline muted autoplay></video>
 <canvas id="c"></canvas>
+<div id="ring"></div>
 <div id="flash"></div>
 <div class="tag glass" id="tag"></div>
 
-<div class="topbar">
-  <div class="seg glass" id="modeSeg">
-    <button data-m="all" class="on">全体</button>
-    <button data-m="sel">選択</button>
-  </div>
-  <button class="round glass" id="cmp" aria-label="押している間、元の映像">
-    <svg viewBox="0 0 24 24" fill="none" stroke="#4a3426" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>
-    </svg>
-  </button>
-</div>
+<button class="round glass" id="cmp" aria-label="押している間、元の映像">
+  <svg viewBox="0 0 24 24" fill="none" stroke="#4a3426" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/>
+  </svg>
+</button>
 
 <div class="panel glass" id="panel">
-  <div class="tools">
-    <div class="toolrow" id="toolrow">
-      <button class="tool" data-t="light">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="2.6"/><path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21M5.6 5.6l2.2 2.2M16.2 16.2l2.2 2.2M5.6 18.4l2.2-2.2M16.2 7.8l2.2-2.2"/></svg>
-        光<i class="badge" id="bLight"></i></button>
-      <button class="tool" data-t="paint">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1-4.2L16.3 4.5a2.1 2.1 0 0 1 3 3L8 18.8z"/><path d="M14.5 6.3l3 3"/></svg>
-        塗る<i class="badge"></i></button>
-      <button class="tool" data-t="person">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.6"/><path d="M4.8 20.2c1.2-4.1 4-6 7.2-6s6 1.9 7.2 6"/></svg>
-        人物<i class="badge"></i></button>
-      <button class="tool" data-t="shape">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-dasharray="3 2.6"><ellipse cx="12" cy="12" rx="8.5" ry="6.5"/></svg>
-        範囲<i class="badge"></i></button>
-      <button class="tool reset" id="reset">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5"/><path d="M4.5 4v4h4"/></svg>
-        リセット</button>
-    </div>
-    <div class="sub" data-for="light"><span class="tip">光をタップで追加／もう一度タップで解除</span></div>
-    <div class="sub" data-for="paint">
-      <div class="seg sm" id="paintMode"><button data-v="add" class="on">塗る</button><button data-v="erase">消す</button></div>
-      <div class="seg sm" id="brush"><button data-v="s">小</button><button data-v="m" class="on">中</button><button data-v="l">大</button></div>
-    </div>
-    <div class="sub" data-for="person">
-      <div class="seg sm" id="segMode"><button data-v="0" class="on">オフ</button><button data-v="1">人だけ</button><button data-v="2">背景だけ</button></div>
-      <span class="tip" id="segStatus"></span>
-    </div>
-    <div class="sub" data-for="shape"><span class="tip">指でドラッグして囲む</span></div>
-  </div>
-
-  <div class="presets" id="presets">
-    <button class="chip" data-k="mist"><i class="sw-mist"></i>ミスト</button>
-    <button class="chip" data-k="film"><i class="sw-film"></i>フィルム</button>
-    <button class="chip" data-k="leak"><i class="sw-leak"></i>光漏れ</button>
+  <div class="opts">
+    <button class="chip" id="subjBtn"><i class="sw-subj"></i><span id="subjLabel">主役：自動</span></button>
+    <button class="chip" id="leakBtn"><i class="sw-leak"></i>光漏れ</button>
   </div>
   <div class="row">
     <label for="amt">滲み</label>
     <input type="range" id="amt" min="0" max="100" value="60">
     <output id="amtVal">60</output>
+  </div>
+  <div class="row">
+    <label for="mem">記憶</label>
+    <input type="range" id="mem" min="0" max="100" value="65">
+    <output id="memVal">65</output>
   </div>
   <div class="shot">
     <button id="thumb" aria-label="撮った写真" disabled></button>
@@ -211,7 +162,7 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;border-ra
   <div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
   <div class="in">
     <h1>にじみカメラ</h1>
-    <p class="sub">光が、やわらかく滲む。</p>
+    <p class="sub">記憶みたいに、光が滲む。</p>
     <button class="btn" id="go">カメラをひらく</button>
     <div class="note" id="note">カメラの使用を許可してください</div>
   </div>
@@ -230,123 +181,92 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;border-ra
 (() => {
 'use strict';
 const $ = s => document.querySelector(s);
-const $$ = s => Array.from(document.querySelectorAll(s));
 const video = $('#v'), canvas = $('#c');
 const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
 
-/* ================= presets ================= */
-const PRESETS = {
-  mist: { thr:.58, knee:.55, hot:2.2, intensity:2.1, scatter:.78, tint:[1,.87,.74], tintAmt:.35,
-          warm:.35, contrast:.96, sat:.97, lift:.03, vig:.22, grain:.045, leak:0 },
-  film: { thr:.66, knee:.4,  hot:3.0, intensity:2.6, scatter:.62, tint:[1,.32,.12], tintAmt:.85,
-          warm:.55, contrast:1.03, sat:.9, lift:.055, vig:.36, grain:.10, leak:0 },
-  leak: { thr:.62, knee:.5,  hot:2.4, intensity:1.7, scatter:.76, tint:[1,.68,.4], tintAmt:.5,
-          warm:.6,  contrast:.98, sat:.97, lift:.045, vig:.2, grain:.075, leak:.9 },
-};
-let presetKey = 'mist', amount = .6;
+/* ================= settings ================= */
+// 光の質感は1種類（暖かいミスト）。「滲み」で光の量、「記憶」で褪せ・ぼけ・残像・端のかすみをまとめて調整
+const LOOK = { thr:.58, knee:.55, hot:2.2, intensity:2.0, scatter:.78, tint:[1,.8,.6], tintAmt:.45,
+               warm:.5, grain:.05, leak:.75 };
+const set = { amount:.6, memory:.65, leak:true };
 try {
-  const s = JSON.parse(localStorage.getItem('nijimi-cam') || '{}');
-  if (PRESETS[s.p]) presetKey = s.p;
-  if (typeof s.a === 'number') amount = clamp(s.a, 0, 1);
+  const s = JSON.parse(localStorage.getItem('nijimi-memory') || '{}');
+  if (typeof s.a === 'number') set.amount = clamp(s.a, 0, 1);
+  if (typeof s.m === 'number') set.memory = clamp(s.m, 0, 1);
+  if (typeof s.l === 'boolean') set.leak = s.l;
 } catch (e) {}
-const saveState = () => { try { localStorage.setItem('nijimi-cam', JSON.stringify({p:presetKey, a:amount})); } catch (e) {} };
+const saveSet = () => { try { localStorage.setItem('nijimi-memory', JSON.stringify({ a:set.amount, m:set.memory, l:set.leak })); } catch (e) {} };
 
 function params() {
-  const p = PRESETS[presetKey], k = amount;
+  const p = LOOK, k = set.amount;
   const mult = k < .5 ? k * 2 : 1 + (k - .5) * 2 * 1.7;
   const thr = clamp(p.thr - (k - .5) * .36, .2, .95);
   const thrLin = Math.pow(thr, 2.2);
   const tl = p.tint[0]*.2126 + p.tint[1]*.7152 + p.tint[2]*.0722;
   const norm = 1 + (tl - 1) * .6;
   return {
-    thr: thrLin, knee: thrLin * p.knee, hot: p.hot,
-    intensity: p.intensity * mult,
+    thr: thrLin, knee: thrLin * p.knee, hot: p.hot, intensity: p.intensity * mult,
     scatter: clamp(p.scatter + (k - .5) * .32, .35, .9),
-    tint: p.tint.map(v => v / norm), tintAmt: p.tintAmt,
-    warm: p.warm, contrast: p.contrast, sat: p.sat, lift: p.lift, vig: p.vig, grain: p.grain, leak: p.leak,
+    tint: p.tint.map(v => v / norm), tintAmt: p.tintAmt, warm: p.warm, grain: p.grain,
+    leak: set.leak ? p.leak : 0, memory: set.memory,
+    ghost: .12 + .6 * set.memory,              // 残像の濃さ
+    tau: .08 + .62 * set.memory,               // 残像が消えるまでの時間（秒）
   };
 }
 
-/* ================= selection state ================= */
-const sel = { on:false, tool:'light', paintMode:'add', brush:'m', segMode:0 };
-const lights = [];            // {x,y(画面uv, y上向き), lum, rad(追跡px)}
-let shape = null;             // {cx,cy,rx,ry}（ワールド座標）
-const off = [0, 0];           // 映像の動き（画面uv）。塗りと範囲はこれだけずらして表示
-let hasPaint = false, paintDirty = true, maskShowUntil = 0, touching = false;
-const MAX_LIGHTS = 8;
-const BRUSH = { s:.045, m:.085, l:.15 };
-
-// 塗り用キャンバス（ワールド座標 -1〜2 の3画面分）
-const pc = document.createElement('canvas'), pctx = pc.getContext('2d');
-let PW = 0, PH = 0;
-// 解析用の縮小フレーム（画面と同じ切り抜き・左右反転）
+/* ================= 主役 ================= */
+let subject = null;           // {x,y(画面uv, y上向き), ref:[cr,cb] or null}
+const off = [0, 0];
 const scan = document.createElement('canvas'), sctx = scan.getContext('2d', { willReadFrequently:true });
 const trk = document.createElement('canvas'), tctx = trk.getContext('2d', { willReadFrequently:true });
 const SW = 160, TW = 80;
-let SH = 0, TH = 0, gray = null, selAspect = 0;
+let SH = 0, TH = 0, gray = null, rgbData = null, selAspect = 0;
+const chroma = (r, g, b) => { const y = .2126*r + .7152*g + .0722*b, m = Math.max(r, g, b, .06); return [(r - y) / m, (b - y) / m]; };
 
 /* ================= WebGL ================= */
 const gl = canvas.getContext('webgl2', { antialias:false, alpha:false, depth:false, stencil:false,
   premultipliedAlpha:false, preserveDrawingBuffer:false, powerPreference:'high-performance' });
-
 const LEVELS = 7;
 let FMT = null, ENC = 1;
 
 const VS = `#version 300 es
 layout(location=0) in vec2 aPos; out vec2 vUv;
 void main(){ vUv = aPos*.5+.5; gl_Position = vec4(aPos,0.,1.); }`;
-
 const COMMON = `#version 300 es
 precision highp float;
 in vec2 vUv; out vec4 o;
 const vec3 LUMA = vec3(.2126,.7152,.0722);
 `;
-
-// 選択マスク（光源・塗り・人物・範囲の和集合）
-const MASK = `
-uniform float uSelect, uSegMode, uAspect;
-uniform sampler2D uPaint, uSeg;
-uniform vec2 uOff;
-uniform vec4 uLights[8];
-uniform vec4 uShape;
-float maskAt(vec2 uv){
-  float m = texture(uPaint, (uv - uOff + 1.)/3.).a;
-  if(uSegMode > .5){
-    float s = texture(uSeg, vec2(uv.x, 1. - uv.y)).r;
-    s = smoothstep(.25, .75, s);
-    m = max(m, uSegMode < 1.5 ? s : 1. - s);
-  }
-  for(int i = 0; i < 8; i++){
-    vec4 L = uLights[i];
-    if(L.w > .5){ vec2 d = (uv - L.xy)*vec2(uAspect, 1.); m = max(m, exp(-dot(d,d)/(L.z*L.z))); }
-  }
-  if(uShape.z > 0.){
-    vec2 d = (uv - (uShape.xy + uOff))/uShape.zw;
-    m = max(m, 1. - smoothstep(.78, 1.08, length(d)));
-  }
-  return clamp(m, 0., 1.);
-}
+const CAM = `
+uniform sampler2D uVideo; uniform vec4 uCrop; uniform float uMirror;
+vec3 cam(vec2 uv){ if(uMirror > .5) uv.x = 1. - uv.x; return texture(uVideo, uCrop.xy + uv*uCrop.zw).rgb; }
 `;
 
-const FS_PRE = COMMON + MASK + `
-uniform sampler2D uVideo; uniform vec4 uCrop; uniform float uMirror; uniform vec2 uDst;
-uniform vec3 uThr; uniform float uEnc;
-vec3 fetch(vec2 p){ return pow(texture(uVideo,p).rgb, vec3(2.2)); }
+// 残像：前のフレームの記憶に今を少しずつ混ぜる（表示色のまま保存）
+const FS_ACC = COMMON + CAM + `
+uniform sampler2D uPrev; uniform float uK;
+void main(){ o = vec4(mix(texture(uPrev, vUv).rgb, cam(vUv), uK), 1.); }`;
+
+// 「記憶の映像」＝今と残像の混ざり（半分サイズ、ぼかし用のミップマップの元）
+const FS_RH = COMMON + CAM + `
+uniform sampler2D uAcc; uniform float uGhost; uniform vec2 uDst;
+vec3 R(vec2 uv){ return mix(cam(uv), texture(uAcc, uv).rgb, uGhost); }
 void main(){
-  vec2 uv = vUv; if(uMirror > .5) uv.x = 1. - uv.x;
-  vec2 v = uCrop.xy + uv*uCrop.zw;
-  vec2 d = uCrop.zw*uDst*.25;
-  vec3 a = fetch(v+vec2(-d.x,-d.y)), b = fetch(v+vec2(d.x,-d.y));
-  vec3 c = fetch(v+vec2(-d.x, d.y)), e = fetch(v+vec2(d.x, d.y));
-  float wa = 1./(1.+dot(a,LUMA)), wb = 1./(1.+dot(b,LUMA)), wc = 1./(1.+dot(c,LUMA)), we = 1./(1.+dot(e,LUMA));
-  vec3 col = (a*wa+b*wb+c*wc+e*we)/(wa+wb+wc+we);
+  vec2 d = uDst*.25;
+  o = vec4((R(vUv+vec2(-d.x,-d.y)) + R(vUv+vec2(d.x,-d.y)) + R(vUv+vec2(-d.x,d.y)) + R(vUv+vec2(d.x,d.y)))*.25, 1.);
+}`;
+
+// 明るいところだけ抜き出す
+const FS_PRE = COMMON + `
+uniform sampler2D uRh; uniform vec3 uThr; uniform float uEnc;
+void main(){
+  vec3 col = pow(texture(uRh, vUv).rgb, vec3(2.2));
   float br = max(col.r, max(col.g, col.b));
   float thr = uThr.x, knee = max(uThr.y, 1e-4);
   float soft = clamp(br - thr + knee, 0., 2.*knee); soft = soft*soft/(4.*knee);
   float contrib = max(soft, br - thr)/max(br, 1e-4);
   float hot = 1. + uThr.z*smoothstep(.72, .98, br);
-  float m = uSelect > .5 ? maskAt(vUv) : 1.;
-  o = vec4(col*contrib*hot*uEnc*m, m);
+  o = vec4(col*contrib*hot*uEnc, 1.);
 }`;
 
 const FS_DOWN = COMMON + `
@@ -359,7 +279,6 @@ void main(){
   s += texture(uTex, vUv + vec2(-uTexel.x, uTexel.y));
   o = s/8.;
 }`;
-
 const FS_UP = COMMON + `
 uniform sampler2D uTex; uniform vec2 uTexel;
 void main(){
@@ -376,17 +295,19 @@ void main(){
   o = s/16.;
 }`;
 
-const FS_COMP = COMMON + MASK + `
-uniform sampler2D uVideo, uBloom, uAvg;
-uniform vec4 uCrop; uniform float uMirror, uEnc, uBypass, uTime, uSeed, uAdapt, uShowMask;
-uniform float uIntensity, uTintAmt, uWarm, uContrast, uSat, uLift, uVig, uGrain, uLeak;
+const FS_COMP = COMMON + CAM + `
+uniform sampler2D uAcc, uRh, uBloom, uAvg;
+uniform vec2 uRhTexel;
+uniform float uGhost, uEnc, uBypass, uTime, uSeed, uAdapt, uAspect;
+uniform float uIntensity, uTintAmt, uWarm, uGrain, uLeak, uMem;
 uniform vec3 uTint;
+uniform vec3 uSubj; uniform vec2 uRef;     // 主役 (x, y, mode) mode 0:自動(中心) 1:色で追う 2:場所だけ
 float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
 vec3 tonemap(vec3 x){
   float m = max(x.r, max(x.g, x.b));
   float mc = m < .8 ? m : .8 + .2*(1. - exp(-(m - .8)/.2));
   vec3 y = x*(mc/max(m, 1e-5));
-  return mix(y, vec3(mc), smoothstep(.9, 3., m)*.7);
+  return mix(y, vec3(mc), smoothstep(1., 3.5, m)*.4);
 }
 float brightArea(){
   vec3 s = vec3(0.);
@@ -409,44 +330,74 @@ vec3 leakCol(vec2 uv, float t){
   acc += vec3(1.,.82,.55) * exp(-side*side/.006) * smoothstep(.9, 0., along) * smoothstep(-.05, .1, along) * (.25 + .15*sin(t*.37));
   return acc*.85;
 }
+// 主役らしさ（1=そのまま残す、0=褪せる）
+float keepAt(vec2 uv, vec3 col){
+  vec2 d = (uv - uSubj.xy)*vec2(uAspect, 1.);
+  float dd = dot(d, d);
+  if(uSubj.z < .5) return .85*exp(-dd/.13);
+  float narrow = exp(-dd/.022);
+  if(uSubj.z > 1.5) return narrow;
+  float y = dot(col, LUMA), mx = max(col.r, max(col.g, col.b));
+  vec2 ch = vec2(col.r - y, col.b - y)/max(mx, .06);
+  vec2 dc = ch - uRef;
+  float sim = exp(-dot(dc, dc)/.02)*smoothstep(.03, .1, length(ch));
+  return clamp(max(exp(-dd/.2)*sim, narrow*.6), 0., 1.);
+}
+vec3 blurred(vec2 uv){
+  float lod = 2.6;
+  vec2 t = uRhTexel*exp2(lod)*.75;
+  vec3 s = textureLod(uRh, uv, lod).rgb*.4;
+  s += textureLod(uRh, uv + vec2( t.x, t.y), lod).rgb*.15;
+  s += textureLod(uRh, uv + vec2(-t.x, t.y), lod).rgb*.15;
+  s += textureLod(uRh, uv + vec2( t.x,-t.y), lod).rgb*.15;
+  s += textureLod(uRh, uv + vec2(-t.x,-t.y), lod).rgb*.15;
+  return s;
+}
 void main(){
-  vec2 uv = vUv, suv = uv; if(uMirror > .5) suv.x = 1. - suv.x;
-  vec2 v = uCrop.xy + suv*uCrop.zw;
-  vec3 src = texture(uVideo, v).rgb;
-  if(uBypass > .5){ o = vec4(src, 1.); return; }
-  vec3 base = pow(src, vec3(2.2));
-  vec4 B = texture(uBloom, uv);
-  vec3 b = B.rgb / uEnc;
-  float bl = dot(b, LUMA);
-  vec3 bc = mix(b, bl*uTint, uTintAmt);
+  vec2 uv = vUv;
+  vec3 cur = cam(uv);
+  if(uBypass > .5){ o = vec4(cur, 1.); return; }
+  vec3 Rd = mix(cur, texture(uAcc, uv).rgb, uGhost);   // 今と少し前が混ざった映像
+
+  float keep = keepAt(uv, Rd);
+  float bg = 1. - keep;
+  vec2 q = (uv - .5)*2.;
+  float edge = smoothstep(.75, 1.45, length(q));
+
+  // 細部が抜ける：主役以外と端をぼかす
+  float blurAmt = uMem*clamp(bg*.85 + edge*.6, 0., 1.);
+  vec3 Dd = mix(Rd, blurred(uv), blurAmt*.9);
+
+  // 光の滲み
+  vec3 base = pow(Dd, vec3(2.2));
+  vec3 b = texture(uBloom, uv).rgb/uEnc;
+  vec3 bc = mix(b, dot(b, LUMA)*uTint, uTintAmt*(1. - .6*keep));
   float eff = uIntensity/(1. + uAdapt*brightArea()/uEnc);
-  vec3 glow = bc*eff;
+  // 主役の中は自分の光で白く飛ばないように抑え、周りに滲ませる
+  vec3 c = pow(tonemap(base + bc*eff*(1. - .55*keep)), vec3(1./2.2));
 
-  // w: フィルターをどれだけ効かせるか（全体モードは1）
-  float mk = 0., w = 1.;
-  if(uSelect > .5){ mk = maskAt(uv); w = clamp(max(mk, B.a*2.5), 0., 1.); }
-
-  vec2 q = (uv - .5)*1.4142;
-  float r = smoothstep(.35, 1.05, length(q));
-  vec3 vig = mix(vec3(1.), pow(max(1. - uVig*r*vec3(.82,.92,1.02), 0.), vec3(2.2)), w);
-  vec3 c = pow(tonemap((base + glow)*vig), vec3(1./2.2));
+  // 暖かい色
   c *= vec3(1. + .10*uWarm, 1. + .012*uWarm, 1. - .16*uWarm);
-  c = clamp((c - .5)*uContrast + .5, 0., 1.);
+  c = clamp(c, 0., 1.);
+
+  // 色あせ：主役は記憶色に少し濃く、周りは淡く
   float l = dot(c, LUMA);
-  c = mix(vec3(l), c, uSat);
-  c = mix(uLift*vec3(1.4,1.12,.84), vec3(1.,.985,.95), c);
-  if(uLeak > 0.){ vec3 lk = clamp(leakCol(uv, uTime)*uLeak*w, 0., 1.); c = 1. - (1. - c)*(1. - lk); }
+  float sat = mix(1. + .22*uMem, 1. - .55*uMem, bg);
+  c = clamp(mix(vec3(l), c, sat), 0., 1.);
+  float con = 1. - uMem*(.08 + .18*bg);
+  c = clamp((c - .5)*con + .5, 0., 1.);
+  float lift = .025 + .06*uMem;
+  c = mix(lift*vec3(1.4,1.12,.84), vec3(1.,.985,.95), c);
+
+  // 端が光に溶ける
+  c = mix(c, vec3(1., .93, .84), edge*.5*uMem);
+
+  if(uLeak > 0.){ vec3 lk = clamp(leakCol(uv, uTime)*uLeak, 0., 1.); c = 1. - (1. - c)*(1. - lk); }
+
   l = dot(c, LUMA);
   float mid = 1. - pow(abs(l*2. - 1.), 2.);
   vec2 fc = gl_FragCoord.xy + uSeed*vec2(37.13, 17.71);
   c += (hash(fc) + hash(fc*.5 + 3.1) - 1.)*uGrain*(.35 + .65*mid);
-
-  if(uSelect > .5){
-    // 選択の外：元の映像に、はみ出した光だけを重ねる
-    vec3 plain = pow(1. - (1. - base)*(1. - min(glow, vec3(1.))), vec3(1./2.2));
-    c = mix(plain, c, w);
-    if(uShowMask > 0.) c = mix(c, vec3(1.,.6,.32), mk*.34*uShowMask);
-  }
   c += (hash(fc + 9.7) - .5)/255.;
   o = vec4(clamp(c, 0., 1.), 1.);
 }`;
@@ -464,50 +415,51 @@ function program(fs) {
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
-  for (let i = 0; i < n; i++) {
-    const info = gl.getActiveUniform(p, i);
-    u[info.name.replace('[0]', '')] = gl.getUniformLocation(p, info.name);
-  }
+  for (let i = 0; i < n; i++) { const info = gl.getActiveUniform(p, i); u[info.name] = gl.getUniformLocation(p, info.name); }
   return { p, u };
 }
-function texParams() {
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+function texParams(mip) {
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mip ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
 }
-function makeTarget(w, h, fmt = FMT) {
+function makeTarget(w, h, fmt = FMT, mip = false) {
   const tex = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texImage2D(gl.TEXTURE_2D, 0, fmt.internal, w, h, 0, fmt.format, fmt.type, null);
-  texParams();
+  texParams(mip);
+  if (mip) gl.generateMipmap(gl.TEXTURE_2D);
   const fbo = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
   const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  return { tex, fbo, w, h, ok };
+  return { tex, fbo, w, h, ok, mip };
 }
-function freeTarget(t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); }
-function makeChain(w, h) {
-  const out = [];
+function freeTarget(t) { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } }
+const RGBA8 = () => ({ internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE });
+
+// 1つの出力サイズに必要なバッファ一式
+function makeSet(w, h) {
+  const chain = [];
   let cw = Math.max(1, Math.round(w / 2)), ch = Math.max(1, Math.round(h / 2));
+  const rh = makeTarget(cw, ch, RGBA8(), true);
   for (let i = 0; i < LEVELS; i++) {
-    out.push(makeTarget(cw, ch));
+    chain.push(makeTarget(cw, ch));
     cw = Math.max(1, Math.round(cw / 2)); ch = Math.max(1, Math.round(ch / 2));
   }
-  return out;
+  return { w, h, chain, rh };
 }
-const freeChain = c => c && c.forEach(freeTarget);
+function freeSet(s) { if (!s) return; s.chain.forEach(freeTarget); freeTarget(s.rh); }
 
-let P_PRE, P_DOWN, P_UP, P_COMP, vidTex, paintTex, segTex, chain = null;
-const RGBA8 = () => ({ internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE });
+let P_ACC, P_RH, P_PRE, P_DOWN, P_UP, P_COMP, vidTex, live = null, acc = [null, null], accIdx = 0, accFresh = true;
 
 function initGL() {
   if (!gl) throw new Error('webgl');
   vsObj = compile(gl.VERTEX_SHADER, VS);
-  P_PRE = program(FS_PRE); P_DOWN = program(FS_DOWN); P_UP = program(FS_UP); P_COMP = program(FS_COMP);
-
+  P_ACC = program(FS_ACC); P_RH = program(FS_RH); P_PRE = program(FS_PRE);
+  P_DOWN = program(FS_DOWN); P_UP = program(FS_UP); P_COMP = program(FS_COMP);
   const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
@@ -520,12 +472,8 @@ function initGL() {
     if (t.ok) { FMT = f; ENC = 1; }
     freeTarget(t);
   }
-  const blank = () => {
-    const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); texParams();
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,0]));
-    return t;
-  };
-  vidTex = blank(); paintTex = blank(); segTex = blank();
+  vidTex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, vidTex); texParams(false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0,0,0,255]));
 }
 
 function uploadVideo() {
@@ -534,57 +482,61 @@ function uploadVideo() {
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
   gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
 }
-function uploadPaint() {
-  if (!paintDirty || !PW) return;
-  gl.bindTexture(gl.TEXTURE_2D, paintTex);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, pc);
-  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-  paintDirty = false;
-}
-
 function cropFor(outW, outH) {
   const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
   const va = vw / vh, ca = outW / outH;
   if (va > ca) { const s = ca / va; return [(1 - s) / 2, 0, s, 1]; }
   const s = va / ca; return [0, (1 - s) / 2, 1, s];
 }
-function drawTri() { gl.drawArrays(gl.TRIANGLES, 0, 3); }
-
-const LA = new Float32Array(32);
-function maskUniforms(U, aspect) {
-  gl.uniform1f(U.uSelect, sel.on ? 1 : 0);
-  gl.uniform1f(U.uSegMode, segData ? sel.segMode : 0);
-  gl.uniform1f(U.uAspect, aspect);
-  gl.uniform1i(U.uPaint, 3); gl.uniform1i(U.uSeg, 4);
-  gl.uniform2f(U.uOff, off[0], off[1]);
-  LA.fill(0);
-  lights.forEach((L, i) => {
-    LA[i*4] = L.x; LA[i*4+1] = L.y; LA[i*4+2] = (L.rad * 2.2 + 2.5) / TH; LA[i*4+3] = 1;
-  });
-  gl.uniform4fv(U.uLights, LA);
-  if (shape) gl.uniform4f(U.uShape, shape.cx, shape.cy, shape.rx, shape.ry);
-  else gl.uniform4f(U.uShape, 0, 0, 0, 0);
+const drawTri = () => gl.drawArrays(gl.TRIANGLES, 0, 3);
+function camUniforms(U, crop) {
+  gl.uniform1i(U.uVideo, 0);
+  gl.uniform4fv(U.uCrop, crop);
+  gl.uniform1f(U.uMirror, mirror ? 1 : 0);
 }
 
-function render(targetFbo, outW, outH, ch, P, t, seed, showMask) {
-  const crop = cropFor(outW, outH), aspect = outW / outH;
+// 残像を1フレーム進める（ライブ表示のときだけ）
+function stepAccum(P, dt) {
+  const crop = cropFor(canvas.width, canvas.height);
+  const prev = acc[accIdx], next = acc[1 - accIdx];
   gl.disable(gl.BLEND);
-  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, paintTex);
-  gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, segTex);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, next.fbo); gl.viewport(0, 0, next.w, next.h);
+  gl.useProgram(P_ACC.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vidTex);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, prev.tex);
+  camUniforms(P_ACC.u, crop);
+  gl.uniform1i(P_ACC.u.uPrev, 1);
+  gl.uniform1f(P_ACC.u.uK, accFresh ? 1 : 1 - Math.exp(-dt / P.tau));
+  drawTri();
+  accFresh = false; accIdx = 1 - accIdx;
+  gl.activeTexture(gl.TEXTURE0);
+}
+
+function render(targetFbo, outW, outH, S, P, t, seed) {
+  const crop = cropFor(outW, outH), aspect = outW / outH, accTex = acc[accIdx].tex;
+  gl.disable(gl.BLEND);
+
+  // 記憶の映像（半分サイズ）
+  gl.bindFramebuffer(gl.FRAMEBUFFER, S.rh.fbo); gl.viewport(0, 0, S.rh.w, S.rh.h);
+  gl.useProgram(P_RH.p);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vidTex);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, accTex);
+  camUniforms(P_RH.u, crop);
+  gl.uniform1i(P_RH.u.uAcc, 1);
+  gl.uniform1f(P_RH.u.uGhost, P.ghost);
+  gl.uniform2f(P_RH.u.uDst, 1 / S.rh.w, 1 / S.rh.h);
+  drawTri();
+  gl.bindTexture(gl.TEXTURE_2D, S.rh.tex); gl.generateMipmap(gl.TEXTURE_2D);
   gl.activeTexture(gl.TEXTURE0);
 
-  const L0 = ch[0];
+  // 光の抜き出し
+  const ch = S.chain, L0 = ch[0];
   gl.bindFramebuffer(gl.FRAMEBUFFER, L0.fbo); gl.viewport(0, 0, L0.w, L0.h);
   gl.useProgram(P_PRE.p);
-  gl.bindTexture(gl.TEXTURE_2D, vidTex);
-  gl.uniform1i(P_PRE.u.uVideo, 0);
-  gl.uniform4fv(P_PRE.u.uCrop, crop);
-  gl.uniform1f(P_PRE.u.uMirror, mirror ? 1 : 0);
-  gl.uniform2f(P_PRE.u.uDst, 1 / L0.w, 1 / L0.h);
+  gl.bindTexture(gl.TEXTURE_2D, S.rh.tex);
+  gl.uniform1i(P_PRE.u.uRh, 0);
   gl.uniform3f(P_PRE.u.uThr, P.thr, P.knee, P.hot);
   gl.uniform1f(P_PRE.u.uEnc, ENC);
-  maskUniforms(P_PRE.u, aspect);
   drawTri();
 
   gl.useProgram(P_DOWN.p); gl.uniform1i(P_DOWN.u.uTex, 0);
@@ -595,7 +547,6 @@ function render(targetFbo, outW, outH, ch, P, t, seed, showMask) {
     gl.uniform2f(P_DOWN.u.uTexel, 1 / s.w, 1 / s.h);
     drawTri();
   }
-
   gl.useProgram(P_UP.p); gl.uniform1i(P_UP.u.uTex, 0);
   gl.enable(gl.BLEND);
   gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA);
@@ -609,65 +560,67 @@ function render(targetFbo, outW, outH, ch, P, t, seed, showMask) {
   }
   gl.disable(gl.BLEND);
 
+  // 合成
   gl.bindFramebuffer(gl.FRAMEBUFFER, targetFbo); gl.viewport(0, 0, outW, outH);
   const U = P_COMP.u;
   gl.useProgram(P_COMP.p);
   gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, vidTex);
-  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, L0.tex);
-  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, ch[ch.length - 1].tex);
-  gl.uniform1i(U.uVideo, 0); gl.uniform1i(U.uBloom, 1); gl.uniform1i(U.uAvg, 2);
-  maskUniforms(U, aspect);
-  gl.uniform1f(U.uAdapt, 2.0);
-  gl.uniform4fv(U.uCrop, crop);
-  gl.uniform1f(U.uMirror, mirror ? 1 : 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, accTex);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, S.rh.tex);
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, L0.tex);
+  gl.activeTexture(gl.TEXTURE4); gl.bindTexture(gl.TEXTURE_2D, ch[ch.length - 1].tex);
+  camUniforms(U, crop);
+  gl.uniform1i(U.uAcc, 1); gl.uniform1i(U.uRh, 2); gl.uniform1i(U.uBloom, 3); gl.uniform1i(U.uAvg, 4);
+  gl.uniform2f(U.uRhTexel, 1 / S.rh.w, 1 / S.rh.h);
+  gl.uniform1f(U.uGhost, P.ghost);
   gl.uniform1f(U.uEnc, ENC);
   gl.uniform1f(U.uBypass, bypass ? 1 : 0);
-  gl.uniform1f(U.uShowMask, showMask);
   gl.uniform1f(U.uTime, t);
   gl.uniform1f(U.uSeed, seed);
+  gl.uniform1f(U.uAdapt, 2.0);
+  gl.uniform1f(U.uAspect, aspect);
   gl.uniform1f(U.uIntensity, P.intensity);
   gl.uniform3fv(U.uTint, P.tint);
   gl.uniform1f(U.uTintAmt, P.tintAmt);
   gl.uniform1f(U.uWarm, P.warm);
-  gl.uniform1f(U.uContrast, P.contrast);
-  gl.uniform1f(U.uSat, P.sat);
-  gl.uniform1f(U.uLift, P.lift);
-  gl.uniform1f(U.uVig, P.vig);
   gl.uniform1f(U.uGrain, P.grain);
   gl.uniform1f(U.uLeak, P.leak);
+  gl.uniform1f(U.uMem, P.memory);
+  if (subject) {
+    gl.uniform3f(U.uSubj, subject.x, subject.y, subject.ref ? 1 : 2);
+    gl.uniform2f(U.uRef, subject.ref ? subject.ref[0] : 0, subject.ref ? subject.ref[1] : 0);
+  } else {
+    gl.uniform3f(U.uSubj, .5, .55, 0); gl.uniform2f(U.uRef, 0, 0);
+  }
   drawTri();
   gl.activeTexture(gl.TEXTURE0);
 }
 
 /* ================= camera ================= */
 let stream = null, facing = 'environment', mirror = false, bypass = false;
-
 async function startCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error('nomedia');
   if (stream) stream.getTracks().forEach(t => t.stop());
   stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+    audio: false, video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 } },
   });
   video.srcObject = stream;
   await video.play();
   const tr = stream.getVideoTracks()[0];
   const s = tr.getSettings ? tr.getSettings() : {};
   mirror = s.facingMode ? s.facingMode === 'user' : facing === 'user';
+  accFresh = true;
 }
 
-/* ================= 解析フレーム ================= */
-function setupSelection(aspect) {
+/* ================= 主役の追跡 ================= */
+function setupTracking(aspect) {
   selAspect = aspect;
-  PW = 384; PH = Math.round(384 / aspect);
-  pc.width = PW; pc.height = PH; paintDirty = true; hasPaint = false;
   SH = Math.max(8, Math.round(SW / aspect)); scan.width = SW; scan.height = SH;
   TH = Math.max(8, Math.round(TW / aspect)); trk.width = TW; trk.height = TH;
-  clearSelection(false);
+  clearSubject();
 }
 function drawScan() {
-  const vw = video.videoWidth, vh = video.videoHeight;
-  const c = cropFor(canvas.width, canvas.height);
+  const vw = video.videoWidth, vh = video.videoHeight, c = cropFor(canvas.width, canvas.height);
   sctx.setTransform(mirror ? -1 : 1, 0, 0, 1, mirror ? SW : 0, 0);
   sctx.drawImage(video, c[0] * vw, c[1] * vh, c[2] * vw, c[3] * vh, 0, 0, SW, SH);
   sctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -677,12 +630,10 @@ function readTrack() {
   const d = tctx.getImageData(0, 0, TW, TH).data;
   const g = new Float32Array(TW * TH);
   for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = (.2126 * d[j] + .7152 * d[j+1] + .0722 * d[j+2]) / 255;
-  gray = g;
+  gray = g; rgbData = d;
 }
-
-/* ---- 映像全体の動き（キーフレームとのずれをブロック照合） ---- */
 let key = null, keyH = null, keyOff = [0, 0], lastD = [0, 0], prevOff = [0, 0];
-function resetTracking() { key = null; keyH = null; lastD = [0, 0]; }
+function resetTracking() { key = null; keyH = null; lastD = [0, 0]; off[0] = off[1] = 0; prevOff = [0, 0]; }
 function half(A, w, h) {
   const hw = w >> 1, hh = h >> 1, out = new Float32Array(hw * hh);
   for (let y = 0; y < hh; y++) for (let x = 0; x < hw; x++) {
@@ -717,212 +668,92 @@ function motionStep() {
     const s = F(X, Y);
     if (s < fb) { fb = s; fx = X; fy = Y; }
   }
-  const n = (TW - 2 * M) * (TH - 2 * M);
-  if (fb / n > .09) {               // 映像が大きく変わった：基準を取り直す
-    key = gray.slice(); keyH = curH; keyOff = off.slice(); lastD = [0, 0]; return;
-  }
+  if (fb / ((TW - 2 * M) * (TH - 2 * M)) > .09) { key = gray.slice(); keyH = curH; keyOff = off.slice(); lastD = [0, 0]; return; }
   const sx = Math.abs(fx) < 9 ? parab(F(fx - 1, fy), fb, F(fx + 1, fy)) : 0;
   const sy = Math.abs(fy) < 9 ? parab(F(fx, fy - 1), fb, F(fx, fy + 1)) : 0;
   const dx = fx + sx, dy = fy + sy;
-  off[0] = keyOff[0] + dx / TW;
-  off[1] = keyOff[1] - dy / TH;
+  off[0] = keyOff[0] + dx / TW; off[1] = keyOff[1] - dy / TH;
   lastD = [dx, dy];
   if (Math.abs(dx) > 5 || Math.abs(dy) > 5) { key = gray.slice(); keyH = curH; keyOff = off.slice(); lastD = [0, 0]; }
-  if (Math.abs(off[0]) > .6 || Math.abs(off[1]) > .6) recenter();
 }
-const tmpc = document.createElement('canvas');
-function recenter() {
-  const dx = off[0], dy = off[1];
-  if (hasPaint) {
-    tmpc.width = PW; tmpc.height = PH;
-    const t = tmpc.getContext('2d'); t.clearRect(0, 0, PW, PH); t.drawImage(pc, 0, 0);
-    pctx.clearRect(0, 0, PW, PH); pctx.drawImage(tmpc, dx * PW / 3, -dy * PH / 3);
-    paintDirty = true;
-  }
-  if (shape) { shape.cx += dx; shape.cy += dy; }
-  keyOff[0] -= dx; keyOff[1] -= dy; prevOff[0] -= dx; prevOff[1] -= dy;
-  off[0] = 0; off[1] = 0;
-}
-
-/* ---- 光源の追跡 ---- */
-function blobAt(px, py, r, minLum) {
-  let sw = 0, sx = 0, sy = 0, cnt = 0, peak = 0;
-  const x0 = Math.max(0, Math.floor(px - r)), x1 = Math.min(TW - 1, Math.ceil(px + r));
-  const y0 = Math.max(0, Math.floor(py - r)), y1 = Math.min(TH - 1, Math.ceil(py + r));
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const g = gray[y * TW + x];
-    if (g > peak) peak = g;
-    if (g >= minLum) { const w = g * g; sw += w; sx += x * w; sy += y * w; cnt++; }
-  }
-  return cnt ? { x: sx / sw, y: sy / sw, cnt, peak } : { cnt: 0, peak };
-}
-function trackLights() {
-  const ddx = (off[0] - prevOff[0]) * TW, ddy = -(off[1] - prevOff[1]) * TH;
-  for (const L of lights) {
-    const px = L.x * TW + ddx, py = (1 - L.y) * TH + ddy;
-    const r = Math.max(4, L.rad * 1.6 + 3);
-    const b = L.lum > .3 ? blobAt(px, py, r, Math.max(.3, L.lum * .72)) : { cnt: 0 };
-    if (b.cnt) {
-      const nx = px + (b.x - px) * .7, ny = py + (b.y - py) * .7;
-      L.x = nx / TW; L.y = 1 - ny / TH;
-      L.rad += (Math.sqrt(b.cnt / Math.PI) - L.rad) * .15;
-      L.lum += (b.peak - L.lum) * .1;
-    } else { L.x = px / TW; L.y = 1 - py / TH; }
-  }
+function chromaPx(i) { return chroma(rgbData[i*4] / 255, rgbData[i*4+1] / 255, rgbData[i*4+2] / 255); }
+function trackSubject() {
+  const S = subject;
+  let px = S.x * TW + (off[0] - prevOff[0]) * TW, py = (1 - S.y) * TH - (off[1] - prevOff[1]) * TH;
   prevOff[0] = off[0]; prevOff[1] = off[1];
-}
-function toggleLightAt(u, v) {
-  const a = canvas.width / canvas.height;
-  for (let i = 0; i < lights.length; i++) {
-    const L = lights[i], r = (L.rad * 2.2 + 2.5) / TH;
-    if (Math.hypot((u - L.x) * a, v - L.y) < Math.max(r, .05)) { lights.splice(i, 1); updateBadges(); return; }
+  if (S.ref) {
+    // 主役と同じ色のまとまりの中心へ寄せる
+    const R = 10;
+    let sw = 0, sx = 0, sy = 0;
+    for (let y = Math.max(0, Math.floor(py - R)); y <= Math.min(TH - 1, Math.ceil(py + R)); y++)
+      for (let x = Math.max(0, Math.floor(px - R)); x <= Math.min(TW - 1, Math.ceil(px + R)); x++) {
+        const c = chromaPx(y * TW + x), dc0 = c[0] - S.ref[0], dc1 = c[1] - S.ref[1];
+        const w = Math.exp(-(dc0 * dc0 + dc1 * dc1) / .02) * (Math.hypot(c[0], c[1]) > .05 ? 1 : 0)
+                * Math.exp(-((x - px) ** 2 + (y - py) ** 2) / (2 * 36));
+        sw += w; sx += x * w; sy += y * w;
+      }
+    if (sw > 1.5) { px += (sx / sw - px) * .5; py += (sy / sw - py) * .5; }
   }
-  if (lights.length >= MAX_LIGHTS) { showTag('光は' + MAX_LIGHTS + 'つまでです', 1800); return; }
-  if (!gray) { drawScan(); readTrack(); }
-  const px = u * TW, py = (1 - v) * TH;
-  // タップした近くで一番明るい点に吸い付く
-  let bx = px, by = py, peak = -1;
-  const R = 6;
-  for (let y = Math.max(0, Math.floor(py - R)); y <= Math.min(TH - 1, Math.ceil(py + R)); y++)
-    for (let x = Math.max(0, Math.floor(px - R)); x <= Math.min(TW - 1, Math.ceil(px + R)); x++) {
-      if (Math.hypot(x - px, y - py) > R) continue;
-      const g = gray[y * TW + x];
-      if (g > peak) { peak = g; bx = x; by = y; }
-    }
-  let L;
-  if (peak > .3) {
-    const b = blobAt(bx, by, 6, peak * .75);
-    L = { x: b.x / TW, y: 1 - b.y / TH, lum: peak, rad: Math.max(1, Math.sqrt(b.cnt / Math.PI)) };
-  } else {
-    L = { x: u, y: v, lum: peak, rad: 3 };
+  S.x = clamp(px / TW, -.2, 1.2); S.y = clamp(1 - py / TH, -.2, 1.2);
+}
+function setSubjectAt(u, v) {
+  drawScan(); readTrack();
+  const px = Math.round(u * TW), py = Math.round((1 - v) * TH);
+  let r = 0, g = 0, b = 0, n = 0;
+  for (let y = py - 1; y <= py + 1; y++) for (let x = px - 1; x <= px + 1; x++) {
+    if (x < 0 || y < 0 || x >= TW || y >= TH) continue;
+    const i = (y * TW + x) * 4; r += rgbData[i]; g += rgbData[i+1]; b += rgbData[i+2]; n++;
   }
-  lights.push(L);
-  if (!key) { prevOff = off.slice(); }
-  updateBadges();
+  const ref = n ? chroma(r / n / 255, g / n / 255, b / n / 255) : [0, 0];
+  subject = { x: u, y: v, ref: Math.hypot(ref[0], ref[1]) > .06 ? ref : null };
+  resetTracking();
+  updateSubjectUI(true);
 }
-
-/* ---- 塗る ---- */
-function stamp(cx, cy, r) {
-  const g = pctx.createRadialGradient(cx, cy, 0, cx, cy, r);
-  g.addColorStop(0, 'rgba(255,255,255,.55)');
-  g.addColorStop(.55, 'rgba(255,255,255,.35)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  pctx.fillStyle = g;
-  pctx.beginPath(); pctx.arc(cx, cy, r, 0, Math.PI * 2); pctx.fill();
-}
-function paintStroke(a, b) {
-  const toC = p => [((p[0] - off[0]) + 1) / 3 * PW, (1 - ((p[1] - off[1]) + 1) / 3) * PH];
-  const A = toC(a), B = toC(b), r = BRUSH[sel.brush] * PW / 3;
-  pctx.globalCompositeOperation = sel.paintMode === 'erase' ? 'destination-out' : 'source-over';
-  const dist = Math.hypot(B[0] - A[0], B[1] - A[1]), step = Math.max(1, r * .25);
-  const n = Math.max(1, Math.ceil(dist / step));
-  for (let i = 0; i <= n; i++) stamp(A[0] + (B[0] - A[0]) * i / n, A[1] + (B[1] - A[1]) * i / n, r);
-  pctx.globalCompositeOperation = 'source-over';
-  if (sel.paintMode === 'add') hasPaint = true;
-  paintDirty = true;
-  if (!key) prevOff = off.slice();
-}
-
-/* ---- 範囲 ---- */
-function setShape(a, b) {
-  shape = {
-    cx: (a[0] + b[0]) / 2 - off[0], cy: (a[1] + b[1]) / 2 - off[1],
-    rx: Math.max(Math.abs(b[0] - a[0]) / 2, .03), ry: Math.max(Math.abs(b[1] - a[1]) / 2, .02),
-  };
-}
-
-function clearSelection(withSeg = true) {
-  lights.length = 0; shape = null; hasPaint = false;
-  if (PW) { pctx.clearRect(0, 0, PW, PH); paintDirty = true; }
-  off[0] = off[1] = 0; prevOff = [0, 0]; resetTracking();
-  if (withSeg) setSegMode(0);
-  updateBadges();
-}
-
-/* ---- 人物（MediaPipe） ---- */
-const MP = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
-const SEG_MODEL = 'https://storage.googleapis.com/mediapipe-models/image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite';
-let segmenter = null, segLoading = false, segTs = 0, segData = null, frameNo = 0;
-async function loadSeg() {
-  if (segmenter || segLoading) return;
-  segLoading = true; $('#segStatus').textContent = '読み込み中…';
-  try {
-    const vision = await import(MP + '/vision_bundle.mjs');
-    const fs = await vision.FilesetResolver.forVisionTasks(MP + '/wasm');
-    const opts = d => ({ baseOptions: { modelAssetPath: SEG_MODEL, delegate: d }, runningMode: 'VIDEO',
-      outputCategoryMask: false, outputConfidenceMasks: true });
-    try { segmenter = await vision.ImageSegmenter.createFromOptions(fs, opts('GPU')); }
-    catch (e) { segmenter = await vision.ImageSegmenter.createFromOptions(fs, opts('CPU')); }
-    $('#segStatus').textContent = '';
-  } catch (e) {
-    console.error(e); $('#segStatus').textContent = '読み込めませんでした';
-  }
-  segLoading = false;
-}
-function runSeg() {
-  segTs = Math.max(segTs + 1, Math.round(performance.now()));
-  segmenter.segmentForVideo(scan, segTs, res => {
-    const ms = res.confidenceMasks;
-    if (!ms || !ms.length) return;
-    const m = ms[0], inv = ms.length > 1;      // 複数チャンネルなら0番が背景
-    const arr = m.getAsFloat32Array(), w = m.width, h = m.height;
-    if (!segData || segData.length !== w * h) segData = new Uint8Array(w * h);
-    for (let i = 0; i < arr.length; i++) {
-      const p = inv ? 1 - arr[i] : arr[i];
-      segData[i] = segData[i] * .35 + clamp(p, 0, 1) * 255 * .65;
-    }
-    gl.bindTexture(gl.TEXTURE_2D, segTex);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, w, h, 0, gl.RED, gl.UNSIGNED_BYTE, segData);
-    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
-  });
-}
-
-function selectionStep() {
-  const needTrack = hasPaint || !!shape || lights.length > 0;
-  const needSeg = sel.segMode > 0 && segmenter;
-  if (!needTrack && !needSeg) return;
-  drawScan();
-  if (needTrack) { readTrack(); motionStep(); trackLights(); }
-  if (needSeg && (frameNo++ & 1) === 0) { try { runSeg(); } catch (e) { console.error(e); } }
-}
+function clearSubject() { subject = null; resetTracking(); updateSubjectUI(false); }
 
 /* ================= loop ================= */
-let running = false, viewerOpen = false;
+let running = false, viewerOpen = false, lastT = 0, ringUntil = 0;
+const ring = $('#ring');
 function resize() {
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   let w = Math.round(canvas.clientWidth * dpr), h = Math.round(canvas.clientHeight * dpr);
   const cap = 1800, m = Math.max(w, h);
   if (m > cap) { w = Math.round(w * cap / m); h = Math.round(h * cap / m); }
   if (w < 2 || h < 2) return;
-  if (canvas.width !== w || canvas.height !== h || !chain) {
+  if (canvas.width !== w || canvas.height !== h || !live) {
     canvas.width = w; canvas.height = h;
-    freeChain(chain); chain = makeChain(w, h);
+    freeSet(live); live = makeSet(w, h);
+    freeTarget(acc[0]); freeTarget(acc[1]);
+    acc = [makeTarget(w, h), makeTarget(w, h)]; accIdx = 0; accFresh = true;
     const a = w / h;
-    if (!selAspect || Math.abs(a / selAspect - 1) > .04) setupSelection(a);
+    if (!selAspect || Math.abs(a / selAspect - 1) > .04) setupTracking(a);
   }
-}
-function maskVisibility(now) {
-  if (!sel.on) return 0;
-  if (touching) return 1;
-  return clamp((maskShowUntil - now) / 500, 0, 1);
 }
 function loop(now) {
   if (!running) return;
   requestAnimationFrame(loop);
-  if (document.hidden || viewerOpen || video.readyState < 2 || !video.videoWidth) return;
+  if (document.hidden || viewerOpen || video.readyState < 2 || !video.videoWidth) { lastT = 0; return; }
   resize();
-  if (sel.on) selectionStep();
-  uploadVideo(); uploadPaint();
-  render(null, canvas.width, canvas.height, chain, params(), now / 1000, Math.random() * 100, maskVisibility(now));
+  const dt = lastT ? Math.min(.1, (now - lastT) / 1000) : 1 / 30; lastT = now;
+  if (subject) { drawScan(); readTrack(); motionStep(); trackSubject(); }
+  const P = params();
+  uploadVideo();
+  stepAccum(P, dt);
+  render(null, canvas.width, canvas.height, live, P, now / 1000, Math.random() * 100);
+  // 主役の目印
+  const showRing = subject && now < ringUntil;
+  ring.classList.toggle('show', !!showRing);
+  if (subject) {
+    const r = canvas.getBoundingClientRect();
+    ring.style.transform = `translate(${r.left + subject.x * r.width}px, ${r.top + (1 - subject.y) * r.height}px)`;
+  }
 }
 
 /* ================= capture ================= */
 let lastBlob = null, lastURL = null;
 async function capture() {
-  if (!video.videoWidth || !chain) return;
+  if (!video.videoWidth || !live) return;
   const fl = $('#flash'); fl.classList.remove('go'); void fl.offsetWidth; fl.classList.add('go');
-
   const vw = video.videoWidth, vh = video.videoHeight, ca = canvas.width / canvas.height;
   let w, h;
   if (vw / vh > ca) { h = vh; w = Math.round(vh * ca); } else { w = vw; h = Math.round(vw / ca); }
@@ -932,16 +763,16 @@ async function capture() {
   w = Math.round(w * sc); h = Math.round(h * sc);
 
   const out = makeTarget(w, h, RGBA8());
-  const ch = makeChain(w, h);
+  const S = makeSet(w, h);
   const wasBypass = bypass; bypass = false;
-  uploadVideo(); uploadPaint();
-  render(out.fbo, w, h, ch, params(), performance.now() / 1000, Math.random() * 100, 0);
+  uploadVideo();
+  render(out.fbo, w, h, S, params(), performance.now() / 1000, Math.random() * 100);
   bypass = wasBypass;
   const px = new Uint8Array(w * h * 4);
   gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
   gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-  freeTarget(out); freeChain(ch);
+  freeTarget(out); freeSet(S);
 
   const img = new ImageData(w, h), row = w * 4;
   for (let y = 0; y < h; y++) img.data.set(px.subarray((h - 1 - y) * row, (h - y) * row), y * row);
@@ -979,68 +810,36 @@ function showTag(text, ms) {
 }
 const hideTag = () => { clearTimeout(tagTimer); tag.classList.remove('show'); };
 
-function setPreset(k) {
-  presetKey = k;
-  $$('.chip').forEach(b => b.classList.toggle('on', b.dataset.k === k));
-  saveState();
+function bindSlider(id, outId, get, put) {
+  const el = $(id), out = $(outId);
+  const show = v => { el.value = v; out.textContent = v; el.style.setProperty('--p', v + '%'); };
+  show(Math.round(get() * 100));
+  el.addEventListener('input', () => { put(+el.value / 100); show(+el.value); saveSet(); });
+  return show;
 }
-const amt = $('#amt'), amtVal = $('#amtVal');
-function setAmount(v) {
-  amount = v / 100;
-  amt.value = v; amtVal.textContent = v; amt.style.setProperty('--p', v + '%');
-}
-amt.addEventListener('input', () => { setAmount(+amt.value); saveState(); });
-$('#presets').addEventListener('click', e => { const b = e.target.closest('.chip'); if (b) setPreset(b.dataset.k); });
-setPreset(presetKey); setAmount(Math.round(amount * 100));
+const showAmt = bindSlider('#amt', '#amtVal', () => set.amount, v => { set.amount = v; });
+const showMem = bindSlider('#mem', '#memVal', () => set.memory, v => { set.memory = v; });
 
-const TOOL_TIPS = { light:'光をタップして選んでください', paint:'指でなぞって塗ってください', person:'人だけ／背景だけを選んでください', shape:'指でドラッグして囲んでください' };
-function hasAnySelection() { return lights.length > 0 || hasPaint || !!shape || sel.segMode > 0; }
-function setMode(m) {
-  sel.on = m === 'sel';
-  $$('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
-  $('#panel').classList.toggle('sel', sel.on);
-  if (sel.on) { maskShowUntil = performance.now() + 1500; if (!hasAnySelection()) showTag(TOOL_TIPS[sel.tool], 2600); }
-  else hideTag();
+const leakBtn = $('#leakBtn');
+const showLeak = () => leakBtn.classList.toggle('on', set.leak);
+leakBtn.addEventListener('click', () => { set.leak = !set.leak; showLeak(); saveSet(); });
+showLeak();
+
+function updateSubjectUI(justSet) {
+  $('#subjLabel').textContent = subject ? '主役：選択中 ✕' : '主役：自動';
+  $('#subjBtn').classList.toggle('on', !!subject);
+  if (justSet) ringUntil = performance.now() + 1400;
 }
-function setTool(t) {
-  sel.tool = t;
-  $$('.tool[data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-  $$('.sub').forEach(s => s.classList.toggle('on', s.dataset.for === t));
-  maskShowUntil = performance.now() + 1500;
-  if (!hasAnySelection()) showTag(TOOL_TIPS[t], 2400);
-}
-function setSegMode(v) {
-  sel.segMode = v;
-  $$('#segMode button').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
-  if (v > 0) loadSeg();
-  maskShowUntil = performance.now() + 1500;
-  updateBadges();
-}
-function updateBadges() {
-  const bl = $('#bLight');
-  bl.textContent = lights.length || '';
-  $('.tool[data-t="light"]').classList.toggle('has', lights.length > 0);
-  $('.tool[data-t="paint"]').classList.toggle('has', hasPaint);
-  $('.tool[data-t="person"]').classList.toggle('has', sel.segMode > 0);
-  $('.tool[data-t="shape"]').classList.toggle('has', !!shape);
-}
-const bindSeg = (id, fn) => $(id).addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  $$(id + ' button').forEach(x => x.classList.toggle('on', x === b)); fn(b.dataset.v);
+$('#subjBtn').addEventListener('click', () => {
+  if (subject) { clearSubject(); showTag('主役は画面の中心になりました', 1800); }
+  else showTag('主役にしたいものをタップしてください', 2400);
 });
-$('#modeSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.m); });
-$('#toolrow').addEventListener('click', e => { const b = e.target.closest('.tool[data-t]'); if (b) setTool(b.dataset.t); });
-bindSeg('#paintMode', v => { sel.paintMode = v; });
-bindSeg('#brush', v => { sel.brush = v; });
-$('#segMode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setSegMode(+b.dataset.v); });
-$('#reset').addEventListener('click', () => { clearSelection(true); maskShowUntil = performance.now() + 800; });
-setTool('light');
 
 $('#shutter').addEventListener('click', capture);
 $('#flip').addEventListener('click', async () => {
   facing = facing === 'environment' ? 'user' : 'environment';
   try { await startCamera(); } catch (e) { facing = facing === 'environment' ? 'user' : 'environment'; }
-  clearSelection(false);
+  clearSubject();
 });
 $('#thumb').addEventListener('click', () => {
   if (!lastURL) return;
@@ -1050,48 +849,30 @@ $('#vclose').addEventListener('click', () => { $('#viewer').classList.remove('op
 $('#vsave').addEventListener('click', saveLast);
 
 // 比較ボタン（押している間だけ元の映像）
+const cap1 = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch (_) {} };
 const cmp = $('#cmp');
-const cmpOn = () => { bypass = true; showTag('元の映像'); };
-const cmpOff = () => { if (bypass) { bypass = false; hideTag(); } };
-const capture1 = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch (_) {} };
-cmp.addEventListener('pointerdown', e => { capture1(cmp, e); cmpOn(); });
-['pointerup', 'pointercancel'].forEach(ev => cmp.addEventListener(ev, cmpOff));
+cmp.addEventListener('pointerdown', e => { cap1(cmp, e); bypass = true; showTag('元の映像'); });
+['pointerup', 'pointercancel'].forEach(ev => cmp.addEventListener(ev, () => { bypass = false; hideTag(); }));
 
-// 画面のタッチ：全体モードは長押しで比較、選択モードは各ツール
+// 画面タップ：主役を選ぶ（主役の上をもう一度タップで解除）
 const toUV = e => { const r = canvas.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height]; };
-let ptr = null;
-canvas.addEventListener('pointerdown', e => {
-  capture1(canvas, e);
-  const p = toUV(e);
-  if (!sel.on) { ptr = { type:'hold' }; cmpOn(); return; }
-  if (!PW) return;
-  touching = true; hideTag();
-  if (sel.tool === 'paint') { ptr = { type:'paint', last:p }; paintStroke(p, p); updateBadges(); }
-  else if (sel.tool === 'shape') { ptr = { type:'shape', start:p }; setShape(p, p); updateBadges(); }
-  else if (sel.tool === 'light') { ptr = { type:'tap', start:p }; }
-  else ptr = null;
-});
-canvas.addEventListener('pointermove', e => {
-  if (!ptr) return;
-  const p = toUV(e);
-  if (ptr.type === 'paint') { paintStroke(ptr.last, p); ptr.last = p; }
-  else if (ptr.type === 'shape') setShape(ptr.start, p);
-});
-const endPtr = e => {
-  if (!ptr) { touching = false; return; }
-  if (ptr.type === 'hold') cmpOff();
-  else if (ptr.type === 'tap' && e.type === 'pointerup') {
-    const p = toUV(e);
-    if (Math.hypot(p[0] - ptr.start[0], p[1] - ptr.start[1]) < .04) toggleLightAt(p[0], p[1]);
+let down = null;
+canvas.addEventListener('pointerdown', e => { cap1(canvas, e); down = toUV(e); });
+canvas.addEventListener('pointerup', e => {
+  if (!down || !video.videoWidth || !TW) { down = null; return; }
+  const p = toUV(e), a = canvas.width / canvas.height;
+  if (Math.hypot(p[0] - down[0], p[1] - down[1]) < .04) {
+    if (subject && Math.hypot((p[0] - subject.x) * a, p[1] - subject.y) < .08) { clearSubject(); showTag('主役は画面の中心になりました', 1800); }
+    else { setSubjectAt(p[0], p[1]); hideTag(); }
   }
-  ptr = null; touching = false; maskShowUntil = performance.now() + 1200; updateBadges();
-};
-canvas.addEventListener('pointerup', endPtr);
-canvas.addEventListener('pointercancel', endPtr);
+  down = null;
+});
+canvas.addEventListener('pointercancel', () => { down = null; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && stream && video.paused) video.play().catch(() => {});
+  accFresh = true;
 });
 canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); running = false; });
 canvas.addEventListener('webglcontextrestored', () => location.reload());
@@ -1100,7 +881,7 @@ canvas.addEventListener('webglcontextrestored', () => location.reload());
 const note = $('#note');
 $('#go').addEventListener('click', async () => {
   note.classList.remove('err'); note.textContent = 'カメラを準備しています…';
-  try { if (!P_PRE) initGL(); }
+  try { if (!P_ACC) initGL(); }
   catch (e) { note.classList.add('err'); note.textContent = 'この端末ではWebGL2が使えないため動かせません'; console.error(e); return; }
   try { await startCamera(); }
   catch (e) {
@@ -1113,14 +894,15 @@ $('#go').addEventListener('click', async () => {
   }
   $('#start').classList.add('hide');
   running = true; requestAnimationFrame(loop);
-  setTimeout(() => showTag('目のボタンを押している間、元の映像', 3200), 900);
+  setTimeout(() => showTag('主役にしたいものをタップしてください', 3200), 900);
 });
 
 // テスト用
 window.__nijimi = {
-  capture, setPreset, setAmount, setMode, setTool, setSegMode, toggleLightAt, paintStroke, setShape, clearSelection,
+  capture, setSubjectAt, clearSubject,
+  set(a, m, l) { if (a != null) { set.amount = a; showAmt(Math.round(a * 100)); } if (m != null) { set.memory = m; showMem(Math.round(m * 100)); } if (l != null) { set.leak = l; showLeak(); } },
   get fmt() { return FMT && FMT.type === gl.HALF_FLOAT ? 'half' : 'rgba8'; },
-  get state() { return { off: off.slice(), lights: lights.map(l => ({...l})), hasPaint, shape, seg: !!segmenter, segLoading }; },
+  get state() { return { subject: subject && { ...subject }, off: off.slice() }; },
 };
 })();
 </script>
