@@ -35,9 +35,16 @@ header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP
 .tile::after{content:"";position:absolute;inset:0;border-radius:12px;box-shadow:inset 0 0 0 0 rgba(236,127,69,0);transition:box-shadow .15s}
 .tile.picked::after{box-shadow:inset 0 0 0 4px #ec7f45}
 .tile:active{transform:scale(.985)}
-.tile .inc{position:absolute;left:6px;top:6px;padding:3px 8px;border-radius:10px;background:rgba(255,250,244,.88);font-size:10.5px;font-weight:800;
-  color:#d8692e;display:none}
-.tile.isInc .inc{display:block}
+.tile .rk{position:absolute;left:8px;top:8px;width:30px;height:30px;border-radius:15px;display:none;place-items:center;
+  background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff;font-size:15px;font-weight:900;box-shadow:0 3px 10px rgba(200,100,40,.4)}
+.tile.ranked .rk{display:grid}
+.tile.ranked::after{box-shadow:inset 0 0 0 3px #ec7f45}
+.tile.last .rk{background:#b39883;box-shadow:none}
+.tile.last::after{box-shadow:inset 0 0 0 3px #b39883}
+.leadR{display:flex;align-items:center;gap:8px;flex:none}
+.lead b{white-space:nowrap}
+#topOnly{white-space:nowrap;height:26px;padding:0 10px;border-radius:13px;background:#fff;font-size:11.5px;font-weight:800;color:#d8692e;box-shadow:0 2px 8px rgba(120,70,30,.12)}
+#topOnly[hidden]{display:none}
 
 .tools{display:flex;gap:8px;margin-top:12px}
 .tool{flex:1;height:46px;border-radius:23px;background:#fff;font-size:13.5px;font-weight:800;box-shadow:0 3px 12px rgba(120,70,30,.1)}
@@ -110,7 +117,7 @@ input[type=file]{display:none}
   </header>
 
   <div class="stage" id="stageSeg"><button data-v="macro" class="on">ざっくり（つまみ10）</button><button data-v="fine">細かく（遺伝子31）</button></div>
-  <div class="lead"><span>いちばん好きな1枚をタップ（長押しで大きく）</span><b id="roundNo">1回目</b></div>
+  <div class="lead"><span id="leadTxt">好きな順にタップ（長押しで拡大）</span><span class="leadR"><button id="topOnly" hidden>1位だけで次へ ›</button><b id="roundNo">1回目</b></span></div>
   <div id="gridBox"><div id="gridIn"><canvas id="c"></canvas><div id="tiles"></div></div></div>
 
   <div class="tools">
@@ -154,7 +161,7 @@ input[type=file]{display:none}
   <div class="bbtns">
     <button id="bigClose">閉じる</button>
     <button id="bigOrig">押して元の画像</button>
-    <button class="main" id="bigPick">これを選ぶ</button>
+    <button class="main" id="bigPick">次の順位にする</button>
   </div>
 </div>
 
@@ -795,14 +802,20 @@ function makeRound() {
   tiles = set.map(t => ({ ...t, z: toZ(t.x), seed: Math.random() * 100 }));
   updateTiles(); dirty = true; updateStats();
 }
-function choose(i) {
-  const sp = SPACE[S.stage], gp = sp.gp, win = tiles[i];
+// order：好きな順に並べたタイル番号（1位だけでも可）
+function choose(order) {
+  if (typeof order === 'number') order = [order];
+  const sp = SPACE[S.stage], gp = sp.gp, win = tiles[order[0]];
   undoStack.push({ stage: S.stage, xLen: gp.X.length, cLen: gp.C.length, uBest: S.uBest.slice(), zBest: S.zBest.slice(), sigma: sp.sigma, round: S.round, logLen: log.length,
     tiles: tiles.map(t => ({ ...t, x: t.x.slice(), z: t.z.slice() })) });
   if (undoStack.length > 30) undoStack.shift();
-  const idxs = tiles.map(t => gp.add(t.x)), wi = idxs[i];
-  idxs.forEach((j, k) => { if (k !== i && j !== wi) gp.C.push([wi, j]); });
-  log.push({ r: S.round + 1, st: S.stage, t: tiles.map((t, k) => ({ x: t.x.map(r4), c: k === i ? 1 : 0, b: t.inc ? 1 : 0 })) });
+  const idxs = tiles.map(t => gp.add(t.x));
+  // 上の順位 ＞ 下の順位、順位をつけた1枚 ＞ つけていない1枚、をすべて比較として足す
+  const rest = [0, 1, 2, 3].filter(k => !order.includes(k));
+  order.forEach((a, ai) => {
+    [...order.slice(ai + 1), ...rest].forEach(b => { if (idxs[a] !== idxs[b]) gp.C.push([idxs[a], idxs[b]]); });
+  });
+  log.push({ r: S.round + 1, st: S.stage, t: tiles.map((t, k) => ({ x: t.x.map(r4), c: order.indexOf(k) + 1, b: t.inc ? 1 : 0 })) });
   sp.sigma = clamp(win.inc ? sp.sigma * .8 : sp.sigma * 1.15, sp.smin, sp.smax);
   if (S.stage === 'macro') { S.uBest = win.x.slice(); S.zBest = knobsToGenes(S.uBest); } else S.zBest = win.x.slice();
   S.round++;
@@ -907,7 +920,7 @@ function updateRank() {
 function buildTiles() {
   tilesBox.innerHTML = '';
   for (let i = 0; i < 4; i++) {
-    const b = document.createElement('button'); b.className = 'tile'; b.innerHTML = '<span class="inc">いまのベスト</span>';
+    const b = document.createElement('button'); b.className = 'tile'; b.innerHTML = '<span class="rk"></span>';
     let timer = 0, longed = false;
     b.addEventListener('pointerdown', () => { longed = false; clearTimeout(timer); timer = setTimeout(() => { longed = true; openBig(i); }, 450); });
     b.addEventListener('pointerup', () => { clearTimeout(timer); if (!longed) pick(i); });
@@ -917,20 +930,39 @@ function buildTiles() {
     tilesBox.appendChild(b);
   }
 }
-function updateTiles() { $$('.tile').forEach((el, i) => el.classList.toggle('isInc', !!(tiles[i] && tiles[i].inc))); }
-let busy = false;
+let busy = false, ranking = [];
+function updateTiles() { ranking = []; renderRanks(); }
+function renderRanks() {
+  $$('.tile').forEach((el, i) => {
+    const r = ranking.indexOf(i);
+    el.classList.toggle('ranked', r >= 0); el.classList.toggle('last', r === 3);
+    el.querySelector('.rk').textContent = r >= 0 ? r + 1 : '';
+  });
+  const n = ranking.length;
+  $('#leadTxt').textContent = n === 0 ? '好きな順にタップ（長押しで拡大）' : n < 3 ? `${n + 1}位をタップ` : '決定！';
+  $('#topOnly').hidden = !(n >= 1 && n < 3);
+}
+// タップで順位をつける。3枚目まで決まると4位は自動で決まって次へ
 function pick(i) {
   if (busy || !tiles[i]) return;
-  busy = true;
-  const el = $$('.tile')[i]; el.classList.add('picked');
+  const at = ranking.indexOf(i);
+  if (at >= 0) { ranking = ranking.slice(0, at); renderRanks(); return; }
+  ranking.push(i);
+  if (ranking.length === 3) ranking.push([0, 1, 2, 3].find(k => !ranking.includes(k)));
+  renderRanks();
+  if (ranking.length === 4) commit(ranking.slice(), 420);
+}
+function commit(order, wait = 160) {
+  busy = true; $('#topOnly').hidden = true;
   setTimeout(() => {
     $('#gridIn').classList.add('fade');
     setTimeout(() => {
-      choose(i); el.classList.remove('picked');
+      choose(order);
       requestAnimationFrame(() => { $('#gridIn').classList.remove('fade'); busy = false; });
     }, 160);
-  }, 140);
+  }, wait);
 }
+$('#topOnly').addEventListener('click', () => { if (ranking.length && !busy) commit(ranking.slice(0, ranking.length)); });
 function updateStats() {
   const sp = SPACE[S.stage];
   $('#roundNo').textContent = (S.round + 1) + '回目';
@@ -1034,11 +1066,11 @@ $('#expBtn').addEventListener('click', () => {
 });
 $('#csvBtn').addEventListener('click', () => {
   // 1行＝表示された1枚。選ばれたか(chosen)、ベストだったか(was_best)と、つまみ（ざっくり）または遺伝子（細かく）の値
-  const head = ['round', 'stage', 'tile', 'chosen', 'was_best', ...KNOBS.map(k => k.label), ...GENES.map(g => g.k)];
+  const head = ['round', 'stage', 'tile', 'rank', 'was_best', ...KNOBS.map(k => k.label), ...GENES.map(g => g.k)];
   const rows = [head.join(',')];
   for (const e of log) e.t.forEach((t, k) => {
     const u = e.st === 'macro' ? t.x : KNOBS.map(() => ''), z = e.st === 'macro' ? knobsToGenes(t.x) : t.x;
-    rows.push([e.r, e.st, k + 1, t.c, t.b, ...u.map(v => v === '' ? '' : (KNOBS.length && typeof v === 'number' ? v : '')), ...z].join(','));
+    rows.push([e.r, e.st, k + 1, t.c || "", t.b, ...u.map(v => v === '' ? '' : (KNOBS.length && typeof v === 'number' ? v : '')), ...z].join(','));
   });
   download(new Blob(['﻿' + rows.join('\n')], { type: 'text/csv' }), 'filter-choices.csv');
 });
