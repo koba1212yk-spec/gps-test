@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f6ece0">
+<title>フィルターさがし</title>
+<style>
+:root{
+  --ink:#4a3426; --ink2:#8d6d58; --ink3:#b39883; --card:rgba(255,251,246,.78); --line:rgba(255,255,255,.8);
+  --warm1:#f7b26e; --warm2:#ec7f45; --bg:#f4e9dc;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:radial-gradient(120% 60% at 50% 0%,#fff8ef,#f4e9dc 60%,#efdcc6);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;min-height:100%}
+body{padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;cursor:pointer;border:none;-webkit-user-select:none;user-select:none}
+.wrap{max-width:520px;margin:0 auto;padding:0 12px}
+
+header{display:flex;align-items:center;justify-content:space-between;padding:calc(10px + env(safe-area-inset-top)) 2px 8px}
+header h1{margin:0;font-family:"Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif;font-size:19px;font-weight:600;letter-spacing:.14em;
+  text-shadow:0 0 14px rgba(255,180,110,.7)}
+.hbtns{display:flex;gap:6px}
+.pill{height:34px;padding:0 14px;border-radius:17px;background:rgba(255,255,255,.7);font-size:12.5px;font-weight:700;
+  box-shadow:0 2px 10px rgba(120,70,30,.1)}
+.pill:active{transform:scale(.96)}
+
+.stage{position:sticky;top:0;z-index:5;padding:6px 0 8px;background:linear-gradient(#f8ecdf 85%,rgba(248,236,223,0))}
+.view{position:relative;height:min(52vh,560px);display:grid;place-items:center}
+#c{display:block;border-radius:14px;box-shadow:0 10px 34px rgba(120,70,30,.22);touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.badge{position:absolute;left:50%;transform:translateX(-50%);top:8px;padding:5px 12px;border-radius:14px;font-size:11.5px;font-weight:700;
+  background:rgba(255,250,244,.82);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.badge.show{opacity:1}
+#score{top:auto;bottom:8px}
+#dna{display:block;width:100%;height:30px;margin-top:8px}
+
+.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:14px;margin-top:10px;
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);box-shadow:0 6px 24px rgba(120,70,30,.1)}
+.card h2{margin:0 0 10px;font-size:12px;letter-spacing:.14em;color:var(--ink2);font-weight:700;display:flex;justify-content:space-between;align-items:center}
+.card h2 small{font-weight:600;letter-spacing:.02em;color:var(--ink3)}
+
+.play{display:flex;align-items:center;gap:10px}
+#run{flex:none;width:112px;height:52px;border-radius:26px;color:#fff;font-size:15px;font-weight:800;letter-spacing:.08em;
+  background:linear-gradient(135deg,var(--warm1),var(--warm2));box-shadow:0 8px 22px rgba(236,127,69,.35)}
+#run.stop{background:linear-gradient(135deg,#8d6d58,#5c4232);box-shadow:0 8px 22px rgba(90,60,40,.3)}
+#run:active{transform:scale(.97)}
+.nav{flex:1;display:flex;align-items:center;justify-content:center;gap:4px}
+.nav button{width:40px;height:40px;border-radius:20px;background:rgba(255,255,255,.75);font-size:16px;font-weight:800}
+.nav button:disabled{opacity:.35}
+#pos{min-width:52px;text-align:center;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink2)}
+.acts{display:flex;gap:8px;margin-top:10px}
+.act{flex:1;height:44px;border-radius:22px;background:#fff;font-size:14px;font-weight:800;box-shadow:0 3px 12px rgba(120,70,30,.1)}
+.act.like{color:#d8692e}
+.act.nope{color:#8d6d58}
+.act:active{transform:scale(.97)}
+
+.seg{display:flex;padding:3px;border-radius:18px;background:rgba(255,255,255,.55);gap:2px}
+.seg button{flex:1;height:32px;border-radius:15px;background:transparent;font-size:12.5px;font-weight:700;color:var(--ink2);white-space:nowrap}
+.seg button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(150,90,40,.15)}
+.srow{display:flex;gap:8px;align-items:center;margin-top:8px}
+.srow .seg{flex:1}
+#aiBtn{flex:none;height:38px;padding:0 14px;border-radius:19px;background:rgba(255,255,255,.55);font-size:12.5px;font-weight:800;color:var(--ink2)}
+#aiBtn.on{background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff}
+#aiBtn:disabled{opacity:.4}
+.hint{margin-top:8px;font-size:11.5px;color:var(--ink2);min-height:1em}
+
+.favs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:none}
+.favs::-webkit-scrollbar{display:none}
+.fav{position:relative;flex:none;width:66px;height:66px;border-radius:14px;background:#ddd center/cover no-repeat;
+  box-shadow:0 3px 10px rgba(120,70,30,.15);outline:2px solid transparent;outline-offset:2px;transition:outline-color .2s}
+.fav.sel{outline-color:#ec7f45}
+.fav.sel2{outline-color:#8d6d58}
+.fav span{position:absolute;left:4px;bottom:4px;padding:1px 6px;border-radius:8px;background:rgba(255,250,244,.85);font-size:10px;font-weight:800}
+.fav .del{position:absolute;right:-5px;top:-5px;width:22px;height:22px;border-radius:11px;background:#fff;font-size:11px;font-weight:900;color:#b4462c;
+  display:none;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.18)}
+.fav.sel .del{display:grid}
+.fav .del.sure{width:auto;padding:0 7px;background:#b4462c;color:#fff}
+.empty{font-size:12px;color:var(--ink3);padding:6px 2px}
+
+.ai{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+.stats{font-size:12px;color:var(--ink2);line-height:1.7}
+.stats b{color:var(--ink)}
+#loss{width:110px;height:40px}
+.aiacts{display:flex;gap:8px;margin-top:10px}
+.aiacts button{flex:1;height:40px;border-radius:20px;background:#fff;font-size:12.5px;font-weight:800;box-shadow:0 3px 10px rgba(120,70,30,.1)}
+.aiacts button.main{background:linear-gradient(135deg,var(--warm1),var(--warm2));color:#fff}
+.aiacts button:disabled{opacity:.4}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:4px;font-size:10.5px;color:var(--ink3)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:3px;vertical-align:0}
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);
+  padding:10px 18px;border-radius:20px;background:rgba(74,52,38,.92);color:#fff;font-size:13px;font-weight:700;opacity:0;
+  transition:opacity .25s,transform .25s;pointer-events:none;z-index:50;white-space:nowrap}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+input[type=file]{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>フィルターさがし</h1>
+    <div class="hbtns">
+      <button class="pill" id="pickBtn">画像</button>
+      <button class="pill" id="saveBtn">保存</button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="view" id="view">
+      <canvas id="c"></canvas>
+      <div class="badge" id="orig">元の画像</div>
+      <div class="badge" id="score"></div>
+    </div>
+    <canvas id="dna"></canvas>
+  </div>
+
+  <section class="card">
+    <div class="play">
+      <button id="run">▶ スタート</button>
+      <div class="nav">
+        <button id="prev" aria-label="前へ">‹</button>
+        <div id="pos">0/0</div>
+        <button id="next" aria-label="次へ">›</button>
+      </div>
+    </div>
+    <div class="acts">
+      <button class="act like" id="like">☆ 登録</button>
+      <button class="act nope" id="nope">✕ いまいち</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>探し方</h2>
+    <div class="seg" id="mode">
+      <button data-v="all" class="on">全体</button>
+      <button data-v="near">★のまわり</button>
+      <button data-v="mix">★を混ぜる</button>
+    </div>
+    <div class="srow">
+      <div class="seg" id="width">
+        <button data-v="near">近く</button>
+        <button data-v="mid" class="on">ふつう</button>
+        <button data-v="far">遠く</button>
+      </div>
+      <button id="aiBtn" disabled>AI</button>
+    </div>
+    <div class="hint" id="modeHint">画面全体からランダムに探します</div>
+  </section>
+
+  <section class="card">
+    <h2>登録 <small id="favCount">0</small></h2>
+    <div class="favs" id="favs"></div>
+  </section>
+
+  <section class="card">
+    <h2>AI（好み予測）<small id="aiState">データ待ち</small></h2>
+    <div class="ai">
+      <div class="stats" id="stats"></div>
+      <canvas id="loss"></canvas>
+    </div>
+    <div class="aiacts">
+      <button class="main" id="bestBtn" disabled>AIのベスト</button>
+      <button id="expBtn">書き出し</button>
+      <button id="impBtn">読み込み</button>
+    </div>
+    <div class="legend">
+      <span><i style="background:#ee8a4a"></i>色</span><span><i style="background:#6f8fb8"></i>細かさ</span>
+      <span><i style="background:#e8b931"></i>光の滲み</span><span><i style="background:#a07cc0"></i>場所</span><span><i style="background:#9a8a7c"></i>粒子</span>
+    </div>
+  </section>
+</div>
+<input type="file" id="file" accept="image/*">
+<input type="file" id="impFile" accept="application/json,.json">
+<div id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+const toast = (t, ms = 1600) => { const e = $('#toast'); e.textContent = t; e.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => e.classList.remove('show'), ms); };
+
+/* =====================================================================
+   遺伝子（フィルターの設計図）: すべて 0〜1。n は「何もしない」値
+   ===================================================================== */
+const GENES = [
+  // 色：トーンカーブ（全体） + RGBごとのずれ + 彩度
+  { k:'black',  g:'c', n:0,  label:'黒の浮き' },
+  { k:'white',  g:'c', n:0,  label:'白の沈み' },
+  { k:'mS',     g:'c', n:.5, label:'暗部' },
+  { k:'mM',     g:'c', n:.5, label:'中間' },
+  { k:'mH',     g:'c', n:.5, label:'明部' },
+  { k:'rS', g:'c', n:.5 }, { k:'rM', g:'c', n:.5 }, { k:'rH', g:'c', n:.5 },
+  { k:'gS', g:'c', n:.5 }, { k:'gM', g:'c', n:.5 }, { k:'gH', g:'c', n:.5 },
+  { k:'bS', g:'c', n:.5 }, { k:'bM', g:'c', n:.5 }, { k:'bH', g:'c', n:.5 },
+  { k:'sat',    g:'c', n:.6, label:'彩度' },
+  // 細かさ：ラプラシアンピラミッドの各帯域の倍率（細かい→粗い）
+  { k:'f0', g:'f', n:.5 }, { k:'f1', g:'f', n:.5 }, { k:'f2', g:'f', n:.5 },
+  { k:'f3', g:'f', n:.5 }, { k:'f4', g:'f', n:.5 }, { k:'f5', g:'f', n:.5 },
+  // 光の滲み
+  { k:'bloom',  g:'b', n:0 }, { k:'bThr', g:'b', n:.5 }, { k:'bSpr', g:'b', n:.5 }, { k:'bTint', g:'b', n:.5 },
+  // 場所（中心からの距離）
+  { k:'vig',    g:'p', n:0 }, { k:'haze', g:'p', n:0 }, { k:'eBlur', g:'p', n:0 }, { k:'eRad', g:'p', n:.5 },
+  // 粒子
+  { k:'grain',  g:'n', n:0 }, { k:'gSize', g:'n', n:.3 },
+];
+const D = GENES.length;
+const NEUTRAL = GENES.map(g => g.n);
+const GROUP_COLOR = { c:'#ee8a4a', f:'#6f8fb8', b:'#e8b931', p:'#a07cc0', n:'#9a8a7c' };
+const idx = Object.fromEntries(GENES.map((g, i) => [g.k, i]));
+
+// 遺伝子 → 実際の数値
+function decode(z) {
+  const G = k => z[idx[k]];
+  const off = v => (v - .5) * .24;
+  const m = [G('black') * .22, .25 + off(G('mS')), .5 + off(G('mM')), .75 + off(G('mH')), 1 - G('white') * .22];
+  const ch = c => {
+    const s = off(G(c + 'S')), mi = off(G(c + 'M')), h = off(G(c + 'H'));
+    const y = [m[0] + s * .6, m[1] + s, m[2] + mi, m[3] + h, m[4] + h * .6].map(v => clamp(v, 0, 1));
+    for (let i = 1; i < 5; i++) y[i] = Math.max(y[i], y[i - 1] + .004);
+    return y.map(v => Math.min(v, 1));
+  };
+  const tintZ = G('bTint');
+  const tint = tintZ >= .5
+    ? [1, 1 - (tintZ - .5) * .8, 1 - (tintZ - .5) * 1.3]
+    : [1 - (.5 - tintZ) * .6, 1 - (.5 - tintZ) * .3, 1];
+  return {
+    curves: [ch('r'), ch('g'), ch('b')],
+    sat: .25 + G('sat') * 1.25,
+    gains: [0, 1, 2, 3, 4, 5].map(i => Math.pow(2, (G('f' + i) - .5) * 2 * (i === 0 ? 1.1 : 1.3))),
+    bloom: G('bloom') * 3, bThr: .9 - G('bThr') * .55, bSpr: .45 + G('bSpr') * .43, tint,
+    vig: G('vig') * .6, haze: G('haze') * .7, eBlur: G('eBlur'), eRad: .3 + G('eRad') * .6,
+    grain: G('grain') * .14, gSize: 1 + G('gSize') * 2,
+  };
+}
+
+// 単調な3次補間で256段のLUTを作る
+const LUTDATA = new Uint8Array(256 * 4);
+function buildLUT(curves) {
+  const xs = [0, .25, .5, .75, 1];
+  for (let c = 0; c < 3; c++) {
+    const y = curves[c], n = 5, d = [], m = new Array(n);
+    for (let i = 0; i < n - 1; i++) d.push((y[i + 1] - y[i]) / (xs[i + 1] - xs[i]));
+    m[0] = d[0]; m[n - 1] = d[n - 2];
+    for (let i = 1; i < n - 1; i++) m[i] = d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2;
+    for (let i = 0; i < n - 1; i++) {
+      if (d[i] === 0) { m[i] = m[i + 1] = 0; continue; }
+      const a = m[i] / d[i], b = m[i + 1] / d[i], s = a * a + b * b;
+      if (s > 9) { const t = 3 / Math.sqrt(s); m[i] = t * a * d[i]; m[i + 1] = t * b * d[i]; }
+    }
+    for (let k = 0; k < 256; k++) {
+      const x = k / 255; let i = Math.min(3, Math.floor(x * 4));
+      const h = xs[i + 1] - xs[i], t = (x - xs[i]) / h;
+      const h00 = 2*t*t*t - 3*t*t + 1, h10 = t*t*t - 2*t*t + t, h01 = -2*t*t*t + 3*t*t, h11 = t*t*t - t*t;
+      const v = h00 * y[i] + h10 * h * m[i] + h01 * y[i + 1] + h11 * h * m[i + 1];
+      LUTDATA[k * 4 + c] = Math.round(clamp(v, 0, 1) * 255);
+    }
+  }
+  for (let k = 0; k < 256; k++) LUTDATA[k * 4 + 3] = 255;
+}
+
+/* =====================================================================
+   WebGL
+   ===================================================================== */
+const canvas = $('#c');
+const gl = canvas.getContext('webgl2', { antialias:false, alpha:false, depth:false, stencil:false, premultipliedAlpha:false, preserveDrawingBuffer:false });
+if (!gl) { document.body.innerHTML = '<p style="padding:40px;text-align:center">この端末ではWebGL2が使えないため動かせません</p>'; return; }
+const LV = 6;           // 細かさの帯域の数
+const BL = 7;           // 滲みの段数
+let FMT, ENC = 1;
+
+const VS = `#version 300 es
+layout(location=0) in vec2 aPos; out vec2 vUv;
+void main(){ vUv = aPos*.5+.5; gl_Position = vec4(aPos,0.,1.); }`;
+const HEAD = `#version 300 es
+precision highp float;
+in vec2 vUv; out vec4 o;
+const vec3 LUMA = vec3(.2126,.7152,.0722);
+`;
+const TENT = `
+vec3 tent(sampler2D t, vec2 uv, vec2 tx){
+  vec4 d = vec4(1.,1.,-1.,0.)*tx.xyxy;
+  vec3 s = texture(t, uv - d.xy).rgb + texture(t, uv - d.zy).rgb + texture(t, uv + d.zy).rgb + texture(t, uv + d.xy).rgb;
+  s += (texture(t, uv - d.wy).rgb + texture(t, uv + d.zw).rgb + texture(t, uv + d.xw).rgb + texture(t, uv + d.wy).rgb)*2.;
+  s += texture(t, uv).rgb*4.;
+  return s/16.;
+}`;
+const FS_SRC = HEAD + `uniform sampler2D uImg; void main(){ o = vec4(texture(uImg, vUv).rgb, 1.); }`;
+const FS_DOWN = HEAD + `
+uniform sampler2D uTex; uniform vec2 uTexel;
+void main(){
+  vec4 s = texture(uTex, vUv)*4.;
+  s += texture(uTex, vUv - uTexel); s += texture(uTex, vUv + uTexel);
+  s += texture(uTex, vUv + vec2(uTexel.x,-uTexel.y)); s += texture(uTex, vUv + vec2(-uTexel.x, uTexel.y));
+  o = s/8.;
+}`;
+// 再構成：R_k = up(R_{k+1}) + gain * (G_k - up(G_{k+1}))
+const FS_REC = HEAD + TENT + `
+uniform sampler2D uG, uGc, uRc; uniform vec2 uTc; uniform float uGain;
+void main(){
+  vec3 g = texture(uG, vUv).rgb;
+  o = vec4(tent(uRc, vUv, uTc) + uGain*(g - tent(uGc, vUv, uTc)), 1.);
+}`;
+const FS_PRE = HEAD + `
+uniform sampler2D uTex; uniform vec2 uTx; uniform float uThr, uEnc;
+vec3 lin(vec3 c){ return pow(max(c, 0.), vec3(2.2)); }
+void main(){
+  vec2 d = uTx*.5;
+  vec3 c = (lin(texture(uTex, vUv + vec2(-d.x,-d.y)).rgb) + lin(texture(uTex, vUv + vec2(d.x,-d.y)).rgb)
+          + lin(texture(uTex, vUv + vec2(-d.x, d.y)).rgb) + lin(texture(uTex, vUv + vec2(d.x, d.y)).rgb))*.25;
+  float br = max(c.r, max(c.g, c.b));
+  float knee = uThr*.5 + 1e-4;
+  float soft = clamp(br - uThr + knee, 0., 2.*knee); soft = soft*soft/(4.*knee);
+  float k = max(soft, br - uThr)/max(br, 1e-4);
+  o = vec4(c*k*(1. + 2.*smoothstep(.75, .98, br))*uEnc, 1.);
+}`;
+const FS_UP = HEAD + `
+uniform sampler2D uTex; uniform vec2 uTexel;
+void main(){
+  vec4 d = vec4(1.,1.,-1.,0.)*uTexel.xyxy;
+  vec4 s = texture(uTex, vUv - d.xy) + texture(uTex, vUv - d.zy) + texture(uTex, vUv + d.zy) + texture(uTex, vUv + d.xy);
+  s += (texture(uTex, vUv - d.wy) + texture(uTex, vUv + d.zw) + texture(uTex, vUv + d.xw) + texture(uTex, vUv + d.wy))*2.;
+  s += texture(uTex, vUv)*4.;
+  o = s/16.;
+}`;
+const FS_COMP = HEAD + TENT + `
+uniform sampler2D uR0, uLow, uBloom, uLut, uImg;
+uniform vec2 uLowTx;
+uniform float uBypass, uAspect, uEnc, uBloomAmt, uSat, uVig, uHaze, uEBlur, uERad, uGrain, uGSize, uSeed;
+uniform vec3 uTint;
+float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx)*.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x+p3.y)*p3.z); }
+vec3 tonemap(vec3 x){
+  float m = max(x.r, max(x.g, x.b));
+  float mc = m < .8 ? m : .8 + .2*(1. - exp(-(m - .8)/.2));
+  return mix(x*(mc/max(m, 1e-5)), vec3(mc), smoothstep(1., 3.5, m)*.4);
+}
+float lut(float v, int ch){ return texture(uLut, vec2((clamp(v,0.,1.)*255. + .5)/256., .5))[ch]; }
+void main(){
+  if(uBypass > .5){ o = vec4(texture(uImg, vUv).rgb, 1.); return; }
+  vec3 c = texture(uR0, vUv).rgb;
+  vec2 q = (vUv - .5)*2.;
+  float e = smoothstep(uERad, uERad + .75, length(q));
+  c = mix(c, tent(uLow, vUv, uLowTx), e*uEBlur);
+  vec3 lin = pow(max(c, 0.), vec3(2.2));
+  vec3 b = texture(uBloom, vUv).rgb/uEnc;
+  vec3 glow = mix(b, dot(b, LUMA)*uTint, .6)*uBloomAmt;
+  // 光が足されていないところは元のまま（白も沈めない）
+  float k = clamp(max(glow.r, max(glow.g, glow.b))*8., 0., 1.);
+  c = pow(mix(min(lin, vec3(1.)), tonemap(lin + glow), k), vec3(1./2.2));
+  c = vec3(lut(c.r, 0), lut(c.g, 1), lut(c.b, 2));
+  float l = dot(c, LUMA);
+  c = clamp(mix(vec3(l), c, uSat), 0., 1.);
+  c *= 1. - uVig*e;
+  c = mix(c, vec3(1., .95, .88), uHaze*e);
+  vec2 g = floor(gl_FragCoord.xy/uGSize) + uSeed;
+  l = dot(c, LUMA);
+  c += (hash(g) + hash(g*.73 + 5.1) - 1.)*uGrain*(.4 + .6*(1. - abs(l*2. - 1.)));
+  c += (hash(gl_FragCoord.xy + 7.7) - .5)/255.;
+  o = vec4(clamp(c, 0., 1.), 1.);
+}`;
+
+function compile(type, src) {
+  const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+  return s;
+}
+const vsObj = compile(gl.VERTEX_SHADER, VS);
+function program(fs) {
+  const p = gl.createProgram();
+  gl.attachShader(p, vsObj); gl.attachShader(p, compile(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS);
+  for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name] = gl.getUniformLocation(p, a.name); }
+  return { p, u };
+}
+const P = { src: program(FS_SRC), down: program(FS_DOWN), rec: program(FS_REC), pre: program(FS_PRE), up: program(FS_UP), comp: program(FS_COMP) };
+{
+  const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 3,-1, -1,3]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+}
+const draw = () => gl.drawArrays(gl.TRIANGLES, 0, 3);
+function texParams(minF) {
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minF || gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+const RGBA8 = { internal: gl.RGBA8, format: gl.RGBA, type: gl.UNSIGNED_BYTE };
+function target(w, h, fmt = FMT) {
+  w = Math.max(1, w); h = Math.max(1, h);
+  const tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, fmt.internal, w, h, 0, fmt.format, fmt.type, null); texParams();
+  const fbo = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  const ok = gl.checkFramebufferStatus(gl.FRAMEBUFFER) === gl.FRAMEBUFFER_COMPLETE;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  return { tex, fbo, w, h, ok };
+}
+const free = t => { if (t) { gl.deleteTexture(t.tex); gl.deleteFramebuffer(t.fbo); } };
+FMT = RGBA8; ENC = .25;
+if (gl.getExtension('EXT_color_buffer_float') || gl.getExtension('EXT_color_buffer_half_float')) {
+  const f = { internal: gl.RGBA16F, format: gl.RGBA, type: gl.HALF_FLOAT };
+  const t = target(4, 4, f); if (t.ok) { FMT = f; ENC = 1; } free(t);
+}
+// 出力サイズごとのバッファ一式
+function makeSet(w, h) {
+  const G = [], R = [], B = [];
+  for (let i = 0, cw = w, ch = h; i <= LV; i++) { G.push(target(cw, ch)); cw = Math.max(1, Math.round(cw / 2)); ch = Math.max(1, Math.round(ch / 2)); }
+  for (let i = 0; i < LV; i++) R.push(target(G[i].w, G[i].h));
+  for (let i = 0, cw = Math.round(w / 2), ch = Math.round(h / 2); i < BL; i++) { B.push(target(cw, ch)); cw = Math.max(1, Math.round(cw / 2)); ch = Math.max(1, Math.round(ch / 2)); }
+  return { w, h, G, R, B };
+}
+const freeSet = s => { if (s) [...s.G, ...s.R, ...s.B].forEach(free); };
+
+let imgTex = null, imgW = 0, imgH = 0;
+const lutTex = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, lutTex); texParams(gl.NEAREST);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+function bindTex(unit, t) { gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); }
+function render(z, S, fbo, bypass, seed) {
+  const F = decode(z);
+  buildLUT(F.curves);
+  gl.bindTexture(gl.TEXTURE_2D, lutTex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 256, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, LUTDATA);
+  gl.disable(gl.BLEND);
+  const { G, R, B } = S;
+  // ピラミッド
+  gl.bindFramebuffer(gl.FRAMEBUFFER, G[0].fbo); gl.viewport(0, 0, G[0].w, G[0].h);
+  gl.useProgram(P.src.p); bindTex(0, imgTex); gl.uniform1i(P.src.u.uImg, 0); draw();
+  gl.useProgram(P.down.p); gl.uniform1i(P.down.u.uTex, 0);
+  for (let i = 1; i <= LV; i++) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, G[i].fbo); gl.viewport(0, 0, G[i].w, G[i].h);
+    bindTex(0, G[i - 1].tex); gl.uniform2f(P.down.u.uTexel, 1 / G[i - 1].w, 1 / G[i - 1].h); draw();
+  }
+  // 再構成（帯域ごとに倍率）
+  gl.useProgram(P.rec.p);
+  gl.uniform1i(P.rec.u.uG, 0); gl.uniform1i(P.rec.u.uGc, 1); gl.uniform1i(P.rec.u.uRc, 2);
+  for (let k = LV - 1; k >= 0; k--) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, R[k].fbo); gl.viewport(0, 0, R[k].w, R[k].h);
+    bindTex(0, G[k].tex); bindTex(1, G[k + 1].tex); bindTex(2, k === LV - 1 ? G[LV].tex : R[k + 1].tex);
+    gl.uniform2f(P.rec.u.uTc, 1 / G[k + 1].w, 1 / G[k + 1].h);
+    gl.uniform1f(P.rec.u.uGain, F.gains[k]);
+    draw();
+  }
+  // 光の滲み
+  gl.bindFramebuffer(gl.FRAMEBUFFER, B[0].fbo); gl.viewport(0, 0, B[0].w, B[0].h);
+  gl.useProgram(P.pre.p); bindTex(0, R[0].tex);
+  gl.uniform1i(P.pre.u.uTex, 0); gl.uniform2f(P.pre.u.uTx, 1 / R[0].w, 1 / R[0].h);
+  gl.uniform1f(P.pre.u.uThr, Math.pow(F.bThr, 2.2)); gl.uniform1f(P.pre.u.uEnc, ENC); draw();
+  gl.useProgram(P.down.p);
+  for (let i = 1; i < BL; i++) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B[i].fbo); gl.viewport(0, 0, B[i].w, B[i].h);
+    bindTex(0, B[i - 1].tex); gl.uniform2f(P.down.u.uTexel, 1 / B[i - 1].w, 1 / B[i - 1].h); draw();
+  }
+  gl.useProgram(P.up.p); gl.uniform1i(P.up.u.uTex, 0);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA); gl.blendColor(0, 0, 0, F.bSpr);
+  for (let i = BL - 1; i > 0; i--) {
+    gl.bindFramebuffer(gl.FRAMEBUFFER, B[i - 1].fbo); gl.viewport(0, 0, B[i - 1].w, B[i - 1].h);
+    bindTex(0, B[i].tex); gl.uniform2f(P.up.u.uTexel, 1 / B[i].w, 1 / B[i].h); draw();
+  }
+  gl.disable(gl.BLEND);
+  // 合成
+  gl.bindFramebuffer(gl.FRAMEBUFFER, fbo); gl.viewport(0, 0, S.w, S.h);
+  const U = P.comp.u; gl.useProgram(P.comp.p);
+  bindTex(0, R[0].tex); bindTex(1, G[3].tex); bindTex(2, B[0].tex); bindTex(3, lutTex); bindTex(4, imgTex);
+  gl.uniform1i(U.uR0, 0); gl.uniform1i(U.uLow, 1); gl.uniform1i(U.uBloom, 2); gl.uniform1i(U.uLut, 3); gl.uniform1i(U.uImg, 4);
+  gl.uniform2f(U.uLowTx, 1 / G[3].w, 1 / G[3].h);
+  gl.uniform1f(U.uBypass, bypass ? 1 : 0); gl.uniform1f(U.uAspect, S.w / S.h); gl.uniform1f(U.uEnc, ENC);
+  gl.uniform1f(U.uBloomAmt, F.bloom); gl.uniform3fv(U.uTint, F.tint); gl.uniform1f(U.uSat, F.sat);
+  gl.uniform1f(U.uVig, F.vig); gl.uniform1f(U.uHaze, F.haze); gl.uniform1f(U.uEBlur, F.eBlur); gl.uniform1f(U.uERad, F.eRad);
+  gl.uniform1f(U.uGrain, F.grain); gl.uniform1f(U.uGSize, F.gSize * Math.max(1, S.w / 900)); gl.uniform1f(U.uSeed, seed || 0);
+  draw();
+  bindTex(0, null);
+}
+// 任意サイズで描いて画素を取り出す（サムネ・保存用）
+function renderToCanvas(z, w, h, seed, bp) {
+  const S = makeSet(w, h), out = target(w, h, RGBA8);
+  render(z, S, out.fbo, !!bp, seed);
+  const px = new Uint8Array(w * h * 4);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo); gl.readPixels(0, 0, w, h, gl.RGBA, gl.UNSIGNED_BYTE, px);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  freeSet(S); free(out);
+  const img = new ImageData(w, h), row = w * 4;
+  for (let y = 0; y < h; y++) img.data.set(px.subarray((h - 1 - y) * row, (h - y) * row), y * row);
+  const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').putImageData(img, 0, 0);
+  return c;
+}
+
+/* =====================================================================
+   画像
+   ===================================================================== */
+function setImage(source) {
+  let w = source.naturalWidth || source.width, h = source.naturalHeight || source.height;
+  const maxT = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE));
+  let src = source;
+  if (Math.max(w, h) > maxT) {
+    const s = maxT / Math.max(w, h), c = document.createElement('canvas');
+    c.width = Math.round(w * s); c.height = Math.round(h * s); c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+    src = c; w = c.width; h = c.height;
+  }
+  if (!imgTex) imgTex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, imgTex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  texParams(gl.LINEAR_MIPMAP_LINEAR); gl.generateMipmap(gl.TEXTURE_2D);
+  imgW = w; imgH = h;
+  layout(); dirty = true;
+}
+function storeImage(source) {
+  try {
+    const w = source.naturalWidth || source.width, h = source.naturalHeight || source.height, s = Math.min(1, 1400 / Math.max(w, h));
+    const c = document.createElement('canvas'); c.width = Math.round(w * s); c.height = Math.round(h * s);
+    c.getContext('2d').drawImage(source, 0, 0, c.width, c.height);
+    localStorage.setItem('filtlab-img', c.toDataURL('image/jpeg', .85));
+  } catch (e) { console.warn('画像を保存できませんでした', e); }
+}
+function sampleImage() {
+  // 最初の見本：夕方の海辺
+  const c = document.createElement('canvas'); c.width = 900; c.height = 1200; const x = c.getContext('2d');
+  let g = x.createLinearGradient(0, 0, 0, 760);
+  g.addColorStop(0, '#2c3f6b'); g.addColorStop(.45, '#c9798a'); g.addColorStop(.8, '#f2b071'); g.addColorStop(1, '#fbd9a0');
+  x.fillStyle = g; x.fillRect(0, 0, 900, 760);
+  g = x.createRadialGradient(560, 690, 10, 560, 690, 260); g.addColorStop(0, 'rgba(255,248,220,1)'); g.addColorStop(.25, 'rgba(255,210,150,.7)'); g.addColorStop(1, 'rgba(255,190,120,0)');
+  x.fillStyle = g; x.fillRect(0, 300, 900, 600);
+  x.fillStyle = '#fffbea'; x.beginPath(); x.arc(560, 700, 46, 0, 7); x.fill();
+  g = x.createLinearGradient(0, 760, 0, 1200); g.addColorStop(0, '#d98f6a'); g.addColorStop(.3, '#5f5a78'); g.addColorStop(1, '#2a2f45');
+  x.fillStyle = g; x.fillRect(0, 760, 900, 440);
+  x.globalAlpha = .55; x.fillStyle = '#ffe2b0';
+  for (let i = 0; i < 26; i++) x.fillRect(560 - 70 + Math.sin(i) * 40 - i * 2, 780 + i * 14, 140 + i * 4, 3);
+  x.globalAlpha = 1; x.fillStyle = '#1d1a24';
+  x.beginPath(); x.arc(250, 840, 26, 0, 7); x.fill(); x.fillRect(226, 862, 48, 150);
+  x.fillRect(0, 1010, 900, 190);
+  x.fillStyle = '#ffd27a'; [[90,1060],[160,1080],[700,1050],[800,1075]].forEach(([a,b]) => { x.beginPath(); x.arc(a, b, 9, 0, 7); x.fill(); });
+  return c;
+}
+$('#pickBtn').addEventListener('click', () => $('#file').click());
+$('#file').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => { setImage(img); storeImage(img); URL.revokeObjectURL(img.src); toast('画像を読み込みました'); };
+  img.src = URL.createObjectURL(f);
+  e.target.value = '';
+});
+
+/* =====================================================================
+   表示
+   ===================================================================== */
+let live = null, dirty = true;
+function layout() {
+  if (!imgW) return;
+  const v = $('#view'), vw = v.clientWidth, vh = v.clientHeight, a = imgW / imgH;
+  let cw = vw, ch = vw / a; if (ch > vh) { ch = vh; cw = vh * a; }
+  canvas.style.width = cw + 'px'; canvas.style.height = ch + 'px';
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
+  const m = Math.max(pw, ph); if (m > 1400) { pw = Math.round(pw * 1400 / m); ph = Math.round(ph * 1400 / m); }
+  if (!live || live.w !== pw || live.h !== ph) { canvas.width = pw; canvas.height = ph; freeSet(live); live = makeSet(pw, ph); }
+  dirty = true;
+}
+window.addEventListener('resize', layout);
+
+// DNA（遺伝子の帯）
+const dna = $('#dna'), dctx = dna.getContext('2d');
+function drawDNA(z) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), w = dna.clientWidth, h = dna.clientHeight;
+  if (dna.width !== Math.round(w * dpr)) { dna.width = Math.round(w * dpr); dna.height = Math.round(h * dpr); }
+  dctx.setTransform(dpr, 0, 0, dpr, 0, 0); dctx.clearRect(0, 0, w, h);
+  const bw = w / D, mid = h / 2;
+  dctx.fillStyle = 'rgba(120,80,50,.15)'; dctx.fillRect(0, mid - .5, w, 1);
+  for (let i = 0; i < D; i++) {
+    const v = z[i] - GENES[i].n, bh = Math.max(1.5, Math.abs(v) * (h - 2));
+    dctx.fillStyle = GROUP_COLOR[GENES[i].g];
+    dctx.globalAlpha = .35 + .65 * Math.min(1, Math.abs(v) * 2.2);
+    const x = i * bw + 1.5;
+    if (v >= 0) dctx.fillRect(x, mid - bh, bw - 3, bh); else dctx.fillRect(x, mid, bw - 3, bh);
+  }
+  dctx.globalAlpha = 1;
+}
+
+/* =====================================================================
+   探索：ランダム・履歴・登録
+   ===================================================================== */
+const STORE_KEY = 'filtlab-v1';
+let store = { favs: [], dis: [], seen: [] };
+try { const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null'); if (s && s.favs) store = { favs: s.favs, dis: s.dis || [], seen: s.seen || [] }; } catch (e) {}
+const persist = () => { try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch (e) { toast('端末の保存領域がいっぱいです'); } };
+let nextId = store.favs.reduce((m, f) => Math.max(m, f.id), 0) + 1;
+
+let cur = NEUTRAL.slice(), from = NEUTRAL.slice(), to = NEUTRAL.slice(), tStart = 0, seed = 0;
+const TRANS = 300;
+const history = []; let hPos = -1, shownAt = 0;
+let running = false, timer = 0;
+let mode = 'all', width = 'mid', ai = false, axisId = null, mixIds = [];
+const SIG = { near: .05, mid: .12, far: .25 };
+
+function show(z, instant) {
+  from = cur.slice(); to = z.slice(); tStart = instant ? -1e9 : performance.now(); seed = Math.random() * 100;
+  shownAt = performance.now(); dirty = true; updateScore();
+}
+function randomZ() { return GENES.map(g => Math.random() < .45 ? clamp(g.n + gauss() * .06, 0, 1) : Math.random()); }
+function around(base, s) { return base.map(v => clamp(v + gauss() * s, 0, 1)); }
+function mixZ(a, b, s) { return a.map((v, i) => clamp(v + (b[i] - v) * Math.random() + gauss() * s * .4, 0, 1)); }
+const favById = id => store.favs.find(f => f.id === id);
+function generate() {
+  if (mode === 'near' && favById(axisId)) return around(favById(axisId).z, SIG[width]);
+  if (mode === 'mix' && mixIds.length === 2) return mixZ(favById(mixIds[0]).z, favById(mixIds[1]).z, SIG[width]);
+  if (mode !== 'all' && store.favs.length && mode === 'near') return around(store.favs[store.favs.length - 1].z, SIG[width]);
+  return randomZ();
+}
+function candidate() {
+  if (ai && model.ready) {
+    let best = null, bs = -1;
+    const pool = []; for (let i = 0; i < 200; i++) pool.push(generate());
+    if (Math.random() < .25) return pool[0];        // 冒険枠
+    for (const z of pool) { const s = model.predict(z); if (s > bs) { bs = s; best = z; } }
+    return best;
+  }
+  return generate();
+}
+function step() {
+  // 表示し終えた候補は「見ただけ」として記録
+  if (hPos >= 0 && performance.now() - shownAt > 800) addSeen(history[hPos].z);
+  const z = candidate();
+  history.push({ z }); if (history.length > 20) history.shift();
+  hPos = history.length - 1;
+  show(z); updateNav();
+}
+function addSeen(z) {
+  store.seen.push({ z: z.map(v => +v.toFixed(4)) });
+  if (store.seen.length > 300) store.seen.splice(0, store.seen.length - 300);
+  seenSince++; if (seenSince >= 15) { seenSince = 0; persist(); scheduleTrain(); }
+}
+let seenSince = 0;
+function setRunning(r) {
+  running = r;
+  $('#run').textContent = r ? '■ ストップ' : '▶ スタート';
+  $('#run').classList.toggle('stop', r);
+  clearInterval(timer);
+  if (r) { step(); timer = setInterval(step, 1000); }
+  else persist();
+  updateNav();
+}
+function updateNav() {
+  $('#pos').textContent = history.length ? `${hPos + 1}/${history.length}` : '0/0';
+  $('#prev').disabled = running || hPos <= 0;
+  $('#next').disabled = running || hPos >= history.length - 1;
+}
+$('#run').addEventListener('click', () => setRunning(!running));
+$('#prev').addEventListener('click', () => { if (hPos > 0) { hPos--; show(history[hPos].z); updateNav(); } });
+$('#next').addEventListener('click', () => { if (hPos < history.length - 1) { hPos++; show(history[hPos].z); updateNav(); } });
+
+// 登録・いまいち（動いている最中は、反応の遅れを考えて直前の候補を対象にする）
+function targetZ() {
+  if (running && performance.now() - shownAt < 350 && hPos > 0) return history[hPos - 1].z;
+  return to;
+}
+function thumbOf(z) {
+  const s = 132 / Math.max(imgW, imgH), w = Math.max(8, Math.round(imgW * s)), h = Math.max(8, Math.round(imgH * s));
+  const c = renderToCanvas(z, w, h, 1);
+  dirty = true;
+  return c.toDataURL('image/jpeg', .8);
+}
+$('#like').addEventListener('click', () => {
+  if (!imgTex) return;
+  const z = targetZ().map(v => +v.toFixed(4));
+  if (store.favs.some(f => f.z.every((v, i) => Math.abs(v - z[i]) < 1e-3))) { toast('もう登録されています'); return; }
+  const f = { id: nextId++, z, thumb: thumbOf(z), t: Date.now() };
+  store.favs.push(f);
+  store.seen = store.seen.filter(s => dist(s.z, z) > .02);
+  persist(); renderFavs(); scheduleTrain();
+  toast(`★${f.id} を登録しました`);
+});
+$('#nope').addEventListener('click', () => {
+  const z = targetZ().map(v => +v.toFixed(4));
+  store.dis.push({ z }); if (store.dis.length > 400) store.dis.shift();
+  persist(); scheduleTrain(); updateStats();
+  toast('いまいちを記録しました');
+  if (!running) { history.push({ z: candidate() }); if (history.length > 20) history.shift(); hPos = history.length - 1; show(history[hPos].z); updateNav(); }
+});
+const dist = (a, b) => { let s = 0; for (let i = 0; i < D; i++) s += (a[i] - b[i]) ** 2; return Math.sqrt(s / D); };
+
+// 探し方
+const MODE_HINT = {
+  all: () => '画面全体からランダムに探します',
+  near: () => favById(axisId) ? `★${axisId} のまわりを探します` : '登録から軸にする★をタップしてください',
+  mix: () => mixIds.length === 2 ? `★${mixIds[0]} と ★${mixIds[1]} を混ぜて探します` : `混ぜる★を2つタップしてください（${mixIds.length}/2）`,
+};
+function setMode(m) {
+  mode = m;
+  $$('#mode button').forEach(b => b.classList.toggle('on', b.dataset.v === m));
+  $('#modeHint').textContent = MODE_HINT[m]();
+  renderFavs();
+}
+$('#mode').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setMode(b.dataset.v); });
+$('#width').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  width = b.dataset.v; $$('#width button').forEach(x => x.classList.toggle('on', x === b));
+});
+$('#aiBtn').addEventListener('click', () => { if (!model.ready) return; ai = !ai; $('#aiBtn').classList.toggle('on', ai); toast(ai ? 'AIが好みそうな候補を優先します' : 'AIをオフにしました'); });
+
+// 登録の一覧
+let delArmed = null;
+function renderFavs() {
+  const box = $('#favs'); box.innerHTML = '';
+  $('#favCount').textContent = store.favs.length + '件';
+  if (!store.favs.length) { box.innerHTML = '<div class="empty">気に入ったら「☆ 登録」。ここに残ります</div>'; return; }
+  for (const f of store.favs.slice().reverse()) {
+    const b = document.createElement('button');
+    b.className = 'fav';
+    if (mode === 'mix' ? mixIds[0] === f.id : axisId === f.id) b.classList.add('sel');
+    if (mode === 'mix' && mixIds[1] === f.id) b.classList.add('sel2');
+    b.style.backgroundImage = `url(${f.thumb})`;
+    b.innerHTML = `<span>★${f.id}</span><i class="del${delArmed === f.id ? ' sure' : ''}">${delArmed === f.id ? '消す' : '✕'}</i>`;
+    b.addEventListener('click', e => {
+      if (e.target.classList.contains('del')) {
+        if (delArmed === f.id) {
+          store.favs = store.favs.filter(x => x.id !== f.id);
+          if (axisId === f.id) axisId = null; mixIds = mixIds.filter(x => x !== f.id);
+          delArmed = null; persist(); renderFavs(); scheduleTrain(); setMode(mode); toast(`★${f.id} を消しました`);
+        } else { delArmed = f.id; renderFavs(); }
+        return;
+      }
+      delArmed = null;
+      if (mode === 'mix') {
+        mixIds = mixIds.includes(f.id) ? mixIds.filter(x => x !== f.id) : [...mixIds, f.id].slice(-2);
+        $('#modeHint').textContent = MODE_HINT.mix(); renderFavs(); return;
+      }
+      axisId = f.id;
+      if (mode === 'all') setMode('near'); else { $('#modeHint').textContent = MODE_HINT[mode](); renderFavs(); }
+      if (!running) { history.push({ z: f.z.slice() }); if (history.length > 20) history.shift(); hPos = history.length - 1; updateNav(); }
+      show(f.z);
+    });
+    box.appendChild(b);
+  }
+}
+
+/* =====================================================================
+   AI：好み予測（小さなニューラルネット）
+   入力 31（遺伝子） → 16 → 8 → 1（好き度）
+   ===================================================================== */
+const model = {
+  sizes: [D, 16, 8, 1], W: [], b: [], mW: [], vW: [], mb: [], vb: [], t: 0, ready: false, losses: [],
+  init() {
+    this.W = []; this.b = []; this.mW = []; this.vW = []; this.mb = []; this.vb = []; this.t = 0;
+    for (let l = 0; l < this.sizes.length - 1; l++) {
+      const n = this.sizes[l], m = this.sizes[l + 1], s = Math.sqrt(2 / (n + m));
+      this.W.push(Float64Array.from({ length: n * m }, () => gauss() * s)); this.b.push(new Float64Array(m));
+      this.mW.push(new Float64Array(n * m)); this.vW.push(new Float64Array(n * m)); this.mb.push(new Float64Array(m)); this.vb.push(new Float64Array(m));
+    }
+  },
+  forward(x) {
+    const acts = [Float64Array.from(x, v => (v - .5) * 2)];
+    for (let l = 0; l < this.W.length; l++) {
+      const a = acts[l], n = this.sizes[l], m = this.sizes[l + 1], out = new Float64Array(m), W = this.W[l];
+      for (let j = 0; j < m; j++) { let s = this.b[l][j]; for (let i = 0; i < n; i++) s += W[j * n + i] * a[i]; out[j] = l === this.W.length - 1 ? 1 / (1 + Math.exp(-s)) : Math.tanh(s); }
+      acts.push(out);
+    }
+    return acts;
+  },
+  predict(x) { const a = this.forward(x); return a[a.length - 1][0]; },
+  epoch(X, Y, Wt, lr) {
+    const L = this.W.length, gW = this.W.map(w => new Float64Array(w.length)), gb = this.b.map(b => new Float64Array(b.length));
+    let loss = 0, wsum = 0;
+    for (let k = 0; k < X.length; k++) {
+      const acts = this.forward(X[k]), p = acts[L][0], y = Y[k], w = Wt[k];
+      loss += -w * (y * Math.log(p + 1e-7) + (1 - y) * Math.log(1 - p + 1e-7)); wsum += w;
+      let delta = new Float64Array([(p - y) * w]);
+      for (let l = L - 1; l >= 0; l--) {
+        const n = this.sizes[l], m = this.sizes[l + 1], a = acts[l], W = this.W[l];
+        const nd = new Float64Array(n);
+        for (let j = 0; j < m; j++) { gb[l][j] += delta[j]; for (let i = 0; i < n; i++) { gW[l][j * n + i] += delta[j] * a[i]; nd[i] += W[j * n + i] * delta[j]; } }
+        if (l > 0) for (let i = 0; i < n; i++) nd[i] *= 1 - a[i] * a[i];
+        delta = nd;
+      }
+    }
+    this.t++;
+    const b1 = .9, b2 = .999, lam = 1e-3;
+    for (let l = 0; l < L; l++) {
+      for (let i = 0; i < this.W[l].length; i++) {
+        const g = gW[l][i] / wsum + lam * this.W[l][i];
+        this.mW[l][i] = b1 * this.mW[l][i] + (1 - b1) * g; this.vW[l][i] = b2 * this.vW[l][i] + (1 - b2) * g * g;
+        this.W[l][i] -= lr * (this.mW[l][i] / (1 - b1 ** this.t)) / (Math.sqrt(this.vW[l][i] / (1 - b2 ** this.t)) + 1e-8);
+      }
+      for (let j = 0; j < this.b[l].length; j++) {
+        const g = gb[l][j] / wsum;
+        this.mb[l][j] = b1 * this.mb[l][j] + (1 - b1) * g; this.vb[l][j] = b2 * this.vb[l][j] + (1 - b2) * g * g;
+        this.b[l][j] -= lr * (this.mb[l][j] / (1 - b1 ** this.t)) / (Math.sqrt(this.vb[l][j] / (1 - b2 ** this.t)) + 1e-8);
+      }
+    }
+    return loss / wsum;
+  },
+};
+model.init();
+let training = false, trainAgain = false;
+function dataset() {
+  const X = [], Y = [], W = [];
+  const pos = store.favs.map(f => f.z), dis = store.dis.map(d => d.z);
+  const seen = store.seen.map(s => s.z).filter(z => pos.every(p => dist(p, z) > .03));
+  // 好き側と嫌い側の重みの合計をそろえる（「見ただけ」は弱い嫌いとして扱う）
+  const negW = dis.length + seen.length * .2;
+  pos.forEach(z => { X.push(z); Y.push(1); W.push(1 / Math.max(1, pos.length)); });
+  dis.forEach(z => { X.push(z); Y.push(0); W.push(1 / Math.max(1, negW)); });
+  seen.forEach(z => { X.push(z); Y.push(0); W.push(.2 / Math.max(1, negW)); });
+  return { X, Y, W, nPos: pos.length, nDis: dis.length, nSeen: seen.length };
+}
+function scheduleTrain() {
+  updateStats();
+  if (training) { trainAgain = true; return; }
+  const d = dataset();
+  if (d.nPos < 2 || d.nDis + d.nSeen < 5) { model.ready = false; updateStats(); return; }
+  training = true; $('#aiState').textContent = '学習中…';
+  let ep = 0; const total = 300; let loss = 0;
+  const chunk = () => {
+    for (let i = 0; i < 25 && ep < total; i++, ep++) loss = model.epoch(d.X, d.Y, d.W, .01);
+    if (ep < total) { setTimeout(chunk, 0); return; }
+    model.ready = true; model.losses.push(loss); if (model.losses.length > 40) model.losses.shift();
+    training = false; updateStats(); drawLoss(); updateScore();
+    if (trainAgain) { trainAgain = false; scheduleTrain(); }
+  };
+  setTimeout(chunk, 0);
+}
+function updateStats() {
+  const d = dataset();
+  $('#stats').innerHTML = `好き <b>${d.nPos}</b>　いまいち <b>${d.nDis}</b>　見ただけ <b>${d.nSeen}</b><br>` +
+    (model.ready ? `誤差 <b>${model.losses[model.losses.length - 1].toFixed(3)}</b>（小さいほど好みを覚えている）` : (d.nPos < 2 ? '★を2つ以上登録すると学習を始めます' : 'もう少し候補を見ると学習を始めます'));
+  if (!training) $('#aiState').textContent = model.ready ? '学習済み' : 'データ待ち';
+  $('#aiBtn').disabled = !model.ready; $('#bestBtn').disabled = !model.ready;
+  if (!model.ready && ai) { ai = false; $('#aiBtn').classList.remove('on'); }
+}
+function drawLoss() {
+  const c = $('#loss'), x = c.getContext('2d'), dpr = Math.min(window.devicePixelRatio || 1, 2), w = c.clientWidth, h = c.clientHeight;
+  c.width = w * dpr; c.height = h * dpr; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.clearRect(0, 0, w, h);
+  const L = model.losses; if (L.length < 1) return;
+  const mx = Math.max(...L, .1);
+  x.strokeStyle = '#ec7f45'; x.lineWidth = 2; x.lineJoin = 'round'; x.beginPath();
+  L.forEach((v, i) => { const px = L.length === 1 ? w / 2 : i / (L.length - 1) * (w - 4) + 2, py = h - 3 - v / mx * (h - 8); i ? x.lineTo(px, py) : x.moveTo(px, py); });
+  x.stroke();
+  x.fillStyle = '#b39883'; x.font = '9px sans-serif'; x.fillText('誤差の推移', 2, 9);
+}
+function updateScore() {
+  const el = $('#score');
+  if (!model.ready) { el.classList.remove('show'); return; }
+  el.textContent = `AIの予想：${Math.round(model.predict(to) * 100)}点`; el.classList.add('show');
+}
+$('#bestBtn').addEventListener('click', () => {
+  if (!model.ready) return;
+  if (running) setRunning(false);
+  let best = null, bs = -1;
+  for (let i = 0; i < 3000; i++) {
+    const z = (store.favs.length && Math.random() < .6) ? around(store.favs[(Math.random() * store.favs.length) | 0].z, .12) : randomZ();
+    const s = model.predict(z); if (s > bs) { bs = s; best = z; }
+  }
+  history.push({ z: best }); if (history.length > 20) history.shift(); hPos = history.length - 1;
+  show(best); updateNav(); toast(`AIのベスト：予想 ${Math.round(bs * 100)}点`);
+});
+
+// 書き出し・読み込み
+$('#expBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ app: 'filtlab', v: 1, genes: GENES.map(g => g.k), ...store })], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'filter-data.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+$('#impBtn').addEventListener('click', () => $('#impFile').click());
+$('#impFile').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d.favs) throw new Error('形式が違います');
+    store = { favs: d.favs, dis: d.dis || [], seen: d.seen || [] };
+    nextId = store.favs.reduce((m, x) => Math.max(m, x.id), 0) + 1;
+    persist(); renderFavs(); model.init(); model.losses = []; scheduleTrain(); toast('読み込みました');
+  } catch (err) { toast('読み込めませんでした'); }
+});
+
+// 保存（元の解像度で）
+$('#saveBtn').addEventListener('click', async () => {
+  if (!imgTex) return;
+  const s = Math.min(1, 3000 / Math.max(imgW, imgH)), w = Math.round(imgW * s), h = Math.round(imgH * s);
+  const c = renderToCanvas(to, w, h, seed); dirty = true;
+  const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', .92));
+  const name = `filter_${Date.now()}.jpg`, file = new File([blob], name, { type: 'image/jpeg' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+
+// 長押しで元の画像
+let bypass = false;
+const orig = $('#orig');
+canvas.addEventListener('pointerdown', e => { try { canvas.setPointerCapture(e.pointerId); } catch (_) {} bypass = true; orig.classList.add('show'); dirty = true; });
+['pointerup', 'pointercancel'].forEach(ev => canvas.addEventListener(ev, () => { bypass = false; orig.classList.remove('show'); dirty = true; }));
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/* =====================================================================
+   描画ループ（変化があるときだけ描く）
+   ===================================================================== */
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (!imgTex || !live) return;
+  const t = tStart < 0 ? 1 : clamp((now - tStart) / TRANS, 0, 1);
+  if (t < 1 || dirty) {
+    const e = t * t * (3 - 2 * t);
+    for (let i = 0; i < D; i++) cur[i] = from[i] + (to[i] - from[i]) * e;
+    render(cur, live, null, bypass, seed);
+    drawDNA(cur);
+    dirty = t < 1;
+  }
+}
+
+/* ---------- 起動 ---------- */
+(function boot() {
+  const saved = localStorage.getItem('filtlab-img');
+  const go = src => { setImage(src); renderFavs(); updateStats(); updateNav(); scheduleTrain(); drawDNA(cur); requestAnimationFrame(frame); };
+  if (saved) { const img = new Image(); img.onload = () => go(img); img.onerror = () => go(sampleImage()); img.src = saved; }
+  else { go(sampleImage()); setTimeout(() => toast('右上の「画像」から好きな写真を選べます', 2600), 600); }
+})();
+
+// テスト用
+window.__lab = { show, decode, get to() { return to.slice(); }, get store() { return store; }, model, setRunning, NEUTRAL, D,
+  renderToCanvas, randomZ, around };
+})();
+</script>
+</body>
+</html>
