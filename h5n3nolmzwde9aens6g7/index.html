@@ -108,6 +108,23 @@ header{gap:8px;padding-bottom:8px}
 .vtop{position:absolute;right:8px;top:8px;display:flex;gap:6px}
 .empty2{position:absolute;inset:0;display:grid;place-items:center;color:#d9c4b2;font-size:14px;font-weight:800}
 #noImg[hidden]{display:none}
+#cam.adj #camView{bottom:46vh}
+#camOv{position:absolute;left:0;top:0;pointer-events:none}
+#camPanel{position:absolute;left:0;right:0;bottom:0;height:46vh;display:none;flex-direction:column;background:rgba(248,236,223,.97);border-radius:18px 18px 0 0;
+  -webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px)}
+#cam.adj #camPanel{display:flex}
+#cam.adj .camBottom{bottom:calc(46vh + 12px)}
+#cam.adj #camShutter{width:64px;height:64px}
+.cbtn.on{background:#ffd6a6}
+.cpTop{display:flex;gap:6px;padding:10px 10px 6px;align-items:center}
+.cpTop .mv{flex:none;height:32px;padding:0 12px;border-radius:16px;background:#fff;font-size:12px;font-weight:800;box-shadow:0 2px 6px rgba(120,70,30,.12)}
+.cpTop .mv.on{background:#ffd6a6}
+.cpTabs{flex:1;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.cpTabs::-webkit-scrollbar{display:none}
+.cpTabs button{flex:none;height:32px;padding:0 11px;border-radius:16px;background:rgba(255,255,255,.55);font-size:12px;font-weight:800;color:var(--ink3);display:flex;align-items:center;gap:5px}
+.cpTabs button i{width:8px;height:8px;border-radius:3px}
+.cpTabs button.on{background:#fff;color:var(--ink);box-shadow:0 2px 8px rgba(150,90,40,.15)}
+.cpBody{flex:1;overflow-y:auto;padding:0 10px calc(10px + env(safe-area-inset-bottom))}
 .tbar{display:flex;gap:6px;margin-top:8px}
 .tbar button{height:40px;border-radius:20px;background:#fff;font-size:12.5px;font-weight:800;box-shadow:0 3px 10px rgba(120,70,30,.1);padding:0 12px}
 .tbar button:disabled{opacity:.35}
@@ -194,7 +211,12 @@ input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:11px;ba
   <div class="camBottom">
     <button id="camThumb" aria-label="フォルダ"></button>
     <button id="camShutter" aria-label="撮影"></button>
-    <span style="width:52px"></span>
+    <button class="cbtn wide" id="camAdj">調整</button>
+  </div>
+  <canvas id="camOv"></canvas>
+  <div id="camPanel">
+    <div class="cpTop"><button id="cpMove" class="mv">動かす</button><div class="cpTabs" id="cpTabs"></div></div>
+    <div class="cpBody" id="cpBody"></div>
   </div>
   <div id="camFlash"></div>
   <div class="camMsg" id="camMsg"></div>
@@ -954,12 +976,20 @@ $('#sizeBtn').addEventListener('click', () => { big = !big; $('#viewArea').class
 $('#moveBtn').addEventListener('click', () => { moving = !moving; $('#moveBtn').classList.toggle('on', moving); need = true; });
 
 /* ---------- 動かす：ピント・光の玉・プリズムのつまみを画像の上で ---------- */
+function applyGrab(id, u, v, asp) {
+  const G = (k, val) => { V[lp(k)] = r4(clamp(val, 0, 1)); };
+  if (id === 'focus') { G('fX', u); G('fY', v); }
+  else if (id === 'prism') {
+    const dx = (u - .5) * asp / 3, dy = (v - .5) / 3;
+    V[lp('pA')] = r4(wrap(Math.atan2(dy, dx) / (Math.PI * 2))); G('pD', Math.hypot(dx, dy) / .12);
+  } else { const i = id.slice(3); G('o' + i + 'X', u); G('o' + i + 'Y', v); }
+}
 const lp = k => D + lidx[k];
-function handles() {
+function handles(asp = imgW / imgH) {
   const H = [], G = k => V[lp(k)];
   H.push({ id: 'focus', x: G('fX'), y: G('fY'), r: .03 + G('fR') * .7, col: '#3aa0c8', on: G('fA') > .01 });
   for (let i = 0; i < 4; i++) H.push({ id: 'orb' + i, x: G('o' + i + 'X'), y: G('o' + i + 'Y'), r: .02 + G('o' + i + 'R') * .5, col: '#ec7f45', on: G('o' + i + 'S') + G('o' + i + 'T') + G('o' + i + 'V') > .01, n: i + 1 });
-  const a = G('pA') * Math.PI * 2, d = G('pD') * .12, asp = imgW / imgH;
+  const a = G('pA') * Math.PI * 2, d = G('pD') * .12;
   H.push({ id: 'prism', x: .5 + Math.cos(a) * d / asp * 3, y: .5 + Math.sin(a) * d * 3, r: 0, col: '#7f77dd', on: G('pS') > .01 });
   return H;
 }
@@ -1009,15 +1039,7 @@ function drawOverlay() {
     }
     if (!grab) return;
     const [u, v] = toUv(e.clientX, e.clientY);
-    if (grab.h) {
-      const G = (k, val) => { V[lp(k)] = r4(clamp(val, 0, 1)); };
-      if (grab.h === 'focus') { G('fX', u); G('fY', v); }
-      else if (grab.h === 'prism') {
-        const asp = imgW / imgH, dx = (u - .5) * asp / 3, dy = (v - .5) / 3;
-        V[lp('pA')] = r4(wrap(Math.atan2(dy, dx) / (Math.PI * 2))); G('pD', Math.hypot(dx, dy) / .12);
-      } else { const i = grab.h.slice(3); G('o' + i + 'X', u); G('o' + i + 'Y', v); }
-      need = true; syncRows();
-    } else if (grab.split) { split = clamp(u, 0, 1); need = true; }
+    if (grab.h) { applyGrab(grab.h, u, v, imgW / imgH); need = true; syncRows(); } else if (grab.split) { split = clamp(u, 0, 1); need = true; }
     else if (grab.pan && zoom > 1) { pan = [grab.p0[0] + e.clientX - grab.x, grab.p0[1] + e.clientY - grab.y]; applyZoom(); }
   });
   const up = e => {
@@ -1050,7 +1072,23 @@ function fmtV(i, v) {
   if (two(i)) { const x = (v - .5) * 2; return (x > .0005 ? '+' : '') + x.toFixed(3); }
   return v.toFixed(3);
 }
-const rowEls = [];
+const rowEls = [], camRows = [];
+// カメラで「記録」を選んで撮っているときにいじったら、その記録を写した「いま」に切り替える
+function beforeEdit() { if (camOpen && cam.sel !== 'now') { V = camV().slice(); cam.sel = 'now'; buildCamChips(); } }
+function makeRow(i, list) {
+  const row = document.createElement('div'); row.className = 'row';
+  row.innerHTML = `<button class="lb">${PDEF[i].label}</button><button class="nb">−</button><input type="range" min="0" max="1" step="0.001"><button class="nb">＋</button><span class="vl"></span>`;
+  const rg = row.querySelector('input'), [mi, pl] = row.querySelectorAll('.nb');
+  rg.addEventListener('pointerdown', () => { beforeEdit(); pushUndo(); });
+  rg.addEventListener('input', () => { V[i] = r4(+rg.value); need = true; syncRow(i); });
+  rg.addEventListener('change', () => { persist(); scoreSoon(); });
+  const nudge = d => { beforeEdit(); pushUndo(); V[i] = r4(CYC.has(i) ? wrap(V[i] + d) : clamp(V[i] + d, 0, 1)); need = true; syncRow(i); persist(); scoreSoon(); };
+  mi.addEventListener('click', () => nudge(-.005)); pl.addEventListener('click', () => nudge(.005));
+  let lt = 0;
+  row.querySelector('.lb').addEventListener('click', () => { const n = performance.now(); if (n - lt < 320) { beforeEdit(); pushUndo(); V[i] = PN[i]; need = true; syncRow(i); persist(); scoreSoon(); } lt = n; });
+  list[i] = { row, rg, vl: row.querySelector('.vl') };
+  return row;
+}
 function buildGroups() {
   const box = $('#groups'); box.innerHTML = '';
   for (const g of PGROUPS) {
@@ -1062,27 +1100,16 @@ function buildGroups() {
       openG[g.k] = openG[g.k] ? 0 : 1; el.classList.toggle('open', !!openG[g.k]); persist();
     });
     const gb = el.querySelector('.gb'); box.appendChild(el);
-    for (const i of ids) {
-      const row = document.createElement('div'); row.className = 'row';
-      row.innerHTML = `<button class="lb">${PDEF[i].label}</button><button class="nb">−</button><input type="range" min="0" max="1" step="0.001"><button class="nb">＋</button><span class="vl"></span>`;
-      const rg = row.querySelector('input'), [mi, pl] = row.querySelectorAll('.nb');
-      rg.addEventListener('pointerdown', () => pushUndo());
-      rg.addEventListener('input', () => { V[i] = r4(+rg.value); need = true; syncRow(i); });
-      rg.addEventListener('change', () => { persist(); scoreSoon(); });
-      const nudge = d => { pushUndo(); V[i] = r4(CYC.has(i) ? wrap(V[i] + d) : clamp(V[i] + d, 0, 1)); need = true; syncRow(i); persist(); scoreSoon(); };
-      mi.addEventListener('click', () => nudge(-.005)); pl.addEventListener('click', () => nudge(.005));
-      let lt = 0;
-      row.querySelector('.lb').addEventListener('click', () => { const n = performance.now(); if (n - lt < 320) { pushUndo(); V[i] = PN[i]; need = true; syncRow(i); persist(); scoreSoon(); } lt = n; });
-      rowEls[i] = { row, rg, vl: row.querySelector('.vl'), grp: el };
-      gb.appendChild(row);
-    }
+    for (const i of ids) { gb.appendChild(makeRow(i, rowEls)); rowEls[i].grp = el; }
   }
   syncRows();
 }
 function syncRow(i) {
-  const R = rowEls[i]; if (!R) return;
-  if (document.activeElement !== R.rg) R.rg.value = V[i];
-  R.vl.textContent = fmtV(i, V[i]); R.row.classList.toggle('chg', Math.abs(V[i] - PN[i]) > 1e-4);
+  for (const R of [rowEls[i], camRows[i]]) {
+    if (!R) continue;
+    if (document.activeElement !== R.rg) R.rg.value = V[i];
+    R.vl.textContent = fmtV(i, V[i]); R.row.classList.toggle('chg', Math.abs(V[i] - PN[i]) > 1e-4);
+  }
 }
 function syncRows() {
   for (let i = 0; i < NP; i++) syncRow(i);
@@ -1129,6 +1156,7 @@ function pairLoss(v) {
 let scT = 0;
 function scoreSoon() { clearTimeout(scT); scT = setTimeout(score, 180); }
 function score() {
+  if (camOpen) return;
   if (!imgTex || !tLab || fitting) { if (!tLab) $('#diffTxt').innerHTML = '差 <b>-</b>'; return; }
   $('#diffTxt').innerHTML = `差 <b>${pairLoss(V).toFixed(2)}</b>`; need = true;
 }
@@ -1328,6 +1356,8 @@ function closeCam() {
   if (cam.stream) { cam.stream.getTracks().forEach(t => t.stop()); cam.stream = null; }
   srcTex = null; srcCrop = [0, 0, 1, 1]; srcMirror = 0;
   $('#viewIn').insertBefore(canvas, $('#ov')); freeSet(cam.set); cam.set = null; layout();
+  $('#cam').classList.remove('adj'); $('#camAdj').classList.remove('on'); camRows.length = 0; $('#cpBody').innerHTML = '';
+  changed(false); score();
 }
 const coverCrop = (vw, vh, ca) => { const va = vw / vh; if (va > ca) { const s = ca / va; return [(1 - s) / 2, 0, s, 1]; } const s = va / ca; return [0, (1 - s) / 2, 1, s]; };
 function upCam() {
@@ -1344,6 +1374,7 @@ function camFrame() {
   if (!cam.set || cam.set.w !== w || cam.set.h !== h) { freeSet(cam.set); cam.set = makeSet(w, h); }
   upCam(); srcTex = cam.tex; srcCrop = coverCrop(v.videoWidth, v.videoHeight, w / h); srcMirror = cam.mirror ? 1 : 0;
   const cv = camV(); render(Zof(cv), cam.set, null, false, 7, 0, 0, null, Lof(cv));
+  drawCamOverlay();
 }
 async function camShoot() {
   const v = cam.video; if (!cam.stream || !v.videoWidth) return;
@@ -1358,6 +1389,47 @@ async function camShoot() {
   try { await dbAdd('photos', { blob, thumb: tc.toDataURL('image/jpeg', .75), rec: { V: cv.map(r4), t: Date.now(), w, h } }); updThumb(); } catch (e) { toast('保存できませんでした'); }
 }
 async function updThumb() { try { const a = await dbAll('photos'); a.sort((x, y) => y.rec.t - x.rec.t); $('#camThumb').style.backgroundImage = a[0] ? `url(${a[0].thumb})` : ''; } catch (e) {} }
+// カメラの中で調整：グループを選んでつまみ、映像の上で動かす
+let camG = 'focus', camMove = false;
+function buildCamPanel() {
+  $('#cpTabs').innerHTML = PGROUPS.map(g => `<button data-g="${g.k}" class="${g.k === camG ? 'on' : ''}"><i style="background:${g.color}"></i>${g.label}</button>`).join('');
+  const body = $('#cpBody'); body.innerHTML = ''; camRows.length = 0;
+  PDEF.forEach((p, i) => { if (p.g === camG) body.appendChild(makeRow(i, camRows)); });
+  syncRows();
+}
+$('#cpTabs').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; camG = b.dataset.g; buildCamPanel(); });
+$('#camAdj').addEventListener('click', () => { const on = !$('#cam').classList.contains('adj'); $('#cam').classList.toggle('adj', on); $('#camAdj').classList.toggle('on', on); if (on) buildCamPanel(); });
+$('#cpMove').addEventListener('click', () => { camMove = !camMove; $('#cpMove').classList.toggle('on', camMove); });
+function drawCamOverlay() {
+  const ov = $('#camOv'), box = $('#camView'), dpr = Math.min(window.devicePixelRatio || 1, 2), W = box.clientWidth, H = box.clientHeight;
+  if (ov.width !== Math.round(W * dpr) || ov.height !== Math.round(H * dpr)) { ov.width = Math.round(W * dpr); ov.height = Math.round(H * dpr); ov.style.width = W + 'px'; ov.style.height = H + 'px'; }
+  const x = ov.getContext('2d'); x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, ov.width, ov.height);
+  if (!camMove || !$('#cam').classList.contains('adj')) return;
+  x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  for (const h of handles(W / H)) {
+    const px = h.x * W, py = (1 - h.y) * H;
+    x.globalAlpha = h.on ? 1 : .45; x.strokeStyle = h.col; x.lineWidth = 2;
+    if (h.id === 'prism') { x.beginPath(); x.moveTo(W / 2, H / 2); x.lineTo(px, py); x.stroke(); }
+    else if (h.r) { x.setLineDash([5, 4]); x.beginPath(); x.arc(px, py, h.r * H, 0, 7); x.stroke(); x.setLineDash([]); }
+    x.fillStyle = '#fff'; x.beginPath(); x.arc(px, py, 11, 0, 7); x.fill(); x.stroke();
+    if (h.n) { x.fillStyle = h.col; x.font = '900 12px sans-serif'; x.textAlign = 'center'; x.fillText(h.n, px, py + 4); }
+  }
+  x.globalAlpha = 1;
+}
+(() => {
+  const box = $('#camView'); let grab = null;
+  const uv = e => { const r = box.getBoundingClientRect(); return [(e.clientX - r.left) / r.width, 1 - (e.clientY - r.top) / r.height, r.width / r.height, r]; };
+  box.addEventListener('pointerdown', e => {
+    if (!camMove || !$('#cam').classList.contains('adj')) return;
+    const [u, v, asp, r] = uv(e); let best = null, bd = 1e9;
+    for (const h of handles(asp)) { const d = Math.hypot((h.x - u) * r.width, (h.y - v) * r.height); if (d < bd) { bd = d; best = h; } }
+    if (!best || bd > 48) return;
+    beforeEdit(); pushUndo(); grab = best.id; try { box.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  box.addEventListener('pointermove', e => { if (!grab) return; const [u, v, asp] = uv(e); applyGrab(grab, clamp(u, 0, 1), clamp(v, 0, 1), asp); syncRows(); });
+  const up = () => { if (grab) { grab = null; persist(); } };
+  box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+})();
 $('#camBtn').addEventListener('click', openCam);
 $('#camClose').addEventListener('click', closeCam);
 $('#camShutter').addEventListener('click', camShoot);
