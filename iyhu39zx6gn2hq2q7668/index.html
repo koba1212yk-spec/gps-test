@@ -235,6 +235,7 @@ header{gap:10px}
 .zbar{display:flex;justify-content:center;gap:8px;padding:10px 10px calc(12px + env(safe-area-inset-bottom))}
 .zbar .cbtn.on{background:#ffd6a6}
 .tool:disabled{opacity:.35}
+.stage button[hidden]{display:none}
 
 </style>
 </head>
@@ -1305,11 +1306,13 @@ function curView() {
   if (!stageReady()) return { z: S.zBest, leak: null };
   const x = st.x(); return { z: st.z(x), leak: st.lk(x) };
 }
-// カメラの「いまのいちばん」：色補正と光漏れを合わせたもの
+// カメラの「いまのいちばん」：色補正と光漏れを合わせたもの（お手本モードは色補正だけ）
 function camBest() {
   if (S.stage === 'betw' && stageReady()) return bwOut(S.bw.x);
-  return { z: S.zBest, leak: S.leakUsed ? S.lBest : null };
+  return { z: S.zBest, leak: S.leakUsed && ctxKey === 'pref' ? S.lBest : null };
 }
+// お手本モードには光漏れと★の間はない
+function fixStage() { if (ctxKey === 'ref' && (S.stage === 'leak' || S.stage === 'betw')) S.stage = 'fine'; }
 
 function perturb(base, s, free, st) {
   if (S.stage === 'betw' && S.bw.mode === 'mix') return normW(base.map(v => v + gauss() * s)).map(r4);
@@ -1331,6 +1334,7 @@ function dirichlet(n) { const g = []; for (let i = 0; i < n; i++) g.push(-Math.l
 
 // 次の4枚：いちばん＋「好き度＋0.5×自信のなさ」が高い3枚（並びはランダム）
 function makeRound() {
+  fixStage();
   if (S.stage === 'betw') bwSync();
   if (!stageReady()) { tiles = []; updateTiles(); dirty = true; updateStats(); return; }
   const st = ST[S.stage], sp = SPACE[S.stage], gp = sp.gp, inc = st.x().slice(), sg = sp.sigma, dist = DIST[S.stage];
@@ -1604,6 +1608,7 @@ function commitManual() { undoStack = []; makeRound(); computeAnalysis(); persis
 function drawCurves() {
   if (!curves || !curves.length) return;
   const ks = knobSet(), rows = $$('.krow');
+  if (!rowsFor || rowsFor.split('|')[0] !== ks.key || curves.length !== ks.n) return;   // 段階を切り替えた直後（並びの作り直し前）
   let lo = Infinity, hi = -Infinity;
   shown.forEach(j => { const c = curves[j]; if (c) c.mu.forEach((m, k) => { lo = Math.min(lo, m - c.sd[k] * .5); hi = Math.max(hi, m + c.sd[k] * .5); }); });
   if (hi - lo < .5) { const mid = (hi + lo) / 2; lo = mid - .25; hi = mid + .25; }
@@ -1793,7 +1798,8 @@ function updateStats() {
 }
 function updateStageUI() {
   $$('#critSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === ctxKey));
-  $$('#stageSeg button').forEach(b => b.classList.toggle('on', b.dataset.v === S.stage));
+  fixStage();
+  $$('#stageSeg button').forEach(b => { b.classList.toggle('on', b.dataset.v === S.stage); b.hidden = ctxKey === 'ref' && (b.dataset.v === 'leak' || b.dataset.v === 'betw'); });
   const ref = ctxKey === 'ref';
   $('#refBar').hidden = !ref; $('#refTools').hidden = !ref; $('#cmpCard').hidden = !ref;
   $('#baseRow').hidden = S.stage !== 'leak'; $('#bwRow').hidden = S.stage !== 'betw';
@@ -1919,7 +1925,12 @@ function renderFavs() {
         if (k >= 0) S.bw.ids.splice(k, 1); else if (S.bw.ids.length < 5) S.bw.ids.push(f.id); else { toast('5個まで'); return; }
         bwCache.key = null; bwSync(); makeRound(); computeAnalysis(); persist(); renderFavs(); return;
       }
-      if (f.leak) {
+      if (ctxKey === 'ref') {
+        // お手本モードは色補正だけ（光漏れは使わない）
+        if (f.u && f.u.length === KD) S.uBest = f.u.slice();
+        S.zBest = padZ(f.z).slice();
+        if (!f.u && S.stage === 'macro') S.stage = 'fine';
+      } else if (f.leak) {
         S.lBest = f.leak.slice(); S.leakUsed = true; S.zBest = padZ(f.z).slice(); S.base = distPlain(S.zBest, NEUTRAL) < 1e-3 ? 'orig' : 'grade'; S.stage = 'leak';
       } else if (S.stage === 'leak') {
         S.zBest = padZ(f.z).slice(); if (f.u) S.uBest = f.u.slice(); S.base = 'grade';
